@@ -53,7 +53,7 @@ create table reflections (
 create table monthly_goals (
     id bigserial primary key,
     user_id bigint not null references users(id),
-    month char(7) not null,
+    month varchar(7) not null,
     goal text not null,
     unique (user_id, month)
 );
