@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Yeosal",
+    "slug": "yeosal",
+    "scheme": "yeosal",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/brand/icon.png",
+    "splash": {
+      "image": "./assets/brand/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8F3E7"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.yeosal.mobile"
+    },
+    "android": {
+      "package": "app.yeosal.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/icon.png",
+        "backgroundColor": "#F8F3E7"
+      }
+    }
+  }
+}

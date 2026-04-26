@@ -1,0 +1,476 @@
+# Yeosal 실행, 테스트, 빌드, 서버 배포 가이드
+
+이 문서는 `yeosal/` 루트에서 시작한다고 가정합니다.
+
+```bash
+cd /Users/rearleg/dev/codex-test/yeosal
+```
+
+## 1. 기본 준비
+
+필수 설치:
+
+- Node.js와 npm
+- Android Studio, Android SDK, Android Emulator
+- Xcode
+- Docker Desktop
+- Java 21
+- Gradle
+
+현재 프로젝트 검증:
+
+```bash
+bash scripts/verify.sh
+```
+
+검증 항목:
+
+- FE lint
+- FE TypeScript typecheck
+- FE Jest
+- BE Gradle test
+- BE Gradle build
+- Docker daemon이 실행 중이면 BE Docker image build
+
+## 2. FE 의존성 설치
+
+처음 한 번 실행합니다.
+
+```bash
+cd FE
+npm install
+```
+
+루트 npm workspace를 쓰고 싶으면 루트에서도 가능합니다.
+
+```bash
+npm install
+```
+
+## 3. Android Emulator에서 앱 실행
+
+Android Studio에서 emulator를 먼저 켭니다.
+
+그 다음:
+
+```bash
+cd FE
+npm run android
+```
+
+React/Expo dependency를 바꾼 직후에는 Metro cache를 비우고 다시 실행합니다.
+
+```bash
+cd FE
+npx expo start -c
+```
+
+터미널에서 `a`를 누르면 Android emulator로 실행됩니다.
+
+Metro 서버만 먼저 띄우고 싶으면:
+
+```bash
+cd FE
+npm start
+```
+
+Expo Go로 테스트할 수도 있습니다.
+
+```bash
+cd FE
+npm start
+```
+
+터미널 또는 브라우저에 뜨는 QR/URL을 Expo Go에서 엽니다.
+
+## 4. iOS Simulator에서 앱 실행
+
+Xcode를 한 번 열어서 license와 component 설치를 마친 뒤 실행합니다.
+
+```bash
+cd FE
+npm run ios
+```
+
+Metro 서버만 먼저 띄우고 싶으면:
+
+```bash
+cd FE
+npm start
+```
+
+이후 터미널에서 `i`를 누르면 iOS Simulator로 실행됩니다.
+
+## 5. FE 로컬 테스트 명령
+
+```bash
+cd FE
+npm run lint
+npm run typecheck
+npm test
+```
+
+한 번에 전체 검증:
+
+```bash
+cd ..
+bash scripts/test.sh
+```
+
+## 6. Android APK 빌드
+
+### 방법 A: EAS로 APK 만들기
+
+Expo managed workflow에서 가장 안전한 방법입니다.
+
+처음 한 번 EAS CLI를 설치합니다.
+
+```bash
+npm install -g eas-cli
+```
+
+Expo 계정에 로그인합니다.
+
+```bash
+eas login
+```
+
+APK 빌드:
+
+```bash
+cd FE
+eas build --platform android --profile preview
+```
+
+`preview` 프로파일은 `FE/eas.json`에 `android.buildType = apk`로 설정되어 있습니다. 빌드가 끝나면 EAS가 APK 다운로드 링크를 출력합니다.
+
+다운로드한 APK를 emulator 또는 연결된 Android 기기에 설치:
+
+```bash
+adb install path/to/app.apk
+```
+
+이미 같은 앱이 설치되어 있으면 덮어쓰기:
+
+```bash
+adb install -r path/to/app.apk
+```
+
+프로덕션 AAB 빌드:
+
+```bash
+cd FE
+eas build --platform android --profile production
+```
+
+Google Play 배포에는 일반적으로 APK가 아니라 AAB를 사용합니다.
+
+### 방법 B: 로컬 Gradle APK 빌드
+
+Expo native Android 프로젝트를 생성합니다.
+
+```bash
+cd FE
+npx expo prebuild --platform android
+```
+
+Debug APK:
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+결과물:
+
+```text
+FE/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Debug APK를 emulator에 설치:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Release APK:
+
+```bash
+cd FE/android
+./gradlew assembleRelease
+```
+
+결과물:
+
+```text
+FE/android/app/build/outputs/apk/release/app-release.apk
+```
+
+주의: release APK를 실제 기기에 설치하려면 signing 설정이 필요합니다. EAS `preview` 빌드는 이 과정을 대신 처리해 주므로 MVP 단계에서는 EAS 방식을 권장합니다.
+
+## 7. iOS 빌드
+
+### iOS Simulator 빌드
+
+```bash
+cd FE
+npx expo run:ios
+```
+
+### EAS iOS 빌드
+
+iOS 실기기 설치용 빌드는 Apple Developer 계정이 필요합니다.
+
+```bash
+cd FE
+eas build --platform ios --profile development
+```
+
+App Store/TestFlight용 production 빌드:
+
+```bash
+cd FE
+eas build --platform ios --profile production
+```
+
+### 로컬 Xcode 빌드
+
+native iOS 프로젝트를 생성합니다.
+
+```bash
+cd FE
+npx expo prebuild --platform ios
+```
+
+Xcode에서 열기:
+
+```bash
+open ios/Yeosal.xcworkspace
+```
+
+Xcode에서 signing team을 설정한 뒤 `Product > Build` 또는 `Product > Archive`를 실행합니다.
+
+## 8. BE 로컬 실행
+
+Postgres 없이 Spring 앱만 컴파일/테스트:
+
+```bash
+cd BE
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home gradle test --no-daemon
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home gradle build --no-daemon
+```
+
+로컬 Postgres가 떠 있고 DB가 준비되어 있으면 API 실행:
+
+```bash
+cd BE
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/yeosal \
+SPRING_DATASOURCE_USERNAME=yeosal \
+SPRING_DATASOURCE_PASSWORD=yeosal \
+YEOSAL_JWT_SECRET=replace-with-at-least-32-random-characters \
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+gradle bootRun --no-daemon
+```
+
+API 기본 주소:
+
+```text
+http://localhost:8080/yeolsal/api/v1
+```
+
+예시:
+
+```bash
+curl http://localhost:8080/yeolsal/api/v1/friends
+curl "http://localhost:8080/yeolsal/api/v1/feed/daily?date=2026-04-26"
+curl "http://localhost:8080/yeolsal/api/v1/profiles/1/grass?from=2026-04-01&to=2026-04-30"
+```
+
+## 9. Docker로 서버 띄우기
+
+Docker Desktop을 먼저 실행합니다.
+
+환경 파일 생성:
+
+```bash
+cd infra
+cp .env.example .env
+```
+
+`.env`에서 최소한 아래 값은 바꿉니다.
+
+```text
+POSTGRES_PASSWORD=change-me
+YEOSAL_JWT_SECRET=replace-with-at-least-32-random-characters
+```
+
+서버 실행:
+
+```bash
+docker compose up --build
+```
+
+백그라운드 실행:
+
+```bash
+docker compose up --build -d
+```
+
+상태 확인:
+
+```bash
+docker compose ps
+```
+
+로그 보기:
+
+```bash
+docker compose logs -f api
+docker compose logs -f nginx
+docker compose logs -f postgres
+```
+
+서버 확인:
+
+```bash
+curl http://localhost:8088/health
+curl http://localhost:8088/yeolsal/health
+curl http://localhost:8088/yeolsal/api/v1/friends
+```
+
+중지:
+
+```bash
+docker compose down
+```
+
+DB 데이터까지 삭제:
+
+```bash
+docker compose down -v
+```
+
+## 10. Docker 이미지 직접 빌드
+
+```bash
+cd BE
+docker build -t yeosal-api:local .
+```
+
+직접 실행:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/yeosal \
+  -e SPRING_DATASOURCE_USERNAME=yeosal \
+  -e SPRING_DATASOURCE_PASSWORD=yeosal \
+  -e YEOSAL_JWT_SECRET=replace-with-at-least-32-random-characters \
+  yeosal-api:local
+```
+
+대부분의 경우 직접 `docker run`보다 `infra/docker-compose.yml`을 사용하는 편이 낫습니다. Compose가 Postgres와 nginx까지 같이 올려 줍니다.
+
+## 11. 운영 API 주소
+
+FE의 기본 API 주소는 다음 값으로 고정되어 있습니다.
+
+```text
+https://api.rearleg.com/yeolsal/api/v1
+```
+
+로컬이나 다른 서버로 바꿔 테스트하려면 `FE/.env`를 만듭니다.
+
+```bash
+cd FE
+cp .env.example .env
+```
+
+예시:
+
+```text
+EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
+```
+
+환경 값을 바꾼 뒤에는 Metro cache를 비우고 다시 실행합니다.
+
+```bash
+npx expo start -c
+```
+
+## 12. 모바일 앱에서 로컬 Docker 서버를 바라보게 할 때
+
+현재 화면은 mock data 중심이지만, API client 기본 주소는 `FE/src/api/config.ts`에 있습니다. 로컬 Docker 서버를 바라보려면 `FE/.env`의 `EXPO_PUBLIC_API_BASE_URL`을 환경별로 바꿉니다.
+
+Android Emulator에서 Mac host 접근:
+
+```text
+http://10.0.2.2:8088/yeolsal/api/v1
+```
+
+iOS Simulator에서 Mac host 접근:
+
+```text
+http://localhost:8088/yeolsal/api/v1
+```
+
+실기기에서 접근:
+
+```text
+http://<Mac의 같은 Wi-Fi IP>:8088/yeolsal/api/v1
+```
+
+예시:
+
+```text
+http://192.168.0.25:8088/yeolsal/api/v1
+```
+
+## 13. 자주 쓰는 전체 명령
+
+전체 검증:
+
+```bash
+bash scripts/verify.sh
+```
+
+FE 개발 서버:
+
+```bash
+cd FE
+npm start
+```
+
+Android 실행:
+
+```bash
+cd FE
+npm run android
+```
+
+iOS 실행:
+
+```bash
+cd FE
+npm run ios
+```
+
+BE 테스트:
+
+```bash
+cd BE
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home gradle test --no-daemon
+```
+
+Docker 서버:
+
+```bash
+cd infra
+docker compose up --build
+```
+
+APK:
+
+```bash
+cd FE
+eas build --platform android --profile preview
+```

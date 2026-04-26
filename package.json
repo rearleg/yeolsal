@@ -1,0 +1,20 @@
+{
+  "name": "yeosal",
+  "private": true,
+  "scripts": {
+    "test": "bash scripts/test.sh",
+    "build": "bash scripts/build.sh",
+    "verify": "bash scripts/verify.sh"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "workspaces": [
+    "FE"
+  ]
+}

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: yeosal-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/yeosal}
+    username: ${SPRING_DATASOURCE_USERNAME:yeosal}
+    password: ${SPRING_DATASOURCE_PASSWORD:yeosal}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: ${SERVER_SERVLET_CONTEXT_PATH:/yeolsal}
+
+yeosal:
+  auth:
+    jwt-secret: ${YEOSAL_JWT_SECRET:dev-only-change-me-dev-only-change-me}
+    access-token-minutes: ${YEOSAL_ACCESS_TOKEN_MINUTES:30}
+    refresh-token-days: ${YEOSAL_REFRESH_TOKEN_DAYS:30}
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:}
