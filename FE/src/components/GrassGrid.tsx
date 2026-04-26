@@ -1,10 +1,10 @@
 import { Pressable, StyleSheet, View } from "react-native";
-import { GrassDay } from "../domain/mockData";
+import { GrassDayDto } from "../api/types";
 import { colors } from "../theme/tokens";
 
 type Props = {
-  days: GrassDay[];
-  onSelect?: (day: GrassDay) => void;
+  days: GrassDayDto[];
+  onSelect?: (day: GrassDayDto) => void;
 };
 
 const intensityColors = [colors.paper, "#B9FFB1", colors.green, colors.acid, colors.pink];

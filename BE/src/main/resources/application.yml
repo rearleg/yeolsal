@@ -24,4 +24,5 @@ yeosal:
     refresh-token-days: ${YEOSAL_REFRESH_TOKEN_DAYS:30}
   kakao:
     client-id: ${KAKAO_CLIENT_ID:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback}
+    mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI:yeosal://auth/kakao}

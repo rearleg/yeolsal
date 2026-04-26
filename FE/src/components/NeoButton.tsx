@@ -5,11 +5,12 @@ type Props = {
   label: string;
   tone?: "green" | "pink" | "acid";
   onPress?: () => void;
+  disabled?: boolean;
 };
 
-export function NeoButton({ label, tone = "green", onPress }: Props) {
+export function NeoButton({ label, tone = "green", onPress, disabled = false }: Props) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.button, styles[tone]]}>
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, styles[tone], disabled && styles.disabled]}>
       <Text style={styles.label}>{label}</Text>
     </Pressable>
   );
@@ -33,6 +34,7 @@ const styles = StyleSheet.create({
   green: { backgroundColor: colors.green },
   pink: { backgroundColor: colors.pink },
   acid: { backgroundColor: colors.acid },
+  disabled: { opacity: 0.55 },
   label: {
     color: colors.ink,
     fontSize: 16,

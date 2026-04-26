@@ -21,6 +21,7 @@ services:
       YEOSAL_JWT_SECRET: ${YEOSAL_JWT_SECRET}
       KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-}
+      KAKAO_MOBILE_REDIRECT_URI: ${KAKAO_MOBILE_REDIRECT_URI:-yeosal://auth/kakao}
     depends_on:
       - postgres
     expose:

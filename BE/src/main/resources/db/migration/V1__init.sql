@@ -8,6 +8,15 @@ create table users (
     created_at timestamptz not null default now()
 );
 
+create table refresh_tokens (
+    id bigserial primary key,
+    user_id bigint not null references users(id) on delete cascade,
+    token_hash varchar(255) not null unique,
+    expires_at timestamptz not null,
+    revoked_at timestamptz,
+    created_at timestamptz not null default now()
+);
+
 create table friendships (
     id bigserial primary key,
     requester_id bigint not null references users(id),

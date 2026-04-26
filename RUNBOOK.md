@@ -67,6 +67,15 @@ npx expo start -c
 
 터미널에서 `a`를 누르면 Android emulator로 실행됩니다.
 
+`expo-secure-store` 같은 native module을 추가/제거한 뒤에는 기존 앱 바이너리를 지우고 다시 빌드해야 합니다.
+
+```bash
+adb uninstall app.yeosal.mobile
+npm run android
+```
+
+단순 reload나 Metro cache 초기화만으로는 native module이 앱에 포함되지 않습니다.
+
 Metro 서버만 먼저 띄우고 싶으면:
 
 ```bash
@@ -302,6 +311,9 @@ cp .env.example .env
 ```text
 POSTGRES_PASSWORD=change-me
 YEOSAL_JWT_SECRET=replace-with-at-least-32-random-characters
+KAKAO_CLIENT_ID=카카오_REST_API_KEY
+KAKAO_REDIRECT_URI=https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback
+KAKAO_MOBILE_REDIRECT_URI=yeosal://auth/kakao
 ```
 
 서버 실행:
@@ -389,6 +401,7 @@ cp .env.example .env
 
 ```text
 EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
+EXPO_PUBLIC_KAKAO_REST_API_KEY=카카오_REST_API_KEY
 ```
 
 환경 값을 바꾼 뒤에는 Metro cache를 비우고 다시 실행합니다.
@@ -397,7 +410,49 @@ EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
 npx expo start -c
 ```
 
-## 12. 모바일 앱에서 로컬 Docker 서버를 바라보게 할 때
+Kakao Developers에는 HTTP/HTTPS redirect URI만 등록할 수 있습니다. 모바일 딥링크 `yeosal://...`는 Kakao에 등록하는 값이 아니라 BE callback이 앱으로 되돌릴 때 쓰는 값입니다.
+
+```text
+https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback
+```
+
+## 12. Kakao REST API 설정
+
+Kakao Developers에서 앱을 만들고 아래 순서로 설정합니다.
+
+1. `https://developers.kakao.com`에서 애플리케이션을 생성합니다.
+2. `앱 설정 > 앱 키`에서 `REST API 키`를 복사합니다.
+3. `제품 설정 > 카카오 로그인`에서 카카오 로그인을 활성화합니다.
+4. `제품 설정 > 카카오 로그인 > Redirect URI`에 아래 값을 등록합니다.
+
+```text
+https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback
+```
+
+5. `제품 설정 > 카카오 로그인 > 동의항목`에서 이메일 제공 동의를 설정합니다. BE는 Kakao email로 사용자를 찾거나 생성합니다.
+6. 모바일 개발 환경의 `FE/.env`에 REST API 키를 넣습니다.
+
+```text
+EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
+EXPO_PUBLIC_KAKAO_REST_API_KEY=복사한_REST_API_키
+```
+
+7. Linux BE 서버의 `.env`에는 같은 REST API 키와 redirect URI를 넣습니다.
+
+```text
+KAKAO_CLIENT_ID=복사한_REST_API_키
+KAKAO_REDIRECT_URI=https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback
+KAKAO_MOBILE_REDIRECT_URI=yeosal://auth/kakao
+```
+
+8. `.env` 변경 후 모바일 앱은 Metro를 재시작합니다.
+
+```bash
+cd FE
+npx expo start -c
+```
+
+## 13. 모바일 앱에서 로컬 Docker 서버를 바라보게 할 때
 
 현재 화면은 mock data 중심이지만, API client 기본 주소는 `FE/src/api/config.ts`에 있습니다. 로컬 Docker 서버를 바라보려면 `FE/.env`의 `EXPO_PUBLIC_API_BASE_URL`을 환경별로 바꿉니다.
 
@@ -425,7 +480,7 @@ http://<Mac의 같은 Wi-Fi IP>:8088/yeolsal/api/v1
 http://192.168.0.25:8088/yeolsal/api/v1
 ```
 
-## 13. 자주 쓰는 전체 명령
+## 14. 자주 쓰는 전체 명령
 
 전체 검증:
 
