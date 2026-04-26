@@ -31,7 +31,7 @@ export default function SignupScreen() {
   }
 
   return (
-    <Screen title="가입">
+    <Screen title="가입" showFooter={false}>
       <NeoCard tone="green" style={styles.form}>
         <TextInput value={nickname} onChangeText={setNickname} placeholder="닉네임" style={styles.input} />
         <TextInput value={email} onChangeText={setEmail} placeholder="email" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
@@ -49,10 +49,10 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 48,
     borderWidth: 3,
-    borderColor: colors.ink,
+    borderColor: colors.black,
     paddingHorizontal: 12,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.white,
     fontWeight: "700"
   },
-  link: { color: colors.ink, fontWeight: "900", textDecorationLine: "underline" }
+  link: { color: colors.black, fontWeight: "900", textDecorationLine: "underline", textTransform: "uppercase" }
 });

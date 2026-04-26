@@ -21,10 +21,19 @@ import org.springframework.web.servlet.view.RedirectView;
 public class AuthController {
     private final AuthService authService;
     private final String mobileRedirectUri;
+    private final String kakaoClientId;
+    private final String kakaoRedirectUri;
 
-    public AuthController(AuthService authService, @Value("${yeosal.kakao.mobile-redirect-uri}") String mobileRedirectUri) {
+    public AuthController(
+            AuthService authService,
+            @Value("${yeosal.kakao.mobile-redirect-uri}") String mobileRedirectUri,
+            @Value("${yeosal.kakao.client-id}") String kakaoClientId,
+            @Value("${yeosal.kakao.redirect-uri}") String kakaoRedirectUri
+    ) {
         this.authService = authService;
         this.mobileRedirectUri = mobileRedirectUri;
+        this.kakaoClientId = kakaoClientId;
+        this.kakaoRedirectUri = kakaoRedirectUri;
     }
 
     @PostMapping("/signup")
@@ -40,6 +49,15 @@ public class AuthController {
     @PostMapping("/kakao")
     public ApiResponse<AuthTokens> kakao(@Valid @RequestBody KakaoLoginRequest request) {
         return ApiResponse.of(authService.kakao(request));
+    }
+
+    @GetMapping("/kakao/authorize")
+    public RedirectView kakaoAuthorize() {
+        String target = "https://kauth.kakao.com/oauth/authorize" +
+                "?response_type=code" +
+                "&client_id=" + encode(kakaoClientId) +
+                "&redirect_uri=" + encode(kakaoRedirectUri);
+        return new RedirectView(target);
     }
 
     @GetMapping("/kakao/callback")

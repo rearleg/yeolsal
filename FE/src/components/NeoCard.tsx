@@ -4,7 +4,7 @@ import { borders, colors } from "../theme/tokens";
 
 type Props = PropsWithChildren<{
   style?: ViewStyle;
-  tone?: "paper" | "green" | "pink" | "dark" | "acid";
+  tone?: "paper" | "green" | "pink" | "dark" | "acid" | "white" | "surface";
 }>;
 
 export function NeoCard({ children, style, tone = "paper" }: Props) {
@@ -13,11 +13,11 @@ export function NeoCard({ children, style, tone = "paper" }: Props) {
 
 const styles = StyleSheet.create({
   base: {
-    borderColor: colors.ink,
+    borderColor: colors.black,
     borderWidth: borders.width,
     borderRadius: borders.radius,
     padding: 16,
-    shadowColor: colors.ink,
+    shadowColor: colors.black,
     shadowOpacity: 1,
     shadowRadius: 0,
     shadowOffset: { width: borders.shadowOffset, height: borders.shadowOffset },
@@ -26,6 +26,8 @@ const styles = StyleSheet.create({
   paper: { backgroundColor: colors.paper },
   green: { backgroundColor: colors.green },
   pink: { backgroundColor: colors.pink },
-  dark: { backgroundColor: colors.ink },
-  acid: { backgroundColor: colors.acid }
+  dark: { backgroundColor: colors.black },
+  acid: { backgroundColor: colors.greenNeon },
+  white: { backgroundColor: colors.white },
+  surface: { backgroundColor: colors.surface }
 });

@@ -1,11 +1,23 @@
 export const colors = {
-  ink: "#090909",
-  paper: "#F8F3E7",
-  pink: "#FF2FA3",
-  green: "#39FF4A",
-  acid: "#DFFF00",
-  muted: "#9C988C",
-  white: "#FFFFFF"
+  ink: "#1A1C18",
+  black: "#000000",
+  paper: "#FAFAF2",
+  paperDim: "#DADAD3",
+  surface: "#EEEEE6",
+  surfaceLow: "#F4F4EC",
+  surfaceHigh: "#E3E3DB",
+  white: "#FFFFFF",
+  green: "#22C55E",
+  greenDark: "#006E2F",
+  greenNeon: "#6BFF8F",
+  pink: "#E10080",
+  pinkDark: "#B40065",
+  pinkSoft: "#FFD9E3",
+  gray: "#5E5E5E",
+  muted: "#6D7B6C",
+  acid: "#6BFF8F",
+  kakao: "#FEE500",
+  error: "#BA1A1A"
 } as const;
 
 export const spacing = {
@@ -18,6 +30,24 @@ export const spacing = {
 
 export const borders = {
   width: 3,
-  radius: 6,
+  radius: 0,
   shadowOffset: 6
+} as const;
+
+export const typography = {
+  headline: {
+    fontSize: 38,
+    fontWeight: "900" as const,
+    letterSpacing: 0
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "900" as const,
+    letterSpacing: 0
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    letterSpacing: 0.7
+  }
 } as const;

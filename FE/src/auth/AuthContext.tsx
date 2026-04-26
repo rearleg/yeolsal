@@ -3,10 +3,6 @@ import { Linking } from "react-native";
 import { API_BASE_URL } from "../api/config";
 import { apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens } from "../api/client";
 
-const runtime = globalThis as typeof globalThis & {
-  process?: { env?: Record<string, string | undefined> };
-};
-
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
@@ -70,13 +66,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function signInWithKakao() {
-    const clientId = runtime.process?.env?.EXPO_PUBLIC_KAKAO_REST_API_KEY;
-    if (!clientId) {
-      throw new Error("Kakao REST API 키가 설정되지 않았습니다.");
-    }
-
-    const redirectUri = `${API_BASE_URL}/auth/kakao/callback`;
-    const tokens = await openKakaoAuthorization(clientId, redirectUri);
+    const tokens = await openKakaoAuthorization();
     await apply(tokens);
   }
 
@@ -101,9 +91,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function openKakaoAuthorization(clientId: string, redirectUri: string) {
-  const authUrl = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-
+function openKakaoAuthorization() {
   return new Promise<AuthTokens>((resolve, reject) => {
     const timeout = setTimeout(() => {
       subscription.remove();
@@ -136,7 +124,7 @@ function openKakaoAuthorization(clientId: string, redirectUri: string) {
       }
     });
 
-    Linking.openURL(authUrl).catch((error: unknown) => {
+    Linking.openURL(`${API_BASE_URL}/auth/kakao/authorize`).catch((error: unknown) => {
       clearTimeout(timeout);
       subscription.remove();
       reject(error instanceof Error ? error : new Error("Kakao 로그인 창을 열 수 없습니다."));

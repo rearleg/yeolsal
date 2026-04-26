@@ -401,7 +401,6 @@ cp .env.example .env
 
 ```text
 EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
-EXPO_PUBLIC_KAKAO_REST_API_KEY=카카오_REST_API_KEY
 ```
 
 환경 값을 바꾼 뒤에는 Metro cache를 비우고 다시 실행합니다.
@@ -432,9 +431,15 @@ https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback
 5. `제품 설정 > 카카오 로그인 > 동의항목`에서 이메일 제공 동의를 설정합니다. BE는 Kakao email로 사용자를 찾거나 생성합니다.
 6. 모바일 개발 환경의 `FE/.env`에 REST API 키를 넣습니다.
 
+파일이 없으면 먼저 만듭니다.
+
+```bash
+cd FE
+cp .env.example .env
+```
+
 ```text
 EXPO_PUBLIC_API_BASE_URL=https://api.rearleg.com/yeolsal/api/v1
-EXPO_PUBLIC_KAKAO_REST_API_KEY=복사한_REST_API_키
 ```
 
 7. Linux BE 서버의 `.env`에는 같은 REST API 키와 redirect URI를 넣습니다.
@@ -451,6 +456,8 @@ KAKAO_MOBILE_REDIRECT_URI=yeosal://auth/kakao
 cd FE
 npx expo start -c
 ```
+
+Kakao REST API 키는 FE에 넣지 않습니다. 앱은 `/auth/kakao/authorize`로 서버를 먼저 열고, 서버가 Kakao로 redirect합니다.
 
 ## 13. 모바일 앱에서 로컬 Docker 서버를 바라보게 할 때
 

@@ -7,7 +7,7 @@ type Props = {
   onSelect?: (day: GrassDayDto) => void;
 };
 
-const intensityColors = [colors.paper, "#B9FFB1", colors.green, colors.acid, colors.pink];
+const intensityColors = [colors.surfaceHigh, "#B9FFB1", colors.green, colors.greenNeon, colors.pink];
 
 export function GrassGrid({ days, onSelect }: Props) {
   return (
@@ -33,7 +33,8 @@ const styles = StyleSheet.create({
   cell: {
     width: 28,
     height: 28,
-    borderColor: colors.ink,
-    borderWidth: 2
+    borderColor: colors.black,
+    borderWidth: 2,
+    borderRadius: 0
   }
 });
