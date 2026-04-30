@@ -7,6 +7,7 @@ import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.LocalDate;
@@ -23,17 +24,20 @@ public class FriendService {
     private final UserRepository users;
     private final DailyEntryRepository dailyEntries;
     private final DailyService dailyService;
+    private final RoomMemberRepository roomMembers;
 
     public FriendService(
             FriendshipRepository friendships,
             UserRepository users,
             DailyEntryRepository dailyEntries,
-            @Lazy DailyService dailyService
+            @Lazy DailyService dailyService,
+            RoomMemberRepository roomMembers
     ) {
         this.friendships = friendships;
         this.users = users;
         this.dailyEntries = dailyEntries;
         this.dailyService = dailyService;
+        this.roomMembers = roomMembers;
     }
 
     @Transactional(readOnly = true)
@@ -102,8 +106,16 @@ public class FriendService {
 
     @Transactional(readOnly = true)
     public boolean canView(User viewer, User target) {
-        return viewer.getId().equals(target.getId()) ||
-                friendships.findBetween(viewer, target).filter(f -> f.getStatus() == FriendshipStatus.ACCEPTED).isPresent();
+        if (viewer.getId().equals(target.getId())) {
+            return true;
+        }
+        boolean acceptedFriendship = friendships.findBetween(viewer, target)
+                .filter(f -> f.getStatus() == FriendshipStatus.ACCEPTED)
+                .isPresent();
+        if (acceptedFriendship) {
+            return true;
+        }
+        return roomMembers.existsSharedRoom(viewer, target);
     }
 
     private User other(Friendship friendship, User user) {

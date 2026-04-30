@@ -21,4 +21,6 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
     List<Friendship> findByUserAndStatus(@Param("user") User user, @Param("status") FriendshipStatus status);
 
     List<Friendship> findByAddresseeAndStatus(User addressee, FriendshipStatus status);
+
+    List<Friendship> findByStatus(FriendshipStatus status);
 }
