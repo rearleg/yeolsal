@@ -37,7 +37,7 @@ export function BottomNav() {
             onPress={() => navigateToTab(tab.href, index)}
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
           >
-            <MaterialIcons name={tab.icon} size={22} color={active ? palette.sageDeep : textColors.tertiary} />
+            <MaterialIcons name={tab.icon} size={22} color={active ? palette.coralDeep : textColors.tertiary} />
             <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
           </Pressable>
         );
@@ -77,5 +77,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.2
   },
-  activeLabel: { color: palette.sageDeep, fontWeight: "700" }
+  activeLabel: { color: palette.coralDeep, fontWeight: "700" }
 });

@@ -85,12 +85,12 @@ export default function ProfileScreen() {
   return (
     <Screen title="프로필">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {loading && grass.length === 0 ? <ActivityIndicator color={palette.sageDeep} /> : null}
+        {loading && grass.length === 0 ? <ActivityIndicator color={palette.coralDeep} /> : null}
 
         <Card tone="hero" size="hero">
           <View style={styles.identityRow}>
             <View style={styles.avatar}>
-              <Text variant="h1" color={palette.sageDeep}>{initial}</Text>
+              <Text variant="h1" color={palette.coralDeep}>{initial}</Text>
             </View>
             <View style={styles.identityText}>
               <Text variant="h2">{profile?.nickname ?? "나의 잔디"}</Text>
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: palette.sageSoft
+    backgroundColor: palette.coralSoft
   },
   identityText: { gap: 2, flex: 1 },
   metricsRow: {

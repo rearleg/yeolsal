@@ -1,0 +1,122 @@
+package com.yeosal.api.daily;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.yeosal.api.user.AuthProvider;
+import com.yeosal.api.user.User;
+import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
+class DailyServiceReflectionsTest {
+
+    private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
+    private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
+
+    @Test
+    @DisplayName("recentReflections returns ReflectionView records with lazy fields resolved inside transaction")
+    void recentReflections_returnsViewRecord_avoidingLazyInit() {
+        DailyEntryRepository entries = mock(DailyEntryRepository.class);
+        TodoItemRepository todos = mock(TodoItemRepository.class);
+        ReflectionRepository reflections = mock(ReflectionRepository.class);
+        MonthlyGoalRepository monthlyGoals = mock(MonthlyGoalRepository.class);
+        EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
+        GateRule gateRule = mock(GateRule.class);
+        com.yeosal.api.room.RoomMemberRepository roomMembers =
+                mock(com.yeosal.api.room.RoomMemberRepository.class);
+        com.yeosal.api.notification.NotificationService notifications =
+                mock(com.yeosal.api.notification.NotificationService.class);
+
+        DailyService service = new DailyService(
+                entries, todos, reflections, monthlyGoals, entryDateResolver, gateRule,
+                clock, roomMembers, notifications);
+
+        User alice = makeUser(1L, "alice@example.com", "Alice");
+        DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-29"), "오늘 목표");
+        setId(entry, 100L);
+        Reflection r1 = new Reflection(entry, "회고 본문 1");
+        setId(r1, 11L);
+        setField(r1, "submittedAt", now);
+
+        when(reflections.findRecentByUser(eq(alice), any(Pageable.class)))
+                .thenReturn(List.of(r1));
+
+        List<DailyService.ReflectionView> result = service.recentReflections(alice, 10);
+
+        assertThat(result).hasSize(1);
+        DailyService.ReflectionView view = result.get(0);
+        assertThat(view.date()).isEqualTo(LocalDate.parse("2026-04-29"));
+        assertThat(view.body()).isEqualTo("회고 본문 1");
+        assertThat(view.submittedAt()).isEqualTo(now);
+    }
+
+    @Test
+    @DisplayName("recentReflections caps the limit between 1 and 100")
+    void recentReflections_capsLimit() {
+        DailyEntryRepository entries = mock(DailyEntryRepository.class);
+        TodoItemRepository todos = mock(TodoItemRepository.class);
+        ReflectionRepository reflections = mock(ReflectionRepository.class);
+        MonthlyGoalRepository monthlyGoals = mock(MonthlyGoalRepository.class);
+        EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
+        GateRule gateRule = mock(GateRule.class);
+        com.yeosal.api.room.RoomMemberRepository roomMembers =
+                mock(com.yeosal.api.room.RoomMemberRepository.class);
+        com.yeosal.api.notification.NotificationService notifications =
+                mock(com.yeosal.api.notification.NotificationService.class);
+
+        DailyService service = new DailyService(
+                entries, todos, reflections, monthlyGoals, entryDateResolver, gateRule,
+                clock, roomMembers, notifications);
+        User alice = makeUser(1L, "alice@example.com", "Alice");
+
+        when(reflections.findRecentByUser(eq(alice), any(Pageable.class))).thenReturn(List.of());
+
+        service.recentReflections(alice, 0);
+        service.recentReflections(alice, 9999);
+
+        org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        org.mockito.Mockito.verify(reflections, org.mockito.Mockito.times(2))
+                .findRecentByUser(eq(alice), captor.capture());
+        List<Pageable> pageables = captor.getAllValues();
+        assertThat(pageables.get(0)).isEqualTo(PageRequest.of(0, 1));
+        assertThat(pageables.get(1)).isEqualTo(PageRequest.of(0, 100));
+    }
+
+    private static User makeUser(long id, String email, String nickname) {
+        User u = new User(email, nickname, "hash", AuthProvider.EMAIL);
+        setId(u, id);
+        return u;
+    }
+
+    private static <T> T setId(T entity, long id) {
+        try {
+            Field f = entity.getClass().getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(entity, id);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        return entity;
+    }
+
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}

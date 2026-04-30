@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -233,19 +234,31 @@ public class DailyService {
     /**
      * Most recent reflections for a user, newest first. Caller is responsible
      * for visibility checks; this method does not consult any room/friend gate.
+     * Returns a flat view record so lazy fields are resolved inside the
+     * transaction boundary.
      */
     @Transactional(readOnly = true)
-    public List<Reflection> recentReflections(User user, int limit) {
+    public List<ReflectionView> recentReflections(User user, int limit) {
         int capped = Math.max(1, Math.min(limit, 100));
-        return reflections.findRecentByUser(user, PageRequest.of(0, capped));
+        return reflections.findRecentByUser(user, PageRequest.of(0, capped)).stream()
+                .map(r -> new ReflectionView(
+                        r.getDailyEntry().getDate(),
+                        r.getBody(),
+                        r.getSubmittedAt()))
+                .toList();
     }
+
+    public record ReflectionView(java.time.LocalDate date, String body, java.time.Instant submittedAt) {}
 
     public DailyController.DailyEntryDto toDto(DailyEntry entry) {
         return new DailyController.DailyEntryDto(
                 entry.getId(),
                 entry.getDate(),
                 entry.getGoal(),
-                entry.getTodos().stream().map(this::toDto).toList(),
+                entry.getTodos().stream()
+                        .sorted(Comparator.comparing(TodoItem::getId))
+                        .map(this::toDto)
+                        .toList(),
                 entry.getReflection() == null ? null : toDto(entry.getReflection())
         );
     }

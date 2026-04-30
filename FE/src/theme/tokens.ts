@@ -24,6 +24,10 @@ export const palette = {
   sageDeep: "#52A06A",
   sageSoft: "#D6ECDB",
 
+  coral: "#F08C73",
+  coralDeep: "#D2603F",
+  coralSoft: "#FAE6DC",
+
   salmon: "#E29A7C",
   salmonDeep: "#C77E5E",
   salmonSoft: "#F4D8C9",

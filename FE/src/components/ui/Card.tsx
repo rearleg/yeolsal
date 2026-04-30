@@ -40,9 +40,9 @@ export function Card({ tone = "default", size = "md", accent, style, children }:
         return { backgroundColor: surface.card, ...elevation.hero };
       case "accent":
         return {
-          backgroundColor: accentTokens?.soft ?? palette.sageSoft,
+          backgroundColor: accentTokens?.soft ?? palette.coralSoft,
           borderWidth: 1,
-          borderColor: accentTokens?.base ?? palette.sage
+          borderColor: accentTokens?.base ?? palette.coral
         };
       case "outline":
         return { backgroundColor: surface.card, ...hairline };

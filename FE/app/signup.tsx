@@ -62,7 +62,7 @@ export default function SignupScreen() {
           placeholderTextColor={palette.inkFaint}
           style={styles.input}
         />
-        {submitting ? <ActivityIndicator color={palette.sageDeep} /> : null}
+        {submitting ? <ActivityIndicator color={palette.coralDeep} /> : null}
         <Button label="시작하기" tone="primary" size="lg" fullWidth onPress={submit} disabled={submitting} />
       </Card>
       <Link href="/login" style={styles.link}>이미 계정이 있어요</Link>
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     fontSize: 15
   },
   link: {
-    color: palette.sageDeep,
+    color: palette.coralDeep,
     fontWeight: "700",
     textAlign: "center",
     paddingVertical: space[3]

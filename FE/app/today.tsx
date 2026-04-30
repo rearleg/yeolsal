@@ -163,7 +163,7 @@ export default function TodayScreen() {
   return (
     <Screen title="오늘">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {loading ? <ActivityIndicator color={palette.sageDeep} /> : null}
+        {loading ? <ActivityIndicator color={palette.coralDeep} /> : null}
 
         {chips.length > 0 ? (
           <Card tone="raised" size="md">
@@ -184,7 +184,7 @@ export default function TodayScreen() {
         <Card tone="raised" size="md">
           <View style={styles.cardHeader}>
             <View style={styles.titleRow}>
-              <MaterialIcons name="flag" size={18} color={palette.sageDeep} />
+              <MaterialIcons name="flag" size={18} color={palette.coralDeep} />
               <Text variant="title">오늘의 목표</Text>
             </View>
             <Button label="저장" tone="primary" size="sm" onPress={saveGoal} disabled={submitting} />
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: palette.sageDeep
+    backgroundColor: palette.coralDeep
   },
   todoList: { marginTop: space[2], borderTopWidth: 1, borderTopColor: surface.border },
   todoItem: {
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  checkboxDone: { borderColor: palette.sageDeep, backgroundColor: palette.sageDeep },
+  checkboxDone: { borderColor: palette.coralDeep, backgroundColor: palette.coralDeep },
   todoInput: {
     flex: 1,
     color: palette.ink,

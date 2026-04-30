@@ -79,7 +79,7 @@ export default function FeedScreen() {
   return (
     <Screen title="친구">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {loading && items.length === 0 ? <ActivityIndicator color={palette.sageDeep} /> : null}
+        {loading && items.length === 0 ? <ActivityIndicator color={palette.coralDeep} /> : null}
 
         <View style={styles.header}>
           <View style={{ flex: 1 }}>

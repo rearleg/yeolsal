@@ -38,8 +38,8 @@ function tokensForTone(tone: ButtonTone): Tokens {
   switch (tone) {
     case "primary":
       return {
-        background: palette.sageDeep,
-        pressedBackground: "#3F8556",
+        background: palette.coralDeep,
+        pressedBackground: "#B14E32",
         foreground: textColors.onAccent,
         shadow: elevation.raised
       };

@@ -134,7 +134,7 @@ function ToggleRow({
         onValueChange={onChange}
         accessibilityLabel={label}
         thumbColor={palette.paper}
-        trackColor={{ false: palette.surfaceContrast, true: palette.sage }}
+        trackColor={{ false: palette.surfaceContrast, true: palette.coral }}
       />
     </View>
   );
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     borderColor: surface.border,
   },
   hourPillSelected: {
-    backgroundColor: palette.sage,
-    borderColor: palette.sageDeep,
+    backgroundColor: palette.coral,
+    borderColor: palette.coralDeep,
   },
 });

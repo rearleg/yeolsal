@@ -5,7 +5,6 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.daily.DailyService;
-import com.yeosal.api.daily.Reflection;
 import com.yeosal.api.friend.FriendService;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
@@ -164,11 +163,11 @@ public class ProfileController {
     public record GrassDayDto(LocalDate date, boolean missionCompleted, int completedTodoCount, boolean reflectionSubmitted, int intensity) {}
     public record StreakDto(long userId, int currentStreak) {}
     public record ReflectionDto(LocalDate date, String body, Instant submittedAt, boolean bodyVisible) {
-        static ReflectionDto from(Reflection r, boolean canSeeBody) {
+        static ReflectionDto from(DailyService.ReflectionView r, boolean canSeeBody) {
             return new ReflectionDto(
-                    r.getDailyEntry().getDate(),
-                    canSeeBody ? r.getBody() : null,
-                    r.getSubmittedAt(),
+                    r.date(),
+                    canSeeBody ? r.body() : null,
+                    r.submittedAt(),
                     canSeeBody
             );
         }

@@ -60,7 +60,7 @@ export default function MonthlyScreen() {
   return (
     <Screen title="기록">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {loading && grass.length === 0 ? <ActivityIndicator color={palette.sageDeep} /> : null}
+        {loading && grass.length === 0 ? <ActivityIndicator color={palette.coralDeep} /> : null}
 
         <View>
           <Text variant="h1">{Number(month.slice(5, 7))}월 요약</Text>
@@ -72,7 +72,7 @@ export default function MonthlyScreen() {
             <View style={styles.overviewLeft}>
               <Text variant="caption" color={palette.inkMute}>이번 달 잔디</Text>
               <View style={styles.overviewCount}>
-                <Text variant="numericDisplay" color={palette.sageDeep}>{successCount}</Text>
+                <Text variant="numericDisplay" color={palette.coralDeep}>{successCount}</Text>
                 <Text variant="bodySmall" color={palette.inkMute}>/ {totalDays}일</Text>
               </View>
             </View>
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: surface.sunken,
     overflow: "hidden"
   },
-  progressFill: { height: "100%", borderRadius: 5, backgroundColor: palette.sageDeep },
+  progressFill: { height: "100%", borderRadius: 5, backgroundColor: palette.coralDeep },
   cardHeader: {
     flexDirection: "row",
     alignItems: "baseline",

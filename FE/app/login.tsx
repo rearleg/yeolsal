@@ -77,7 +77,7 @@ export default function LoginScreen() {
             placeholderTextColor={palette.inkFaint}
             style={styles.input}
           />
-          {submitting ? <ActivityIndicator color={palette.sageDeep} /> : null}
+          {submitting ? <ActivityIndicator color={palette.coralDeep} /> : null}
           <Button label="로그인" tone="primary" size="lg" fullWidth onPress={submit} disabled={submitting} />
           <Button label="카카오로 계속" tone="kakao" size="lg" fullWidth onPress={kakao} disabled={submitting} />
         </Card>
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     fontSize: 15
   },
   link: {
-    color: palette.sageDeep,
+    color: palette.coralDeep,
     fontWeight: "700",
     textAlign: "center",
     paddingVertical: space[2]
