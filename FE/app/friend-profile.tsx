@@ -2,10 +2,13 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import { listReflections, type ReflectionEntry } from "../src/api/reflections";
 import type { GrassDayDto, ProfileDto } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
 import { Screen } from "../src/components/Screen";
 import { Card } from "../src/components/ui/Card";
+import { EmptyState } from "../src/components/ui/EmptyState";
+import { Skeleton } from "../src/components/ui/Skeleton";
 import { Text } from "../src/components/ui/Text";
 import { ContributionGrid } from "../src/components/grid/ContributionGrid";
 import { DayDetailCard } from "../src/components/grid/DayDetailCard";
@@ -23,6 +26,7 @@ export default function FriendProfileScreen() {
   const [profile, setProfile] = useState<ProfileDto | null>(null);
   const [grass, setGrass] = useState<GrassDayDto[]>([]);
   const [selected, setSelected] = useState<GrassDayDto | null>(null);
+  const [reflections, setReflections] = useState<ReflectionEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,12 +42,14 @@ export default function FriendProfileScreen() {
       const range = rollingRange(today, ROLLING_DAYS);
       const from = range[0];
       const to = range[range.length - 1];
-      const [profileResponse, grassResponse] = await Promise.all([
+      const [profileResponse, grassResponse, reflectionsResponse] = await Promise.all([
         apiRequest<ApiEnvelope<ProfileDto>>(`/profiles/${userId}`),
-        apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/${userId}/grass?from=${from}&to=${to}`)
+        apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/${userId}/grass?from=${from}&to=${to}`),
+        listReflections(userId, 20)
       ]);
       setProfile(profileResponse.data);
       setGrass(grassResponse.data);
+      setReflections(reflectionsResponse);
       const todays = grassResponse.data.find((d) => d.date === today);
       setSelected(todays ?? grassResponse.data[grassResponse.data.length - 1] ?? null);
     } catch (error) {
@@ -112,6 +118,38 @@ export default function FriendProfileScreen() {
         </Card>
 
         <DayDetailCard day={selected} />
+
+        <View>
+          <Text variant="title" style={{ marginBottom: space[2] }}>최근 회고</Text>
+          {loading && reflections.length === 0 ? (
+            <View style={styles.reflectionList}>
+              <Skeleton height={72} />
+              <Skeleton height={72} />
+            </View>
+          ) : reflections.length === 0 ? (
+            <EmptyState
+              title="아직 회고가 없어요"
+              description="이 친구가 회고를 남기면 여기서 볼 수 있어요."
+            />
+          ) : (
+            <View style={styles.reflectionList}>
+              {reflections.map((entry) => (
+                <Card key={entry.date} tone="default" size="md">
+                  <Text variant="caption" color={palette.inkMute}>
+                    {new Date(entry.date).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+                  </Text>
+                  {entry.bodyVisible && entry.body ? (
+                    <Text variant="body" style={{ marginTop: space[1] }}>{entry.body}</Text>
+                  ) : (
+                    <Text variant="bodySmall" color={palette.inkFaint} style={{ marginTop: space[1] }}>
+                      같은 방에 있을 때 본문이 표시돼요.
+                    </Text>
+                  )}
+                </Card>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -152,5 +190,6 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     justifyContent: "space-between",
     marginBottom: space[3]
-  }
+  },
+  reflectionList: { gap: space[2] }
 });

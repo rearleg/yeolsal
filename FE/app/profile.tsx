@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { type ApiEnvelope, apiRequest } from "../src/api/client";
@@ -117,7 +118,23 @@ export default function ProfileScreen() {
 
         <DayDetailCard day={selected} />
 
-        <Button label="로그아웃" tone="secondary" size="md" onPress={auth.signOut} />
+        <View style={{ gap: space[2] }}>
+          <Button
+            label="방 관리"
+            tone="secondary"
+            size="md"
+            fullWidth
+            onPress={() => router.push("/rooms")}
+          />
+          <Button
+            label="알림 설정"
+            tone="secondary"
+            size="md"
+            fullWidth
+            onPress={() => router.push("/notification-settings")}
+          />
+          <Button label="로그아웃" tone="ghost" size="md" fullWidth onPress={auth.signOut} />
+        </View>
       </ScrollView>
     </Screen>
   );
