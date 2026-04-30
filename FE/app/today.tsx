@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -40,11 +40,13 @@ export default function TodayScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!auth.loading && auth.user) {
-      load();
-    }
-  }, [auth.loading, auth.user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!auth.loading && auth.user) {
+        load();
+      }
+    }, [auth.loading, auth.user])
+  );
 
   async function load() {
     setLoading(true);

@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -41,6 +42,7 @@ public class DailyEntry {
     private Instant createdAt;
 
     @OneToMany(mappedBy = "dailyEntry", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<TodoItem> todos = new ArrayList<>();
 
     @OneToOne(mappedBy = "dailyEntry", cascade = CascadeType.ALL, orphanRemoval = true)

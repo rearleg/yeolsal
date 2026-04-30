@@ -56,15 +56,16 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("create: persists room and inserts owner membership")
+    @DisplayName("create: persists room, inserts owner membership, returns summary")
     void createPersistsRoomWithOwnerMembership() {
         ArgumentCaptor<Room> roomCaptor = ArgumentCaptor.forClass(Room.class);
         when(rooms.save(roomCaptor.capture())).thenAnswer(inv -> setId(inv.getArgument(0), 42L));
 
-        Room created = service.create(alice, "기본 방");
+        RoomService.RoomSummary created = service.create(alice, "기본 방");
 
-        assertThat(created.getId()).isEqualTo(42L);
-        assertThat(created.getOwner()).isSameAs(alice);
+        assertThat(created.id()).isEqualTo(42L);
+        assertThat(created.name()).isEqualTo("기본 방");
+        assertThat(created.ownerId()).isEqualTo(1L);
         assertThat(roomCaptor.getValue().getName()).isEqualTo("기본 방");
 
         ArgumentCaptor<RoomMember> memberCaptor = ArgumentCaptor.forClass(RoomMember.class);
@@ -82,7 +83,7 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("myRooms: returns rooms where user has membership")
+    @DisplayName("myRooms: returns RoomSummary list, evaluating lazy fields inside transaction")
     void myRoomsReturnsAllMemberships() {
         Room r1 = makeRoom(10L, "방1", alice);
         Room r2 = makeRoom(20L, "방2", bob);
@@ -91,13 +92,47 @@ class RoomServiceTest {
                 new RoomMember(r2, alice, RoomRole.MEMBER)
         ));
 
-        List<Room> mine = service.myRooms(alice);
+        List<RoomService.RoomSummary> mine = service.myRooms(alice);
 
-        assertThat(mine).extracting(Room::getId).containsExactlyInAnyOrder(10L, 20L);
+        assertThat(mine)
+                .extracting(RoomService.RoomSummary::id)
+                .containsExactlyInAnyOrder(10L, 20L);
+        assertThat(mine)
+                .extracting(RoomService.RoomSummary::name)
+                .containsExactlyInAnyOrder("방1", "방2");
+        assertThat(mine)
+                .extracting(RoomService.RoomSummary::ownerId)
+                .containsExactlyInAnyOrder(1L, 2L);
     }
 
     @Test
-    @DisplayName("createInvite: generates code, persists, only members allowed")
+    @DisplayName("members: returns MemberSummary list with nickname pre-resolved")
+    void membersReturnsSummaries() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER))
+        );
+        when(roomMembers.findByRoom(room)).thenReturn(List.of(
+                new RoomMember(room, alice, RoomRole.OWNER),
+                new RoomMember(room, bob, RoomRole.MEMBER)
+        ));
+
+        List<RoomService.MemberSummary> result = service.members(alice, 42L);
+
+        assertThat(result)
+                .extracting(RoomService.MemberSummary::userId)
+                .containsExactlyInAnyOrder(1L, 2L);
+        assertThat(result)
+                .extracting(RoomService.MemberSummary::nickname)
+                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result)
+                .extracting(RoomService.MemberSummary::roomId)
+                .containsOnly(42L);
+    }
+
+    @Test
+    @DisplayName("createInvite: generates code, persists, returns InviteSummary")
     void createInvitePersistsCode() {
         Room room = makeRoom(42L, "기본 방", alice);
         when(rooms.findById(42L)).thenReturn(Optional.of(room));
@@ -108,9 +143,11 @@ class RoomServiceTest {
         ArgumentCaptor<RoomInvite> inviteCaptor = ArgumentCaptor.forClass(RoomInvite.class);
         when(roomInvites.save(inviteCaptor.capture())).thenAnswer(inv -> setId(inv.getArgument(0), 99L));
 
-        RoomInvite invite = service.createInvite(alice, 42L, Duration.ofDays(7));
+        RoomService.InviteSummary invite = service.createInvite(alice, 42L, Duration.ofDays(7));
 
-        assertThat(invite.getCode()).isEqualTo("A7K9PXMQ");
+        assertThat(invite.code()).isEqualTo("A7K9PXMQ");
+        assertThat(invite.roomId()).isEqualTo(42L);
+        assertThat(invite.id()).isEqualTo(99L);
         assertThat(inviteCaptor.getValue().getExpiresAt())
                 .isEqualTo(now.plus(Duration.ofDays(7)));
     }
@@ -140,10 +177,11 @@ class RoomServiceTest {
         ArgumentCaptor<RoomMember> capt = ArgumentCaptor.forClass(RoomMember.class);
         when(roomMembers.save(capt.capture())).thenAnswer(inv -> setId(inv.getArgument(0), 7L));
 
-        RoomMember added = service.joinByCode(bob, "A7K9PXMQ");
+        RoomService.MemberSummary added = service.joinByCode(bob, "A7K9PXMQ");
 
-        assertThat(added.getUser()).isSameAs(bob);
-        assertThat(capt.getValue().getRole()).isEqualTo(RoomRole.MEMBER);
+        assertThat(added.userId()).isEqualTo(bob.getId());
+        assertThat(added.roomId()).isEqualTo(42L);
+        assertThat(added.role()).isEqualTo(RoomRole.MEMBER);
         assertThat(capt.getValue().getRoom()).isSameAs(room);
     }
 
@@ -157,7 +195,7 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("joinByCode: noop if already a member")
+    @DisplayName("joinByCode: noop if already a member, returns existing summary")
     void joinByCodeIsIdempotentForExistingMember() {
         Room room = makeRoom(42L, "기본 방", alice);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
@@ -165,9 +203,11 @@ class RoomServiceTest {
         RoomMember existing = new RoomMember(room, bob, RoomRole.MEMBER);
         lenient().when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.of(existing));
 
-        RoomMember result = service.joinByCode(bob, "A7K9PXMQ");
+        RoomService.MemberSummary result = service.joinByCode(bob, "A7K9PXMQ");
 
-        assertThat(result).isSameAs(existing);
+        assertThat(result.userId()).isEqualTo(bob.getId());
+        assertThat(result.roomId()).isEqualTo(42L);
+        assertThat(result.role()).isEqualTo(RoomRole.MEMBER);
         verify(roomMembers, never()).save(any());
     }
 

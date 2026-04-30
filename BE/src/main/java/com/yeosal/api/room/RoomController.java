@@ -7,7 +7,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -35,33 +34,33 @@ public class RoomController {
     }
 
     @PostMapping
-    public ApiResponse<RoomDto> create(Authentication auth, @Valid @RequestBody CreateRoomRequest body) {
+    public ApiResponse<RoomService.RoomSummary> create(Authentication auth, @Valid @RequestBody CreateRoomRequest body) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(RoomDto.from(roomService.create(me, body.name())));
+        return ApiResponse.of(roomService.create(me, body.name()));
     }
 
     @GetMapping
-    public ApiResponse<List<RoomDto>> mine(Authentication auth) {
+    public ApiResponse<List<RoomService.RoomSummary>> mine(Authentication auth) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(roomService.myRooms(me).stream().map(RoomDto::from).toList());
+        return ApiResponse.of(roomService.myRooms(me));
     }
 
     @GetMapping("/{id}/members")
-    public ApiResponse<List<MemberDto>> members(Authentication auth, @PathVariable long id) {
+    public ApiResponse<List<RoomService.MemberSummary>> members(Authentication auth, @PathVariable long id) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(roomService.members(me, id).stream().map(MemberDto::from).toList());
+        return ApiResponse.of(roomService.members(me, id));
     }
 
     @PostMapping("/{id}/invites")
-    public ApiResponse<InviteDto> createInvite(Authentication auth, @PathVariable long id) {
+    public ApiResponse<RoomService.InviteSummary> createInvite(Authentication auth, @PathVariable long id) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(InviteDto.from(roomService.createInvite(me, id, DEFAULT_INVITE_TTL)));
+        return ApiResponse.of(roomService.createInvite(me, id, DEFAULT_INVITE_TTL));
     }
 
     @PostMapping("/join")
-    public ApiResponse<MemberDto> join(Authentication auth, @Valid @RequestBody JoinRequest body) {
+    public ApiResponse<RoomService.MemberSummary> join(Authentication auth, @Valid @RequestBody JoinRequest body) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(MemberDto.from(roomService.joinByCode(me, body.code().trim())));
+        return ApiResponse.of(roomService.joinByCode(me, body.code().trim()));
     }
 
     @DeleteMapping("/{id}/members/me")
@@ -73,22 +72,4 @@ public class RoomController {
 
     public record CreateRoomRequest(@NotBlank @Size(max = 80) String name) {}
     public record JoinRequest(@NotBlank @Size(min = 4, max = 32) String code) {}
-
-    public record RoomDto(long id, String name, long ownerId, int maxMembers) {
-        static RoomDto from(Room room) {
-            return new RoomDto(room.getId(), room.getName(), room.getOwner().getId(), room.getMaxMembers());
-        }
-    }
-
-    public record MemberDto(long roomId, long userId, String nickname, RoomRole role) {
-        static MemberDto from(RoomMember m) {
-            return new MemberDto(m.getRoom().getId(), m.getUser().getId(), m.getUser().getNickname(), m.getRole());
-        }
-    }
-
-    public record InviteDto(long id, long roomId, String code, Instant expiresAt) {
-        static InviteDto from(RoomInvite i) {
-            return new InviteDto(i.getId(), i.getRoom().getId(), i.getCode(), i.getExpiresAt());
-        }
-    }
 }

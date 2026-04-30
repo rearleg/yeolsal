@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { type ApiEnvelope, apiRequest } from "../src/api/client";
 import type { GrassDayDto, MonthlyStatsDto } from "../src/api/types";
@@ -24,11 +25,13 @@ export default function MonthlyScreen() {
   const completed = stats?.completedDailyCount ?? 0;
   const rate = totalDays === 0 ? 0 : Math.min(100, Math.round((completed / totalDays) * 100));
 
-  useEffect(() => {
-    if (!auth.loading && auth.user) {
-      load();
-    }
-  }, [auth.loading, auth.user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!auth.loading && auth.user) {
+        load();
+      }
+    }, [auth.loading, auth.user])
+  );
 
   async function load() {
     setLoading(true);

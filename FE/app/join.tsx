@@ -33,7 +33,7 @@ export default function JoinRoomScreen() {
   }
 
   return (
-    <Screen title="방 참여">
+    <Screen title="그룹 참여">
       <ScrollView contentContainerStyle={styles.content}>
         <Card tone="raised" size="lg">
           <Text variant="h2">초대 코드 입력</Text>

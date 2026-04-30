@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { type ApiEnvelope, apiRequest } from "../src/api/client";
 import type { GrassDayDto, ProfileDto } from "../src/api/types";
@@ -24,11 +24,13 @@ export default function ProfileScreen() {
   const [selected, setSelected] = useState<GrassDayDto | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!auth.loading && auth.user) {
-      load();
-    }
-  }, [auth.loading, auth.user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!auth.loading && auth.user) {
+        load();
+      }
+    }, [auth.loading, auth.user])
+  );
 
   async function load() {
     setLoading(true);
@@ -119,13 +121,6 @@ export default function ProfileScreen() {
         <DayDetailCard day={selected} />
 
         <View style={{ gap: space[2] }}>
-          <Button
-            label="방 관리"
-            tone="secondary"
-            size="md"
-            fullWidth
-            onPress={() => router.push("/rooms")}
-          />
           <Button
             label="알림 설정"
             tone="secondary"

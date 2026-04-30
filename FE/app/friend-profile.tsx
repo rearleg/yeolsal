@@ -142,7 +142,7 @@ export default function FriendProfileScreen() {
                     <Text variant="body" style={{ marginTop: space[1] }}>{entry.body}</Text>
                   ) : (
                     <Text variant="bodySmall" color={palette.inkFaint} style={{ marginTop: space[1] }}>
-                      같은 방에 있을 때 본문이 표시돼요.
+                      같은 그룹에 있을 때 본문이 표시돼요.
                     </Text>
                   )}
                 </Card>

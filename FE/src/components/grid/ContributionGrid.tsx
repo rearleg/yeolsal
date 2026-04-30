@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Svg, { G, Rect, Text as SvgText } from "react-native-svg";
 import type { GrassDayDto } from "../../api/types";
@@ -36,6 +36,17 @@ interface IndexedDay {
 }
 
 export function ContributionGrid({ days, selectedDate, onSelect }: ContributionGridProps) {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const hasScrolledToEndRef = useRef(false);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (hasScrolledToEndRef.current) {
+      return;
+    }
+    scrollRef.current?.scrollToEnd({ animated: false });
+    hasScrolledToEndRef.current = true;
+  }, []);
+
   const { layout, byDate, totalWidth, totalHeight, months } = useMemo(() => {
     const isoDays = days.map((d) => d.date);
     const builtLayout = buildGridLayout(isoDays);
@@ -64,7 +75,13 @@ export function ContributionGrid({ days, selectedDate, onSelect }: ContributionG
 
   return (
     <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        onContentSizeChange={handleContentSizeChange}
+      >
         <View>
           <Svg width={totalWidth} height={totalHeight} accessibilityLabel="잔디 기여도 그리드">
             <Group layout={layout} byDate={byDate} months={months} selectedDate={selectedDate ?? null} />

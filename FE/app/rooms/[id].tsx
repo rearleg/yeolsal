@@ -36,7 +36,7 @@ export default function RoomDetailScreen() {
     try {
       setMembers(await listMembers(roomId));
     } catch (error) {
-      Alert.alert("방", error instanceof Error ? error.message : "멤버를 불러오지 못했습니다.");
+      Alert.alert("그룹", error instanceof Error ? error.message : "멤버를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -54,14 +54,14 @@ export default function RoomDetailScreen() {
   async function shareInvite() {
     if (!invite) return;
     try {
-      await Share.share({ message: `열살방 초대 코드: ${invite.code}` });
+      await Share.share({ message: `열살 그룹 초대 코드: ${invite.code}` });
     } catch {
       // user dismissed share sheet
     }
   }
 
   async function handleLeave() {
-    Alert.alert("방 나가기", "정말 이 방을 나가시겠어요?", [
+    Alert.alert("그룹 나가기", "정말 이 그룹을 나가시겠어요?", [
       { text: "취소", style: "cancel" },
       {
         text: "나가기",
@@ -82,12 +82,12 @@ export default function RoomDetailScreen() {
   const hue = roomHues[accent];
 
   return (
-    <Screen title="방">
+    <Screen title="그룹">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card tone="raised" size="lg" style={{ borderColor: hue.base, borderWidth: 1 }}>
-          <Text variant="label" color={hue.deep}>방 상세</Text>
+          <Text variant="label" color={hue.deep}>그룹 상세</Text>
           <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
-            아래 코드를 친구에게 공유하면 같은 방에서 서로의 회고를 볼 수 있어요.
+            아래 코드를 친구에게 공유하면 같은 그룹에서 서로의 회고를 볼 수 있어요.
           </Text>
 
           {invite ? (
@@ -133,7 +133,7 @@ export default function RoomDetailScreen() {
                       <View style={{ flex: 1 }}>
                         <Text variant="bodyStrong">{member.nickname}</Text>
                         <Text variant="caption" color={palette.inkMute}>
-                          {member.role === "OWNER" ? "방장" : "멤버"}
+                          {member.role === "OWNER" ? "그룹장" : "멤버"}
                         </Text>
                       </View>
                     </View>
@@ -144,7 +144,7 @@ export default function RoomDetailScreen() {
           )}
         </View>
 
-        <Button label="방 나가기" tone="ghost" size="md" fullWidth onPress={handleLeave} />
+        <Button label="그룹 나가기" tone="ghost" size="md" fullWidth onPress={handleLeave} />
       </ScrollView>
     </Screen>
   );
