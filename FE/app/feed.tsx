@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { NeoButton } from "../src/components/NeoButton";
-import { NeoCard } from "../src/components/NeoCard";
-import { Screen } from "../src/components/Screen";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import type { DailyFeedItem, FriendRequestDto } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { apiRequest, ApiEnvelope } from "../src/api/client";
-import { DailyFeedItem, FriendRequestDto } from "../src/api/types";
-import { colors } from "../src/theme/tokens";
+import { Screen } from "../src/components/Screen";
+import { Card } from "../src/components/ui/Card";
+import { Button } from "../src/components/ui/Button";
+import { Text } from "../src/components/ui/Text";
+import { palette, pickRoomAccent, roomHues, semantic, surface } from "../src/theme/tokens";
+import { space } from "../src/theme/spacing";
+import { entryDateOf } from "../src/lib/calendar";
 
 export default function FeedScreen() {
   const auth = useRequireAuth();
@@ -16,6 +19,7 @@ export default function FeedScreen() {
   const [requests, setRequests] = useState<FriendRequestDto[]>([]);
   const [targetEmail, setTargetEmail] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showRequest, setShowRequest] = useState(false);
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
@@ -26,7 +30,7 @@ export default function FeedScreen() {
   async function load() {
     setLoading(true);
     try {
-      const date = new Date().toISOString().slice(0, 10);
+      const date = entryDateOf();
       const [feedResponse, requestsResponse] = await Promise.all([
         apiRequest<ApiEnvelope<DailyFeedItem[]>>(`/feed/daily?date=${date}`),
         apiRequest<ApiEnvelope<FriendRequestDto[]>>("/friends/requests")
@@ -34,22 +38,21 @@ export default function FeedScreen() {
       setItems(feedResponse.data);
       setRequests(requestsResponse.data);
     } catch (error) {
-      Alert.alert("피드", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
+      Alert.alert("친구", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
   }
 
   async function requestFriend() {
-    if (!targetEmail.trim()) {
-      return;
-    }
+    if (!targetEmail.trim()) return;
     try {
       await apiRequest("/friends/requests", {
         method: "POST",
         body: JSON.stringify({ targetEmail: targetEmail.trim() })
       });
       setTargetEmail("");
+      setShowRequest(false);
       Alert.alert("친구", "친구 요청을 보냈습니다.");
       await load();
     } catch (error) {
@@ -69,95 +72,170 @@ export default function FeedScreen() {
     }
   }
 
+  const reflectionDoneCount = useMemo(() => items.filter((i) => i.reflectionSubmitted).length, [items]);
+
   return (
-    <Screen title="친구 피드">
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Crew Vibe</Text>
-          <Text style={styles.liveBadge}>LIVE</Text>
+    <Screen title="친구">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading && items.length === 0 ? <ActivityIndicator color={palette.sageDeep} /> : null}
+
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text variant="h1">함께하는 친구들</Text>
+            <Text variant="bodySmall" color={palette.inkMute}>
+              오늘 회고 완료 {reflectionDoneCount} / {items.length}명
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="친구 추가"
+            onPress={() => setShowRequest((v) => !v)}
+            style={({ pressed }) => [styles.iconAction, pressed && { opacity: 0.7 }]}
+          >
+            <MaterialIcons name={showRequest ? "close" : "person-add"} size={20} color={palette.ink} />
+          </Pressable>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.crewList}>
-          {items.map((item) => (
-            <Pressable key={item.userId} onPress={() => router.push(`/friend-profile?userId=${item.userId}`)} style={styles.crewItem}>
-              <View style={[styles.crewAvatar, item.reflectionSubmitted ? styles.crewAvatarDone : styles.crewAvatarWait]}>
-                <Text style={styles.crewInitial}>{item.nickname.slice(0, 1).toUpperCase()}</Text>
-                <Text style={[styles.crewPercent, item.reflectionSubmitted ? styles.percentDone : styles.percentWait]}>{item.reflectionSubmitted ? "100%" : "0%"}</Text>
-              </View>
-              <Text numberOfLines={1} style={styles.crewName}>{item.nickname}</Text>
-            </Pressable>
-          ))}
-          <View style={styles.crewItem}>
-            <View style={styles.inviteCircle}>
-              <MaterialIcons name="add" size={32} color={colors.black} />
-            </View>
-            <Text style={styles.crewName}>Invite</Text>
-          </View>
-        </ScrollView>
+        {showRequest ? (
+          <Card tone="raised" size="md">
+            <Text variant="title">친구 추가</Text>
+            <TextInput
+              value={targetEmail}
+              onChangeText={setTargetEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="친구 이메일"
+              placeholderTextColor={palette.inkFaint}
+              style={styles.input}
+            />
+            <Button label="요청 보내기" tone="primary" size="md" fullWidth onPress={requestFriend} />
+          </Card>
+        ) : null}
 
-        <NeoCard tone="acid" style={styles.form}>
-          <Text style={styles.kicker}>SOCIAL BOARD</Text>
-          <Text style={styles.heading}>친구 요청</Text>
-          <TextInput value={targetEmail} onChangeText={setTargetEmail} autoCapitalize="none" keyboardType="email-address" placeholder="친구 email" style={styles.input} />
-          <NeoButton label="요청 보내기" onPress={requestFriend} />
-        </NeoCard>
-        {requests.map((request) => (
-          <NeoCard key={request.id} tone="white" style={styles.form}>
-            <Text style={styles.kicker}>INCOMING</Text>
-            <Text style={styles.goal}>{request.requesterNickname} ({request.requesterEmail})</Text>
-            <View style={styles.actions}>
-              <NeoButton label="수락" onPress={() => respond(request.id, true)} />
-              <NeoButton label="거절" tone="pink" onPress={() => respond(request.id, false)} />
-            </View>
-          </NeoCard>
-        ))}
-        {loading ? <ActivityIndicator color={colors.ink} /> : null}
-        {items.map((item) => (
-          <Pressable key={item.userId} onPress={() => router.push(`/friend-profile?userId=${item.userId}`)}>
-            <View style={[styles.feedCard, item.reflectionSubmitted ? styles.feedDone : styles.feedWait]}>
-              <View style={styles.feedCardTop}>
-                <Text style={styles.name}>{item.nickname}</Text>
-                <Text style={[styles.badge, item.reflectionSubmitted ? styles.badgeDone : styles.badgeWait]}>{item.reflectionSubmitted ? "SEALED" : "WAITING"}</Text>
-              </View>
-              <Text style={styles.goal}>{item.goal || "아직 목표 없음"}</Text>
-              <Text style={styles.meta}>완료 todo {item.completedTodoCount}개</Text>
-            </View>
-          </Pressable>
-        ))}
+        {requests.length > 0 ? (
+          <View style={styles.requestList}>
+            {requests.map((request) => (
+              <Card key={request.id} tone="accent" accent="periwinkle" size="md">
+                <View style={styles.requestRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="title">{request.requesterNickname}</Text>
+                    <Text variant="caption" color={palette.inkMute}>{request.requesterEmail}</Text>
+                  </View>
+                  <View style={styles.requestActions}>
+                    <Button label="수락" tone="primary" size="sm" onPress={() => respond(request.id, true)} />
+                    <Button label="거절" tone="secondary" size="sm" onPress={() => respond(request.id, false)} />
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
+        ) : null}
+
+        {items.length === 0 && !loading ? (
+          <Card tone="sunken" size="md">
+            <Text variant="bodySmall" color={palette.inkMute}>
+              아직 함께하는 친구가 없어요. 위의 + 버튼으로 친구를 초대하세요.
+            </Text>
+          </Card>
+        ) : (
+          <View style={styles.grid}>
+            {items.map((item) => <FriendCard key={item.userId} item={item} />)}
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
 }
 
+function FriendCard({ item }: { item: DailyFeedItem }) {
+  const accent = pickRoomAccent(item.userId);
+  const hue = roomHues[accent];
+  const status = item.reflectionSubmitted
+    ? { label: "회고 완료", fg: semantic.success.fg, bg: semantic.success.bg }
+    : item.goal
+      ? { label: "목표 작성", fg: semantic.warning.fg, bg: semantic.warning.bg }
+      : { label: "기록 없음", fg: palette.inkMute, bg: surface.sunken };
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${item.nickname} 프로필 열기`}
+      onPress={() => router.push(`/friend-profile?userId=${item.userId}`)}
+      style={({ pressed }) => [styles.cardWrap, pressed && { opacity: 0.85 }]}
+    >
+      <Card tone="raised" size="md" style={{ borderColor: hue.base, borderWidth: 1 }}>
+        <View style={styles.cardTop}>
+          <View style={[styles.avatar, { backgroundColor: hue.soft }]}>
+            <Text variant="bodyStrong" color={hue.deep}>{item.nickname.slice(0, 1).toUpperCase()}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+            <Text variant="caption" color={status.fg} weight="700">{status.label}</Text>
+          </View>
+        </View>
+        <Text variant="title" numberOfLines={1}>{item.nickname}</Text>
+        <Text variant="bodySmall" color={palette.inkMute} numberOfLines={2} style={{ marginTop: space[1] }}>
+          {item.goal || "오늘 목표가 아직 없어요."}
+        </Text>
+        <View style={styles.cardMeta}>
+          <MaterialIcons name="checklist" size={14} color={palette.inkMute} />
+          <Text variant="caption" color={palette.inkMute}>완료 {item.completedTodoCount}개</Text>
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { gap: 16, paddingBottom: 32 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 4, borderColor: colors.black, paddingBottom: 8 },
-  sectionTitle: { color: colors.black, fontSize: 32, fontWeight: "900", textTransform: "uppercase", textShadowColor: colors.greenNeon, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
-  liveBadge: { color: colors.paper, backgroundColor: colors.black, paddingHorizontal: 10, paddingVertical: 5, fontWeight: "900", transform: [{ rotate: "3deg" }] },
-  crewList: { gap: 14, paddingBottom: 10 },
-  crewItem: { width: 78, alignItems: "center", gap: 8 },
-  crewAvatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.black, alignItems: "center", justifyContent: "center", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 2 }, elevation: 4 },
-  crewAvatarDone: { backgroundColor: colors.greenNeon },
-  crewAvatarWait: { backgroundColor: colors.surfaceHigh, borderStyle: "dashed" },
-  crewInitial: { color: colors.black, fontSize: 24, fontWeight: "900" },
-  crewPercent: { position: "absolute", right: -8, bottom: -10, borderWidth: 2, borderColor: colors.black, paddingHorizontal: 4, fontSize: 10, fontWeight: "900", transform: [{ rotate: "-10deg" }] },
-  percentDone: { color: colors.greenNeon, backgroundColor: colors.black },
-  percentWait: { color: colors.black, backgroundColor: colors.paper },
-  inviteCircle: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.greenNeon, alignItems: "center", justifyContent: "center", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 2 }, elevation: 4 },
-  crewName: { width: "100%", color: colors.black, textAlign: "center", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  form: { gap: 10 },
-  input: { minHeight: 50, borderWidth: 3, borderColor: colors.black, paddingHorizontal: 12, backgroundColor: colors.white, fontWeight: "800", color: colors.ink },
-  actions: { flexDirection: "row", gap: 12 },
-  kicker: { color: colors.paper, backgroundColor: colors.black, alignSelf: "flex-start", paddingHorizontal: 9, paddingVertical: 5, fontWeight: "900" },
-  heading: { color: colors.ink, fontSize: 28, fontWeight: "900" },
-  feedCard: { gap: 8, borderWidth: 4, borderColor: colors.black, padding: 16, shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 6, height: 6 }, elevation: 7 },
-  feedDone: { backgroundColor: colors.green },
-  feedWait: { backgroundColor: colors.surface },
-  feedCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10 },
-  name: { color: colors.ink, fontSize: 24, fontWeight: "900" },
-  badge: { color: colors.ink, fontWeight: "900", borderColor: colors.black, borderWidth: 3, paddingHorizontal: 8, paddingVertical: 5 },
-  badgeDone: { backgroundColor: colors.greenNeon },
-  badgeWait: { backgroundColor: colors.pinkSoft },
-  goal: { marginTop: 8, color: colors.ink, fontSize: 18, fontWeight: "800" },
-  meta: { marginTop: 8, color: colors.paper, backgroundColor: colors.black, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, fontWeight: "900" }
+  content: { gap: space[3], paddingBottom: space[8] },
+  header: { flexDirection: "row", alignItems: "center", gap: space[2] },
+  iconAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: surface.sunken,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  input: {
+    minHeight: 44,
+    marginVertical: space[2],
+    paddingHorizontal: space[3],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: surface.border,
+    backgroundColor: surface.sunken,
+    color: palette.ink
+  },
+  requestList: { gap: space[2] },
+  requestRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  requestActions: { flexDirection: "row", gap: space[2] },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space[3]
+  },
+  cardWrap: { flexBasis: "48%", flexGrow: 1 },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: space[2]
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  statusBadge: {
+    paddingHorizontal: space[2],
+    paddingVertical: 2,
+    borderRadius: 999
+  },
+  cardMeta: {
+    marginTop: space[3],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1]
+  }
 });

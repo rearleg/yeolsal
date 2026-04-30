@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../theme/tokens";
+import { palette, surface, text as textColors } from "../theme/tokens";
+import { space } from "../theme/spacing";
 
 type Tab = {
   label: string;
@@ -11,10 +12,10 @@ type Tab = {
 };
 
 const tabs: Tab[] = [
-  { label: "GIGS", icon: "home", href: "/today", match: ["/today"] },
-  { label: "ZINE", icon: "auto-stories", href: "/feed", match: ["/feed", "/friend-profile"] },
-  { label: "POST", icon: "add-box", href: "/today", match: [] },
-  { label: "ME", icon: "person", href: "/profile", match: ["/profile", "/monthly"] }
+  { label: "오늘", icon: "today", href: "/today", match: ["/today"] },
+  { label: "친구", icon: "groups", href: "/feed", match: ["/feed", "/friend-profile"] },
+  { label: "기록", icon: "bar-chart", href: "/monthly", match: ["/monthly"] },
+  { label: "마이", icon: "account-circle", href: "/profile", match: ["/profile"] }
 ];
 
 export function BottomNav() {
@@ -29,11 +30,12 @@ export function BottomNav() {
             key={tab.label}
             accessibilityRole="button"
             accessibilityLabel={tab.label}
-            onPress={() => router.push(tab.href)}
-            style={[styles.item, active && styles.activeItem]}
+            accessibilityState={{ selected: active }}
+            onPress={() => router.replace(tab.href)}
+            style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
           >
-            <MaterialIcons name={tab.icon} size={24} color={colors.black} />
-            <Text style={styles.label}>{tab.label}</Text>
+            <MaterialIcons name={tab.icon} size={22} color={active ? palette.sageDeep : textColors.tertiary} />
+            <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -43,47 +45,34 @@ export function BottomNav() {
 
 const styles = StyleSheet.create({
   footer: {
-    minHeight: 78,
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: colors.paper,
-    borderTopWidth: 4,
-    borderColor: colors.black,
-    shadowColor: colors.black,
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 10,
-    paddingHorizontal: 8,
-    paddingTop: 8
+    backgroundColor: surface.card,
+    borderTopWidth: 1,
+    borderColor: surface.border,
+    paddingHorizontal: space[2],
+    paddingTop: space[2],
+    paddingBottom: space[1]
   },
   item: {
-    minWidth: 62,
-    minHeight: 54,
+    minWidth: 56,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    opacity: 0.78
+    paddingHorizontal: space[1],
+    paddingVertical: space[1],
+    gap: 2
   },
-  activeItem: {
-    backgroundColor: colors.pink,
-    borderWidth: 2,
-    borderColor: colors.black,
-    opacity: 1,
-    shadowColor: colors.black,
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 4, height: 4 },
-    elevation: 5,
-    transform: [{ translateY: -8 }]
+  itemPressed: {
+    opacity: 0.7
   },
   label: {
-    marginTop: 2,
-    color: colors.black,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  }
+    color: textColors.tertiary,
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.2
+  },
+  activeLabel: { color: palette.sageDeep, fontWeight: "700" }
 });

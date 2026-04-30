@@ -11,8 +11,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#F8F3E7"
     },
-    "assetBundlePatterns": ["**/*"],
-    "plugins": ["expo-router"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-router"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.yeosal.mobile"
@@ -22,6 +26,12 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/icon.png",
         "backgroundColor": "#F8F3E7"
+      }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c44c026e-777e-4a47-9165-41688be39567"
       }
     }
   }

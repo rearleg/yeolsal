@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { GrassGrid } from "../src/components/GrassGrid";
-import { NeoCard } from "../src/components/NeoCard";
-import { Screen } from "../src/components/Screen";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
+import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import type { GrassDayDto, ProfileDto } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { apiRequest, ApiEnvelope } from "../src/api/client";
-import { GrassDayDto, ProfileDto } from "../src/api/types";
-import { colors } from "../src/theme/tokens";
-import logo from "../assets/brand/logo.png";
+import { Screen } from "../src/components/Screen";
+import { Card } from "../src/components/ui/Card";
+import { Text } from "../src/components/ui/Text";
+import { Button } from "../src/components/ui/Button";
+import { ContributionGrid } from "../src/components/grid/ContributionGrid";
+import { DayDetailCard } from "../src/components/grid/DayDetailCard";
+import { bucketFor } from "../src/lib/bucket";
+import { entryDateOf, rollingRange } from "../src/lib/calendar";
+import { palette, surface } from "../src/theme/tokens";
+import { space } from "../src/theme/spacing";
+
+const ROLLING_DAYS = 365;
 
 export default function ProfileScreen() {
   const auth = useRequireAuth();
@@ -26,16 +32,18 @@ export default function ProfileScreen() {
   async function load() {
     setLoading(true);
     try {
-      const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const today = entryDateOf();
+      const range = rollingRange(today, ROLLING_DAYS);
+      const from = range[0];
+      const to = range[range.length - 1];
       const [profileResponse, grassResponse] = await Promise.all([
         apiRequest<ApiEnvelope<ProfileDto>>("/profiles/me"),
         apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/me/grass?from=${from}&to=${to}`)
       ]);
       setProfile(profileResponse.data);
       setGrass(grassResponse.data);
-      setSelected(grassResponse.data[0] ?? null);
+      const todays = grassResponse.data.find((d) => d.date === today);
+      setSelected(todays ?? grassResponse.data[grassResponse.data.length - 1] ?? null);
     } catch (error) {
       Alert.alert("프로필", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
     } finally {
@@ -43,98 +51,118 @@ export default function ProfileScreen() {
     }
   }
 
+  const stats = useMemo(() => {
+    let success = 0;
+    let totalTodos = 0;
+    let streak = 0;
+    let streakRunning = true;
+    const today = entryDateOf();
+    for (let i = grass.length - 1; i >= 0; i -= 1) {
+      const day = grass[i];
+      const bucket = bucketFor(day);
+      if (bucket > 0) {
+        success += 1;
+      }
+      totalTodos += day.completedTodoCount;
+      if (streakRunning) {
+        if (bucket > 0) {
+          streak += 1;
+        } else if (i === grass.length - 1 && day.date === today) {
+          // today not yet recorded — skip without breaking the run
+        } else {
+          streakRunning = false;
+        }
+      }
+    }
+    return { success, totalTodos, streak };
+  }, [grass]);
+
+  const initial = (profile?.nickname ?? "나").slice(0, 1);
+
   return (
-    <Screen title="내 잔디">
-      <ScrollView contentContainerStyle={styles.content}>
-        {loading ? <ActivityIndicator color={colors.ink} /> : null}
+    <Screen title="프로필">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading && grass.length === 0 ? <ActivityIndicator color={palette.sageDeep} /> : null}
 
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatarShadow} />
+        <Card tone="hero" size="hero">
+          <View style={styles.identityRow}>
             <View style={styles.avatar}>
-              <Image source={logo} style={styles.avatarImage} />
+              <Text variant="h1" color={palette.sageDeep}>{initial}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text variant="h2">{profile?.nickname ?? "나의 잔디"}</Text>
+              <Text variant="bodySmall" color={palette.inkMute}>{profile?.email ?? ""}</Text>
             </View>
           </View>
-          <View style={styles.profileCopy}>
-            <Text style={styles.name}>{profile?.nickname ?? "나의 10살방"}</Text>
-            <Text style={styles.role}>Digital Gardener</Text>
-            <Text style={styles.bio}>Cultivating thoughts, planting ideas, and watching the neon grass grow.</Text>
+          <View style={styles.metricsRow}>
+            <Metric label="연속 성공" value={`${stats.streak}일`} />
+            <View style={styles.metricDivider} />
+            <Metric label="성공한 날" value={`${stats.success}일`} />
+            <View style={styles.metricDivider} />
+            <Metric label="완료한 할 일" value={`${stats.totalTodos}개`} />
           </View>
-        </View>
+        </Card>
 
-        <View style={styles.stats}>
-          <NeoCard tone="green" style={styles.statCard}>
-            <View style={styles.statTop}>
-              <Text style={styles.statLabel}>Current Streak</Text>
-              <MaterialIcons name="local-fire-department" size={24} color={colors.black} />
-            </View>
-            <Text style={styles.statNumber}>{grass.filter((day) => day.missionCompleted).length}</Text>
-            <Text style={styles.statUnit}>DAYS</Text>
-          </NeoCard>
-          <NeoCard tone="pink" style={styles.statCard}>
-            <View style={styles.statTopPink}>
-              <Text style={styles.statLabel}>Total Impact</Text>
-              <MaterialIcons name="eco" size={24} color={colors.black} />
-            </View>
-            <Text style={[styles.statNumber, styles.statNumberGreen]}>{grass.reduce((sum, day) => sum + day.completedTodoCount, 0)}</Text>
-            <Text style={styles.statUnit}>SEEDS</Text>
-          </NeoCard>
-        </View>
-
-        <NeoCard tone="white" style={styles.garden}>
-          <View style={styles.gardenHeader}>
-            <Text style={styles.gardenTitle}>Your Garden</Text>
-            <MaterialIcons name="grid-view" size={24} color={colors.black} />
-          </View>
-          <View style={styles.gardenBody}>
-            <GrassGrid days={grass} onSelect={setSelected} />
-            <View style={styles.legend}>
-              <Text style={styles.legendText}>Less</Text>
-              {[colors.surfaceHigh, "#B9FFB1", colors.green, colors.greenDark].map((color) => <View key={color} style={[styles.legendBlock, { backgroundColor: color }]} />)}
-              <Text style={styles.legendText}>More</Text>
+        <Card tone="raised" size="lg">
+          <View style={styles.cardHeader}>
+            <View>
+              <Text variant="title">잔디</Text>
+              <Text variant="caption" color={palette.inkMute}>
+                최근 365일 · 오늘 {selected ? friendlyToday(selected.date) : ""}
+              </Text>
             </View>
           </View>
-        </NeoCard>
+          <ContributionGrid days={grass} selectedDate={selected?.date ?? null} onSelect={setSelected} />
+        </Card>
 
-        {selected ? (
-          <NeoCard tone="acid" style={styles.detailCard}>
-            <Text style={styles.detail}>{selected.date}</Text>
-            <Text style={styles.detail}>완료 todo {selected.completedTodoCount}개</Text>
-            <Text style={styles.state}>{selected.missionCompleted ? "MISSION COMPLETE" : "MISSION OPEN"}</Text>
-          </NeoCard>
-        ) : null}
+        <DayDetailCard day={selected} />
+
+        <Button label="로그아웃" tone="secondary" size="md" onPress={auth.signOut} />
       </ScrollView>
     </Screen>
   );
 }
 
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metricItem}>
+      <Text variant="numericTabular" color={palette.ink}>{value}</Text>
+      <Text variant="caption" color={palette.inkMute}>{label}</Text>
+    </View>
+  );
+}
+
+function friendlyToday(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number.parseInt(m, 10)}/${Number.parseInt(d, 10)}`;
+}
+
 const styles = StyleSheet.create({
-  content: { gap: 16, paddingBottom: 32 },
-  profileHeader: { alignItems: "center", gap: 22, marginTop: 16 },
-  avatarWrap: { width: 144, height: 144 },
-  avatarShadow: { position: "absolute", inset: 0, borderRadius: 72, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.pink, transform: [{ translateX: 8 }, { translateY: 8 }] },
-  avatar: { position: "absolute", inset: 0, borderRadius: 72, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.surface, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  avatarImage: { width: 126, height: 126, resizeMode: "contain" },
-  profileCopy: { alignItems: "center", gap: 12 },
-  name: { color: colors.black, fontSize: 42, lineHeight: 46, fontWeight: "900", textAlign: "center", textTransform: "uppercase", textShadowColor: colors.green, textShadowOffset: { width: 3, height: 3 }, textShadowRadius: 0 },
-  role: { color: colors.paper, backgroundColor: colors.pink, borderWidth: 4, borderColor: colors.black, paddingHorizontal: 14, paddingVertical: 7, fontWeight: "900", textTransform: "uppercase", transform: [{ rotate: "-2deg" }], shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 }, elevation: 4 },
-  bio: { color: colors.black, backgroundColor: colors.white, borderWidth: 2, borderColor: colors.black, padding: 14, fontSize: 15, lineHeight: 22, fontWeight: "700", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 }, elevation: 4 },
-  stats: { gap: 14 },
-  statCard: { padding: 0, overflow: "hidden", alignItems: "center" },
-  statTop: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 4, borderColor: colors.black, backgroundColor: colors.green, padding: 12 },
-  statTopPink: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 4, borderColor: colors.black, backgroundColor: colors.pinkSoft, padding: 12 },
-  statLabel: { color: colors.black, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  statNumber: { marginTop: 14, color: colors.pink, fontSize: 64, lineHeight: 70, fontWeight: "900", textShadowColor: colors.black, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
-  statNumberGreen: { color: colors.greenDark },
-  statUnit: { marginBottom: 16, color: colors.black, fontSize: 28, fontWeight: "900" },
-  garden: { padding: 0, overflow: "hidden" },
-  gardenHeader: { backgroundColor: colors.greenNeon, borderBottomWidth: 4, borderColor: colors.black, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  gardenTitle: { color: colors.black, fontSize: 24, fontWeight: "900", textTransform: "uppercase" },
-  gardenBody: { padding: 16, gap: 14 },
-  legend: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 7 },
-  legendText: { color: colors.black, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  legendBlock: { width: 16, height: 16, borderWidth: 2, borderColor: colors.black },
-  detailCard: { gap: 6 },
-  detail: { color: colors.ink, fontSize: 20, fontWeight: "900" },
-  state: { color: colors.paper, backgroundColor: colors.black, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, fontWeight: "900" }
+  content: { gap: space[4], paddingBottom: space[8] },
+  identityRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.sageSoft
+  },
+  identityText: { gap: 2, flex: 1 },
+  metricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: space[4],
+    paddingTop: space[3],
+    borderTopWidth: 1,
+    borderTopColor: surface.border
+  },
+  metricDivider: { width: 1, height: 28, backgroundColor: surface.border, marginHorizontal: space[1] },
+  metricItem: { flex: 1, gap: 2, alignItems: "center" },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: space[3]
+  }
 });

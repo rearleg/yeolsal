@@ -5,24 +5,35 @@ import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
+import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FriendService {
+    private static final int STREAK_WINDOW_DAYS = 365;
+
     private final FriendshipRepository friendships;
     private final UserRepository users;
     private final DailyEntryRepository dailyEntries;
+    private final DailyService dailyService;
 
-    public FriendService(FriendshipRepository friendships, UserRepository users, DailyEntryRepository dailyEntries) {
+    public FriendService(
+            FriendshipRepository friendships,
+            UserRepository users,
+            DailyEntryRepository dailyEntries,
+            @Lazy DailyService dailyService
+    ) {
         this.friendships = friendships;
         this.users = users;
         this.dailyEntries = dailyEntries;
+        this.dailyService = dailyService;
     }
 
     @Transactional(readOnly = true)
@@ -70,18 +81,22 @@ public class FriendService {
                 .toList();
         List<DailyEntry> entries = dailyEntries.findByUserInAndDate(friendUsers, date);
         return friendUsers.stream()
-                .map(friend -> entries.stream()
-                        .filter(entry -> entry.getUser().getId().equals(friend.getId()))
-                        .findFirst()
-                        .map(entry -> new FriendController.DailyFeedItem(
-                                friend.getId(),
-                                friend.getNickname(),
-                                date,
-                                entry.getGoal(),
-                                (int) entry.getTodos().stream().filter(TodoItem::isCompleted).count(),
-                                entry.getReflection() != null
-                        ))
-                        .orElse(new FriendController.DailyFeedItem(friend.getId(), friend.getNickname(), date, "", 0, false)))
+                .map(friend -> {
+                    int streak = dailyService.currentStreak(friend, STREAK_WINDOW_DAYS);
+                    return entries.stream()
+                            .filter(entry -> entry.getUser().getId().equals(friend.getId()))
+                            .findFirst()
+                            .map(entry -> new FriendController.DailyFeedItem(
+                                    friend.getId(),
+                                    friend.getNickname(),
+                                    date,
+                                    entry.getGoal(),
+                                    (int) entry.getTodos().stream().filter(TodoItem::isCompleted).count(),
+                                    entry.getReflection() != null,
+                                    streak
+                            ))
+                            .orElse(new FriendController.DailyFeedItem(friend.getId(), friend.getNickname(), date, "", 0, false, streak));
+                })
                 .toList();
     }
 

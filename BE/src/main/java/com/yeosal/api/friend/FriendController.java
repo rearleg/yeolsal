@@ -60,5 +60,5 @@ public class FriendController {
     public record FriendRequestCreate(@NotBlank String targetEmail) {}
     public record FriendRequestDecision(boolean accepted) {}
     public record FriendRequestDto(long id, String requesterEmail, String requesterNickname, String status) {}
-    public record DailyFeedItem(long userId, String nickname, LocalDate date, String goal, int completedTodoCount, boolean reflectionSubmitted) {}
+    public record DailyFeedItem(long userId, String nickname, LocalDate date, String goal, int completedTodoCount, boolean reflectionSubmitted, int currentStreak) {}
 }

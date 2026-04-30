@@ -1,19 +1,41 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { NeoButton } from "../src/components/NeoButton";
-import { NeoCard } from "../src/components/NeoCard";
-import { Screen } from "../src/components/Screen";
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View
+} from "react-native";
+import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import type { DailyEntryDto, DailyFeedItem } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { apiRequest, ApiEnvelope } from "../src/api/client";
-import { DailyEntryDto } from "../src/api/types";
-import { colors, typography } from "../src/theme/tokens";
+import { Screen } from "../src/components/Screen";
+import { Card } from "../src/components/ui/Card";
+import { Button } from "../src/components/ui/Button";
+import { Text } from "../src/components/ui/Text";
+import { palette, pickRoomAccent, roomHues, semantic, surface } from "../src/theme/tokens";
+import { space } from "../src/theme/spacing";
+import { entryDateOf } from "../src/lib/calendar";
+
+type FriendStatus = "empty" | "goal" | "reflection";
+
+interface FriendChip {
+  id: number;
+  name: string;
+  status: FriendStatus;
+  todoCount: number;
+}
 
 export default function TodayScreen() {
   const auth = useRequireAuth();
   const [entry, setEntry] = useState<DailyEntryDto | null>(null);
+  const [feed, setFeed] = useState<DailyFeedItem[]>([]);
   const [goal, setGoal] = useState("");
-  const [todosText, setTodosText] = useState("");
+  const [newTodo, setNewTodo] = useState("");
   const [reflection, setReflection] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -27,10 +49,14 @@ export default function TodayScreen() {
   async function load() {
     setLoading(true);
     try {
-      const response = await apiRequest<ApiEnvelope<DailyEntryDto | null>>("/daily-entries/today");
-      setEntry(response.data);
-      setGoal(response.data?.goal ?? "");
-      setTodosText(response.data?.todos.map((todo) => todo.title).join("\n") ?? "");
+      const date = entryDateOf();
+      const [todayResponse, feedResponse] = await Promise.all([
+        apiRequest<ApiEnvelope<DailyEntryDto | null>>("/daily-entries/today"),
+        apiRequest<ApiEnvelope<DailyFeedItem[]>>(`/feed/daily?date=${date}`)
+      ]);
+      setEntry(todayResponse.data);
+      setFeed(feedResponse.data);
+      setGoal(todayResponse.data?.goal ?? "");
     } catch (error) {
       Alert.alert("오늘", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
     } finally {
@@ -38,20 +64,19 @@ export default function TodayScreen() {
     }
   }
 
-  async function saveEntry() {
-    const todos = todosText.split("\n").map((todo) => todo.trim()).filter(Boolean);
-    if (!goal.trim() || todos.length === 0) {
-      Alert.alert("오늘의 약속", "목표와 todo를 입력하세요.");
+  async function saveGoal() {
+    if (!goal.trim()) {
+      Alert.alert("오늘의 목표", "목표를 입력하세요.");
       return;
     }
     setSubmitting(true);
     try {
-      const response = await apiRequest<ApiEnvelope<DailyEntryDto>>("/daily-entries", {
-        method: "POST",
-        body: JSON.stringify({ goal: goal.trim(), todos })
+      const response = await apiRequest<ApiEnvelope<DailyEntryDto>>("/daily-entries/today", {
+        method: "PATCH",
+        body: JSON.stringify({ goal: goal.trim() })
       });
       setEntry(response.data);
-      Alert.alert("저장", "오늘 목표/todo를 게시했습니다.");
+      setGoal(response.data.goal);
     } catch (error) {
       Alert.alert("저장 실패", error instanceof Error ? error.message : "다시 시도하세요.");
     } finally {
@@ -59,21 +84,48 @@ export default function TodayScreen() {
     }
   }
 
-  async function toggleTodo(id: number, completed: boolean) {
+  async function addTodo() {
+    if (!newTodo.trim()) return;
+    if (!entry) {
+      Alert.alert("ToDo", "오늘의 목표를 먼저 저장하세요.");
+      return;
+    }
+    setSubmitting(true);
     try {
-      await apiRequest(`/todo-items/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ completed: !completed })
+      await apiRequest("/daily-entries/today/todo-items", {
+        method: "POST",
+        body: JSON.stringify({ title: newTodo.trim() })
       });
+      setNewTodo("");
       await load();
     } catch (error) {
-      Alert.alert("Todo", error instanceof Error ? error.message : "수정하지 못했습니다.");
+      Alert.alert("ToDo", error instanceof Error ? error.message : "추가하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function updateTodo(id: number, payload: { title?: string; completed?: boolean }) {
+    try {
+      await apiRequest(`/todo-items/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      await load();
+    } catch (error) {
+      Alert.alert("ToDo", error instanceof Error ? error.message : "수정하지 못했습니다.");
+    }
+  }
+
+  async function deleteTodo(id: number) {
+    try {
+      await apiRequest(`/todo-items/${id}`, { method: "DELETE" });
+      await load();
+    } catch (error) {
+      Alert.alert("ToDo", error instanceof Error ? error.message : "삭제하지 못했습니다.");
     }
   }
 
   async function submitReflection() {
     if (!entry || !reflection.trim()) {
-      Alert.alert("회고", "저장된 목표와 회고 내용을 확인하세요.");
+      Alert.alert("회고", "회고 내용을 입력하세요.");
       return;
     }
     setSubmitting(true);
@@ -84,7 +136,6 @@ export default function TodayScreen() {
       });
       setReflection("");
       await load();
-      Alert.alert("회고", "회고를 제출했습니다.");
     } catch (error) {
       Alert.alert("회고 실패", error instanceof Error ? error.message : "다시 시도하세요.");
     } finally {
@@ -92,133 +143,312 @@ export default function TodayScreen() {
     }
   }
 
+  const chips = useMemo<FriendChip[]>(
+    () =>
+      feed.map((f) => ({
+        id: f.userId,
+        name: f.nickname,
+        status: f.reflectionSubmitted ? "reflection" : f.goal ? "goal" : "empty",
+        todoCount: f.completedTodoCount
+      })),
+    [feed]
+  );
+
+  const todos = entry?.todos ?? [];
+  const completedCount = todos.filter((t) => t.completed).length;
+  const reflectionDone = !!entry?.reflection;
+
   return (
-    <Screen title="오늘의 약속">
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroTitle}>
-          <Text style={styles.liveStamp}>DEADLINE: BY 6 AM TOMORROW</Text>
-          <Text style={styles.pageHeadline}>Daily{`\n`}Gigs</Text>
-        </View>
-        {loading ? <ActivityIndicator color={colors.ink} /> : null}
+    <Screen title="오늘">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading ? <ActivityIndicator color={palette.sageDeep} /> : null}
 
-        <View style={styles.focusCard}>
-          <View style={styles.focusHeader}>
-            <Text style={styles.focusHeaderText}>TODAY'S FOCUS</Text>
-            <View style={styles.iconBadge}>
-              <MaterialIcons name="local-fire-department" size={30} color={colors.black} />
+        {chips.length > 0 ? (
+          <Card tone="raised" size="md">
+            <View style={styles.chipHeader}>
+              <Text variant="title">친구들의 오늘</Text>
+              <Text variant="caption" color={palette.inkMute}>{feed.length}명</Text>
             </View>
-          </View>
-          <View style={styles.focusBody}>
-            <View style={styles.goalRow}>
-              <View style={styles.pinkBar} />
-              <TextInput value={goal} onChangeText={setGoal} placeholder="오늘 목표" multiline style={styles.goalInput} />
-            </View>
-            <View style={styles.metricGrid}>
-              <View style={styles.metric}>
-                <MaterialIcons name="wb-sunny" size={28} color={colors.black} />
-                <Text style={styles.metricLabel}>WAKE</Text>
-                <Text style={styles.metricValue}>06:30</Text>
-              </View>
-              <View style={[styles.metric, styles.metricGreen]}>
-                <MaterialIcons name="timer" size={28} color={colors.black} />
-                <Text style={styles.metricLabel}>FOCUS</Text>
-                <Text style={styles.metricValue}>TODAY</Text>
-              </View>
-              <View style={[styles.metric, styles.metricPink]}>
-                <MaterialIcons name="bedtime" size={28} color={colors.black} />
-                <Text style={styles.metricLabel}>SEAL</Text>
-                <Text style={styles.metricValue}>06:00</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.hitHeaderWrap}>
-          <Text style={styles.hitHeader}>THE HIT LIST</Text>
-        </View>
-        <TextInput value={todosText} onChangeText={setTodosText} placeholder={"todo를 줄마다 입력\n예: 수학 오답 20분"} multiline style={styles.todosInput} />
-        <NeoButton label="오늘 목표/todo 게시" disabled={submitting} onPress={saveEntry} />
-
-        {entry ? (
-          <View style={styles.todoList}>
-            {entry.todos.map((todo) => (
-              <Pressable
-                key={todo.id}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: todo.completed }}
-                onPress={() => toggleTodo(todo.id, todo.completed)}
-                style={[styles.todoRow, todo.completed && styles.todoCompleted]}
-              >
-                {todo.completed ? <View style={styles.doneRibbon}><Text style={styles.doneRibbonText}>DONE</Text></View> : null}
-                <View style={[styles.checkbox, todo.completed && styles.checkboxDone]}>
-                  {todo.completed ? <MaterialIcons name="check" size={22} color={colors.black} /> : null}
-                </View>
-                <Text style={[styles.todoText, todo.completed && styles.todoTextDone]}>{todo.title}</Text>
-              </Pressable>
-            ))}
-          </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}
+            >
+              {chips.map((chip) => <Chip key={chip.id} chip={chip} />)}
+            </ScrollView>
+          </Card>
         ) : null}
 
-        <NeoCard tone="surface" style={styles.reflectionCard}>
-          <Text style={styles.reflectionTape}>BRAIN DUMP</Text>
-          {entry?.reflection ? <Text style={styles.reflectionText}>{entry.reflection.body}</Text> : <TextInput value={reflection} onChangeText={setReflection} placeholder="Scribble your thoughts here..." multiline style={styles.reflectionInput} />}
-        </NeoCard>
-        {!entry?.reflection ? <NeoButton label="회고 제출" disabled={submitting || !entry} tone="pink" onPress={submitReflection} /> : null}
-        <NeoButton label="로그아웃" tone="black" onPress={auth.signOut} />
+        <Card tone="raised" size="md">
+          <View style={styles.cardHeader}>
+            <View style={styles.titleRow}>
+              <MaterialIcons name="flag" size={18} color={palette.sageDeep} />
+              <Text variant="title">오늘의 목표</Text>
+            </View>
+            <Button label="저장" tone="primary" size="sm" onPress={saveGoal} disabled={submitting} />
+          </View>
+          <TextInput
+            value={goal}
+            onChangeText={setGoal}
+            placeholder="오늘 어떤 하루를 보낼까요?"
+            placeholderTextColor={palette.inkFaint}
+            multiline
+            style={styles.goalInput}
+          />
+        </Card>
+
+        <Card tone="raised" size="md">
+          <View style={styles.cardHeader}>
+            <View style={styles.titleRow}>
+              <MaterialIcons name="checklist" size={18} color={palette.ink} />
+              <Text variant="title">할 일</Text>
+            </View>
+            <Text variant="caption" color={palette.inkMute}>
+              {completedCount}/{todos.length}
+            </Text>
+          </View>
+          <View style={styles.addRow}>
+            <TextInput
+              value={newTodo}
+              onChangeText={setNewTodo}
+              placeholder="할 일 추가"
+              placeholderTextColor={palette.inkFaint}
+              returnKeyType="done"
+              onSubmitEditing={addTodo}
+              style={styles.addInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="할 일 추가"
+              disabled={submitting}
+              onPress={addTodo}
+              style={styles.addButton}
+            >
+              <MaterialIcons name="add" size={18} color={palette.surface} />
+            </Pressable>
+          </View>
+          <View style={styles.todoList}>
+            {todos.map((todo) => (
+              <View key={todo.id} style={styles.todoItem}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: todo.completed }}
+                  onPress={() => updateTodo(todo.id, { completed: !todo.completed })}
+                  style={[styles.checkbox, todo.completed && styles.checkboxDone]}
+                >
+                  {todo.completed ? <MaterialIcons name="check" size={14} color={palette.surface} /> : null}
+                </Pressable>
+                <TextInput
+                  defaultValue={todo.title}
+                  onEndEditing={(event) => {
+                    const title = event.nativeEvent.text.trim();
+                    if (title && title !== todo.title) {
+                      updateTodo(todo.id, { title });
+                    } else if (!title) {
+                      load();
+                    }
+                  }}
+                  style={[styles.todoInput, todo.completed && styles.todoDone]}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="할 일 삭제"
+                  onPress={() => deleteTodo(todo.id)}
+                  style={styles.deleteButton}
+                >
+                  <MaterialIcons name="close" size={16} color={palette.inkMute} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        </Card>
+
+        <Card tone="raised" size="md">
+          <View style={styles.cardHeader}>
+            <View style={styles.titleRow}>
+              <MaterialIcons name="edit-note" size={20} color={roomHues.salmon.deep} />
+              <Text variant="title">회고</Text>
+            </View>
+            <Text variant="caption" color={palette.inkMute}>
+              {reflectionDone ? "완료" : `${reflection.length}/500`}
+            </Text>
+          </View>
+          {reflectionDone ? (
+            <View style={styles.reflectionRead}>
+              <Text variant="body" color={palette.ink}>{entry?.reflection?.body}</Text>
+            </View>
+          ) : (
+            <View style={styles.reflectionWrap}>
+              <TextInput
+                value={reflection}
+                onChangeText={(text) => setReflection(text.slice(0, 500))}
+                placeholder="오늘을 짧게 기록해보세요."
+                placeholderTextColor={palette.inkFaint}
+                multiline
+                style={styles.reflectionInput}
+              />
+              <View style={styles.reflectionActions}>
+                <Button
+                  label="회고 제출"
+                  tone="primary"
+                  size="sm"
+                  onPress={submitReflection}
+                  disabled={submitting || !entry}
+                />
+              </View>
+            </View>
+          )}
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
 
+function Chip({ chip }: { chip: FriendChip }) {
+  const accent = pickRoomAccent(chip.id);
+  const hue = roomHues[accent];
+  const dot =
+    chip.status === "reflection"
+      ? semantic.success.fg
+      : chip.status === "goal"
+        ? semantic.warning.fg
+        : palette.inkFaint;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${chip.name} ${chip.status === "reflection" ? "회고 완료" : chip.status === "goal" ? "목표 작성" : "기록 없음"}`}
+      onPress={() => router.push(`/friend-profile?userId=${chip.id}`)}
+      style={({ pressed }) => [styles.chip, { borderColor: hue.base }, pressed && { opacity: 0.7 }]}
+    >
+      <View style={[styles.chipAvatar, { backgroundColor: hue.soft }]}>
+        <Text variant="bodyStrong" color={hue.deep}>{chip.name.slice(0, 1)}</Text>
+        <View style={[styles.chipDot, { backgroundColor: dot }]} />
+      </View>
+      <Text variant="caption" color={palette.ink} numberOfLines={1}>{chip.name}</Text>
+      <Text variant="caption" color={palette.inkMute}>{chip.todoCount}개</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { gap: 18, paddingBottom: 34 },
-  heroTitle: { marginTop: 4, gap: 12 },
-  liveStamp: {
-    alignSelf: "flex-start",
-    color: colors.paper,
-    backgroundColor: colors.pink,
-    borderWidth: 3,
-    borderColor: colors.black,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 12,
-    fontWeight: "900",
-    transform: [{ rotate: "-2deg" }],
-    shadowColor: colors.black,
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 3, height: 3 },
-    elevation: 3
+  content: { gap: space[3], paddingBottom: space[8] },
+  chipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: space[2]
   },
-  pageHeadline: { color: colors.black, fontSize: 48, lineHeight: 52, fontWeight: typography.headline.fontWeight, textTransform: "uppercase" },
-  focusCard: { borderWidth: 4, borderColor: colors.black, backgroundColor: colors.surface, shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 8, height: 8 }, elevation: 9 },
-  focusHeader: { minHeight: 76, backgroundColor: colors.green, borderBottomWidth: 4, borderColor: colors.black, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  focusHeaderText: { color: colors.black, backgroundColor: colors.green, borderWidth: 2, borderColor: colors.black, paddingHorizontal: 8, paddingVertical: 4, fontSize: 28, fontWeight: "900", textTransform: "uppercase", transform: [{ rotate: "-2deg" }] },
-  iconBadge: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: colors.black, backgroundColor: colors.paper, alignItems: "center", justifyContent: "center", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 2 }, elevation: 3 },
-  focusBody: { padding: 18, gap: 20 },
-  goalRow: { flexDirection: "row", alignItems: "stretch", gap: 14 },
-  pinkBar: { width: 16, minHeight: 88, borderWidth: 2, borderColor: colors.black, backgroundColor: colors.pink },
-  goalInput: { flex: 1, minHeight: 88, color: colors.black, fontSize: 34, lineHeight: 38, fontWeight: "900", textTransform: "uppercase", padding: 0 },
-  metricGrid: { flexDirection: "row", gap: 10, borderTopWidth: 4, borderColor: colors.black, paddingTop: 16 },
-  metric: { flex: 1, alignItems: "center", gap: 4, borderWidth: 2, borderColor: colors.black, backgroundColor: colors.surfaceHigh, paddingVertical: 10, shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 2 }, elevation: 3 },
-  metricGreen: { backgroundColor: colors.greenNeon },
-  metricPink: { backgroundColor: colors.pinkSoft },
-  metricLabel: { color: colors.black, fontSize: 12, fontWeight: "900" },
-  metricValue: { color: colors.black, fontSize: 13, fontWeight: "900" },
-  hitHeaderWrap: { alignItems: "flex-start" },
-  hitHeader: { color: colors.paper, backgroundColor: colors.pink, borderWidth: 4, borderColor: colors.black, paddingHorizontal: 12, paddingVertical: 6, fontSize: 26, fontWeight: "900", textTransform: "uppercase", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 }, elevation: 4, transform: [{ rotate: "1deg" }] },
-  todosInput: { minHeight: 92, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.white, padding: 12, color: colors.black, fontSize: 16, fontWeight: "800", shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 }, elevation: 4 },
-  todoList: { gap: 14 },
-  todoRow: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.surface, padding: 14, shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 4, height: 4 }, elevation: 4 },
-  todoCompleted: { backgroundColor: colors.surfaceHigh },
-  doneRibbon: { position: "absolute", top: -12, right: -10, zIndex: 2, backgroundColor: colors.black, borderWidth: 2, borderColor: colors.greenNeon, paddingHorizontal: 8, paddingVertical: 2, transform: [{ rotate: "12deg" }] },
-  doneRibbonText: { color: colors.paper, fontSize: 11, fontWeight: "900" },
-  checkbox: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: colors.black, backgroundColor: colors.paper, shadowColor: colors.black, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 2 }, elevation: 3 },
-  checkboxDone: { backgroundColor: colors.greenNeon },
-  todoText: { flex: 1, color: colors.black, fontSize: 16, fontWeight: "900", textTransform: "uppercase" },
-  todoTextDone: { textDecorationLine: "line-through", opacity: 0.58 },
-  reflectionCard: { gap: 12, marginTop: 10 },
-  reflectionTape: { alignSelf: "flex-start", marginTop: -30, color: colors.black, backgroundColor: colors.pinkSoft, borderWidth: 4, borderColor: colors.black, paddingHorizontal: 12, paddingVertical: 5, fontWeight: "900", transform: [{ rotate: "-3deg" }] },
-  reflectionInput: { minHeight: 120, borderBottomWidth: 4, borderBottomColor: colors.black, borderStyle: "dashed", color: colors.black, fontSize: 16, fontWeight: "700", padding: 8 },
-  reflectionText: { color: colors.black, fontSize: 16, fontWeight: "800", lineHeight: 24 }
+  chipRow: { gap: space[2], paddingRight: space[3] },
+  chip: {
+    width: 72,
+    paddingVertical: space[2],
+    paddingHorizontal: space[1],
+    alignItems: "center",
+    gap: space[1],
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: surface.card
+  },
+  chipAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  chipDot: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: surface.card
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: space[3]
+  },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space[2] },
+  goalInput: {
+    minHeight: 56,
+    color: palette.ink,
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 26,
+    padding: 0
+  },
+  addRow: { flexDirection: "row", alignItems: "center", gap: space[2] },
+  addInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: space[3],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: surface.border,
+    backgroundColor: surface.sunken,
+    color: palette.ink,
+    fontSize: 14
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.sageDeep
+  },
+  todoList: { marginTop: space[2], borderTopWidth: 1, borderTopColor: surface.border },
+  todoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    height: 44,
+    borderBottomWidth: 1,
+    borderBottomColor: surface.border
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: palette.borderStrong,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  checkboxDone: { borderColor: palette.sageDeep, backgroundColor: palette.sageDeep },
+  todoInput: {
+    flex: 1,
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: "500",
+    padding: 0
+  },
+  todoDone: { color: palette.inkMute, textDecorationLine: "line-through" },
+  deleteButton: { width: 28, height: 40, alignItems: "center", justifyContent: "center" },
+  reflectionRead: {
+    backgroundColor: surface.sunken,
+    borderRadius: 12,
+    padding: space[3]
+  },
+  reflectionWrap: {
+    backgroundColor: surface.sunken,
+    borderRadius: 12,
+    overflow: "hidden"
+  },
+  reflectionInput: {
+    minHeight: 96,
+    padding: space[3],
+    color: palette.ink,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  reflectionActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    padding: space[2]
+  }
 });

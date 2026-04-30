@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
-import { NeoButton } from "../src/components/NeoButton";
-import { NeoCard } from "../src/components/NeoCard";
 import { useAuth } from "../src/auth/AuthContext";
-import { colors } from "../src/theme/tokens";
-import logo from "../assets/brand/logo.png";
+import { Card } from "../src/components/ui/Card";
+import { Button } from "../src/components/ui/Button";
+import { Text } from "../src/components/ui/Text";
+import { palette, surface } from "../src/theme/tokens";
+import { space } from "../src/theme/spacing";
 
 export default function LoginScreen() {
   const { signIn, signInWithKakao, loading, user } = useAuth();
@@ -48,107 +50,68 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.hero}>
-        <View style={styles.shapeGreen} />
-        <View style={styles.shapePink} />
-        <Image source={logo} style={styles.logo} />
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.container}>
+        <View style={styles.heading}>
+          <Text variant="display">열살방</Text>
+          <Text variant="body" color={palette.inkMute} align="center">
+            친구와 함께 오늘의 목표·할 일·회고를 가볍게 기록하세요.
+          </Text>
+        </View>
+
+        <Card tone="hero" size="hero" style={styles.form}>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="이메일"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholderTextColor={palette.inkFaint}
+            style={styles.input}
+          />
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="비밀번호"
+            secureTextEntry
+            placeholderTextColor={palette.inkFaint}
+            style={styles.input}
+          />
+          {submitting ? <ActivityIndicator color={palette.sageDeep} /> : null}
+          <Button label="로그인" tone="primary" size="lg" fullWidth onPress={submit} disabled={submitting} />
+          <Button label="카카오로 계속" tone="kakao" size="lg" fullWidth onPress={kakao} disabled={submitting} />
+        </Card>
+
+        <Link href="/signup" style={styles.link}>계정 만들기</Link>
       </View>
-      <View style={styles.wordmark}>
-        <Text style={styles.headline}>YEOLSALBANG</Text>
-        <Text style={styles.stamp}>ENTER THE ZINE</Text>
-      </View>
-      <NeoCard tone="white" style={styles.form}>
-        <TextInput value={email} onChangeText={setEmail} placeholder="email" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
-        <TextInput value={password} onChangeText={setPassword} placeholder="password" secureTextEntry style={styles.input} />
-        {submitting ? <ActivityIndicator color={colors.ink} /> : null}
-        <NeoButton label="로그인" disabled={submitting} onPress={submit} />
-        <NeoButton label="카카오로 계속" disabled={submitting} tone="kakao" onPress={kakao} />
-      </NeoCard>
-      <Link href="/signup" style={styles.link}>계정 만들기</Link>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  screen: { flex: 1, backgroundColor: surface.page },
+  container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 16,
-    backgroundColor: colors.paper,
-    padding: 24,
-    paddingTop: 64
+    paddingHorizontal: space[5],
+    paddingTop: space[10],
+    gap: space[5]
   },
-  hero: {
-    width: "100%",
-    height: 250,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    borderColor: colors.black,
-    backgroundColor: colors.surfaceHigh,
-    overflow: "hidden",
-    shadowColor: colors.black,
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 8, height: 8 },
-    elevation: 8
-  },
-  shapeGreen: {
-    position: "absolute",
-    width: 126,
-    height: 126,
-    left: -20,
-    top: 34,
-    backgroundColor: colors.green,
-    borderWidth: 3,
-    borderColor: colors.black,
-    transform: [{ rotate: "13deg" }]
-  },
-  shapePink: {
-    position: "absolute",
-    width: 152,
-    height: 152,
-    right: -28,
-    bottom: 14,
-    borderRadius: 76,
-    backgroundColor: colors.pink,
-    borderWidth: 3,
-    borderColor: colors.black,
-    transform: [{ rotate: "-8deg" }]
-  },
-  logo: { width: 172, height: 172, resizeMode: "contain" },
-  wordmark: { alignItems: "center", marginTop: -10 },
-  headline: {
-    color: colors.pink,
-    fontSize: 40,
-    fontWeight: "900",
-    fontStyle: "italic",
-    textShadowColor: colors.green,
-    textShadowOffset: { width: 4, height: 4 },
-    textShadowRadius: 0
-  },
-  stamp: {
-    marginTop: 8,
-    color: colors.ink,
-    backgroundColor: colors.greenNeon,
-    borderWidth: 2,
-    borderColor: colors.black,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-    transform: [{ rotate: "2deg" }]
-  },
-  form: { width: "100%", gap: 12 },
+  heading: { alignItems: "center", gap: space[2] },
+  form: { gap: space[3] },
   input: {
     minHeight: 48,
-    borderWidth: 3,
-    borderColor: colors.black,
-    paddingHorizontal: 12,
-    backgroundColor: colors.white,
-    fontWeight: "700"
+    paddingHorizontal: space[3],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: surface.border,
+    backgroundColor: surface.sunken,
+    color: palette.ink,
+    fontSize: 15
   },
-  link: { color: colors.black, fontWeight: "900", textDecorationLine: "underline", textTransform: "uppercase" }
+  link: {
+    color: palette.sageDeep,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingVertical: space[2]
+  }
 });

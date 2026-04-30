@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import { GrassGrid } from "../src/components/GrassGrid";
-import { NeoCard } from "../src/components/NeoCard";
-import { Screen } from "../src/components/Screen";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
+import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import type { GrassDayDto, ProfileDto } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { apiRequest, ApiEnvelope } from "../src/api/client";
-import { GrassDayDto, ProfileDto } from "../src/api/types";
-import { colors } from "../src/theme/tokens";
+import { Screen } from "../src/components/Screen";
+import { Card } from "../src/components/ui/Card";
+import { Text } from "../src/components/ui/Text";
+import { ContributionGrid } from "../src/components/grid/ContributionGrid";
+import { DayDetailCard } from "../src/components/grid/DayDetailCard";
+import { bucketFor } from "../src/lib/bucket";
+import { entryDateOf, rollingRange } from "../src/lib/calendar";
+import { palette, pickRoomAccent, roomHues, surface } from "../src/theme/tokens";
+import { space } from "../src/theme/spacing";
+
+const ROLLING_DAYS = 365;
 
 export default function FriendProfileScreen() {
   const auth = useRequireAuth();
@@ -20,28 +26,26 @@ export default function FriendProfileScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.loading && auth.user) {
+    if (!auth.loading && auth.user && userId) {
       load();
     }
   }, [auth.loading, auth.user, userId]);
 
   async function load() {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const today = entryDateOf();
+      const range = rollingRange(today, ROLLING_DAYS);
+      const from = range[0];
+      const to = range[range.length - 1];
       const [profileResponse, grassResponse] = await Promise.all([
         apiRequest<ApiEnvelope<ProfileDto>>(`/profiles/${userId}`),
         apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/${userId}/grass?from=${from}&to=${to}`)
       ]);
       setProfile(profileResponse.data);
       setGrass(grassResponse.data);
-      setSelected(grassResponse.data[0] ?? null);
+      const todays = grassResponse.data.find((d) => d.date === today);
+      setSelected(todays ?? grassResponse.data[grassResponse.data.length - 1] ?? null);
     } catch (error) {
       Alert.alert("친구 프로필", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
     } finally {
@@ -49,54 +53,104 @@ export default function FriendProfileScreen() {
     }
   }
 
-  return (
-    <Screen title={profile ? `${profile.nickname}의 잔디` : "친구 잔디"}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {loading ? <ActivityIndicator color={colors.ink} /> : null}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatarShadow} />
-            <View style={styles.avatar}><Text style={styles.avatarInitial}>{profile?.nickname?.slice(0, 1).toUpperCase() ?? "?"}</Text></View>
-          </View>
-          <Text style={styles.name}>{profile?.nickname ?? "친구를 선택하세요"}</Text>
-          <Text style={styles.role}>{profile?.email ?? "Friend Garden"}</Text>
-        </View>
+  const stats = useMemo(() => {
+    let success = 0;
+    let streak = 0;
+    let streakRunning = true;
+    const today = entryDateOf();
+    for (let i = grass.length - 1; i >= 0; i -= 1) {
+      const day = grass[i];
+      const bucket = bucketFor(day);
+      if (bucket > 0) {
+        success += 1;
+      }
+      if (streakRunning) {
+        if (bucket > 0) {
+          streak += 1;
+        } else if (i === grass.length - 1 && day.date === today) {
+          // today not recorded yet — keep going
+        } else {
+          streakRunning = false;
+        }
+      }
+    }
+    return { success, streak };
+  }, [grass]);
 
-        <NeoCard tone="white" style={styles.garden}>
-          <View style={styles.gardenHeader}>
-            <Text style={styles.gardenTitle}>Friend Garden</Text>
-            <MaterialIcons name="grid-view" size={24} color={colors.black} />
+  const accent = useMemo(() => pickRoomAccent(userId || profile?.nickname || "x"), [userId, profile?.nickname]);
+  const hue = roomHues[accent];
+  const initial = (profile?.nickname ?? "?").slice(0, 1).toUpperCase();
+
+  return (
+    <Screen title="친구">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading && grass.length === 0 ? <ActivityIndicator color={hue.deep} /> : null}
+
+        <Card tone="hero" size="hero" style={{ borderColor: hue.base, borderWidth: 1 }}>
+          <View style={styles.identityRow}>
+            <View style={[styles.avatar, { backgroundColor: hue.soft }]}>
+              <Text variant="h1" color={hue.deep}>{initial}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text variant="h2">{profile?.nickname ?? "친구"}</Text>
+              <Text variant="bodySmall" color={palette.inkMute}>{profile?.email ?? ""}</Text>
+            </View>
           </View>
-          <View style={styles.gardenBody}>
-            <GrassGrid days={grass} onSelect={setSelected} />
+          <View style={styles.metricsRow}>
+            <Metric label="연속 성공" value={`${stats.streak}일`} />
+            <View style={styles.metricDivider} />
+            <Metric label="성공한 날" value={`${stats.success}일`} />
           </View>
-        </NeoCard>
-        {selected ? (
-          <NeoCard tone="acid" style={styles.detailCard}>
-            <Text style={styles.detail}>{selected.date}</Text>
-            <Text style={styles.detail}>완료 todo {selected.completedTodoCount}개</Text>
-            <Text style={styles.state}>{selected.missionCompleted ? "MISSION COMPLETE" : "MISSION OPEN"}</Text>
-          </NeoCard>
-        ) : null}
+        </Card>
+
+        <Card tone="raised" size="lg">
+          <View style={styles.cardHeader}>
+            <Text variant="title">잔디</Text>
+            <Text variant="caption" color={palette.inkMute}>최근 365일</Text>
+          </View>
+          <ContributionGrid days={grass} selectedDate={selected?.date ?? null} onSelect={setSelected} />
+        </Card>
+
+        <DayDetailCard day={selected} />
       </ScrollView>
     </Screen>
   );
 }
 
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metricItem}>
+      <Text variant="numericTabular" color={palette.ink}>{value}</Text>
+      <Text variant="caption" color={palette.inkMute}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { gap: 16, paddingBottom: 32 },
-  profileHeader: { alignItems: "center", gap: 12, marginTop: 16 },
-  avatarWrap: { width: 130, height: 130 },
-  avatarShadow: { position: "absolute", inset: 0, borderRadius: 65, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.green, transform: [{ translateX: 8 }, { translateY: 8 }] },
-  avatar: { position: "absolute", inset: 0, borderRadius: 65, borderWidth: 4, borderColor: colors.black, backgroundColor: colors.pinkSoft, alignItems: "center", justifyContent: "center" },
-  avatarInitial: { color: colors.black, fontSize: 56, fontWeight: "900" },
-  name: { color: colors.black, fontSize: 38, lineHeight: 42, textAlign: "center", fontWeight: "900", textTransform: "uppercase", textShadowColor: colors.green, textShadowOffset: { width: 3, height: 3 }, textShadowRadius: 0 },
-  role: { color: colors.paper, backgroundColor: colors.pink, borderWidth: 4, borderColor: colors.black, paddingHorizontal: 12, paddingVertical: 6, fontWeight: "900", transform: [{ rotate: "-2deg" }] },
-  garden: { padding: 0, overflow: "hidden" },
-  gardenHeader: { backgroundColor: colors.greenNeon, borderBottomWidth: 4, borderColor: colors.black, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  gardenTitle: { color: colors.black, fontSize: 24, fontWeight: "900", textTransform: "uppercase" },
-  gardenBody: { padding: 16 },
-  detailCard: { gap: 6 },
-  detail: { color: colors.ink, fontSize: 20, fontWeight: "900" },
-  state: { color: colors.paper, backgroundColor: colors.black, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, fontWeight: "900" }
+  content: { gap: space[4], paddingBottom: space[8] },
+  identityRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  identityText: { gap: 2, flex: 1 },
+  metricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: space[4],
+    paddingTop: space[3],
+    borderTopWidth: 1,
+    borderTopColor: surface.border
+  },
+  metricDivider: { width: 1, height: 28, backgroundColor: surface.border, marginHorizontal: space[1] },
+  metricItem: { flex: 1, gap: 2, alignItems: "center" },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: space[3]
+  }
 });

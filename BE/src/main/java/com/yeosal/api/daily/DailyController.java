@@ -5,9 +5,9 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.user.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -39,9 +39,25 @@ public class DailyController {
         return ApiResponse.of(dailyService.createOrReplace(currentUser.require(authentication), request));
     }
 
+    @PatchMapping("/daily-entries/today")
+    public ApiResponse<DailyEntryDto> updateToday(Authentication authentication, @Valid @RequestBody DailyEntryUpdate request) {
+        return ApiResponse.of(dailyService.updateToday(currentUser.require(authentication), request));
+    }
+
+    @PostMapping("/daily-entries/today/todo-items")
+    public ApiResponse<TodoDto> createTodo(Authentication authentication, @Valid @RequestBody TodoCreate request) {
+        return ApiResponse.of(dailyService.createTodo(currentUser.require(authentication), request));
+    }
+
     @PatchMapping("/todo-items/{id}")
     public ApiResponse<TodoDto> updateTodo(Authentication authentication, @PathVariable long id, @Valid @RequestBody TodoUpdate request) {
         return ApiResponse.of(dailyService.updateTodo(currentUser.require(authentication), id, request));
+    }
+
+    @DeleteMapping("/todo-items/{id}")
+    public ApiResponse<Void> deleteTodo(Authentication authentication, @PathVariable long id) {
+        dailyService.deleteTodo(currentUser.require(authentication), id);
+        return ApiResponse.of(null);
     }
 
     @PostMapping("/reflections")
@@ -59,10 +75,12 @@ public class DailyController {
         return ApiResponse.of(dailyService.createMonthlyGoal(currentUser.require(authentication), request));
     }
 
-    public record DailyEntryCreate(@NotBlank String goal, @NotEmpty List<@NotBlank String> todos) {}
+    public record DailyEntryCreate(@NotBlank String goal, List<@NotBlank String> todos) {}
+    public record DailyEntryUpdate(@NotBlank String goal) {}
     public record DailyEntryDto(long id, LocalDate date, String goal, List<TodoDto> todos, ReflectionDto reflection) {}
     public record TodoDto(long id, String title, boolean completed) {}
-    public record TodoUpdate(boolean completed) {}
+    public record TodoCreate(@NotBlank String title) {}
+    public record TodoUpdate(String title, Boolean completed) {}
     public record ReflectionCreate(long dailyEntryId, @NotBlank String body) {}
     public record ReflectionDto(long id, long dailyEntryId, String body, boolean submitted) {}
     public record MonthlyGoalCreate(@NotBlank String month, @NotBlank String goal) {}

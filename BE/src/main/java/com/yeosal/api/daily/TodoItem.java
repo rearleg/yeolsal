@@ -44,6 +44,10 @@ public class TodoItem {
     public boolean isCompleted() { return completed; }
     public Instant getCompletedAt() { return completedAt; }
 
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
     public void setCompleted(boolean completed) {
         this.completed = completed;
         this.completedAt = completed ? Instant.now() : null;

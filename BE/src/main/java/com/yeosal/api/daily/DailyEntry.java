@@ -69,6 +69,10 @@ public class DailyEntry {
     public List<TodoItem> getTodos() { return todos; }
     public Reflection getReflection() { return reflection; }
 
+    public void setGoal(String goal) {
+        this.goal = goal;
+    }
+
     public void replace(String goal, List<String> todoTitles) {
         this.goal = goal;
         this.todos.clear();
