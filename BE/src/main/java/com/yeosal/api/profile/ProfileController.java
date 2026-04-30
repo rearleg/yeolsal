@@ -5,9 +5,12 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.daily.DailyService;
+import com.yeosal.api.daily.Reflection;
 import com.yeosal.api.friend.FriendService;
+import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,12 +28,20 @@ public class ProfileController {
     private final UserRepository users;
     private final FriendService friendService;
     private final DailyService dailyService;
+    private final RoomMemberRepository roomMembers;
 
-    public ProfileController(CurrentUser currentUser, UserRepository users, FriendService friendService, DailyService dailyService) {
+    public ProfileController(
+            CurrentUser currentUser,
+            UserRepository users,
+            FriendService friendService,
+            DailyService dailyService,
+            RoomMemberRepository roomMembers
+    ) {
         this.currentUser = currentUser;
         this.users = users;
         this.friendService = friendService;
         this.dailyService = dailyService;
+        this.roomMembers = roomMembers;
     }
 
     @GetMapping("/me")
@@ -117,6 +128,34 @@ public class ProfileController {
         return ApiResponse.of(new StreakDto(target.getId(), dailyService.currentStreak(target, capped)));
     }
 
+    /**
+     * Recent reflections for the target user. Visibility:
+     * <ul>
+     *   <li>403 if viewer cannot see the target at all (no friendship, no shared room).</li>
+     *   <li>{@code body} present only when viewer and target share at least one
+     *       room. For friend-only viewers, the body is masked (null) but
+     *       metadata (date, submittedAt) is returned so the FE can render
+     *       "회고 작성됨" affordances.</li>
+     * </ul>
+     */
+    @GetMapping("/{userId}/reflections")
+    public ApiResponse<List<ReflectionDto>> reflections(
+            Authentication authentication,
+            @PathVariable long userId,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        User viewer = currentUser.require(authentication);
+        User target = users.findById(userId).orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
+        if (!friendService.canView(viewer, target)) {
+            throw new ForbiddenException("회고 접근 권한이 없습니다.");
+        }
+        boolean canSeeBody = viewer.getId().equals(target.getId())
+                || roomMembers.existsSharedRoom(viewer, target);
+        return ApiResponse.of(dailyService.recentReflections(target, limit).stream()
+                .map(r -> ReflectionDto.from(r, canSeeBody))
+                .toList());
+    }
+
     public record ProfileDto(long userId, String email, String nickname, String timezone) {
         static ProfileDto from(User user) {
             return new ProfileDto(user.getId(), user.getEmail(), user.getNickname(), user.getTimezone());
@@ -124,4 +163,14 @@ public class ProfileController {
     }
     public record GrassDayDto(LocalDate date, boolean missionCompleted, int completedTodoCount, boolean reflectionSubmitted, int intensity) {}
     public record StreakDto(long userId, int currentStreak) {}
+    public record ReflectionDto(LocalDate date, String body, Instant submittedAt, boolean bodyVisible) {
+        static ReflectionDto from(Reflection r, boolean canSeeBody) {
+            return new ReflectionDto(
+                    r.getDailyEntry().getDate(),
+                    canSeeBody ? r.getBody() : null,
+                    r.getSubmittedAt(),
+                    canSeeBody
+            );
+        }
+    }
 }

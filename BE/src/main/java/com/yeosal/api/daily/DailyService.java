@@ -3,18 +3,28 @@ package com.yeosal.api.daily;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.notification.NotificationKind;
+import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.profile.GrassDay;
+import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DailyService {
+    /** Event-hook debounce window. The notification log is consulted per-(user,kind),
+     * so within a 30-minute span at most one FRIEND_GOAL or FRIEND_REFLECTION push
+     * lands per recipient. */
+    private static final Duration EVENT_DEBOUNCE = Duration.ofMinutes(30);
+
     private final DailyEntryRepository dailyEntries;
     private final TodoItemRepository todoItems;
     private final ReflectionRepository reflections;
@@ -22,6 +32,8 @@ public class DailyService {
     private final EntryDateResolver entryDateResolver;
     private final GateRule gateRule;
     private final Clock clock;
+    private final RoomMemberRepository roomMembers;
+    private final NotificationService notifications;
     private final DailyMissionCalculator calculator = new DailyMissionCalculator();
 
     public DailyService(
@@ -31,7 +43,9 @@ public class DailyService {
             MonthlyGoalRepository monthlyGoals,
             EntryDateResolver entryDateResolver,
             GateRule gateRule,
-            Clock clock
+            Clock clock,
+            RoomMemberRepository roomMembers,
+            NotificationService notifications
     ) {
         this.dailyEntries = dailyEntries;
         this.todoItems = todoItems;
@@ -40,6 +54,8 @@ public class DailyService {
         this.entryDateResolver = entryDateResolver;
         this.gateRule = gateRule;
         this.clock = clock;
+        this.roomMembers = roomMembers;
+        this.notifications = notifications;
     }
 
     private LocalDate currentEntryDate(User user) {
@@ -55,10 +71,18 @@ public class DailyService {
     @Transactional
     public DailyController.DailyEntryDto createOrReplace(User user, DailyController.DailyEntryCreate request) {
         LocalDate today = currentEntryDate(user);
+        boolean isNew = dailyEntries.findByUserAndDate(user, today).isEmpty();
         DailyEntry entry = dailyEntries.findByUserAndDate(user, today)
                 .orElseGet(() -> new DailyEntry(user, today, request.goal()));
         entry.replace(request.goal(), request.todos() == null ? List.of() : request.todos());
-        return toDto(dailyEntries.save(entry));
+        DailyController.DailyEntryDto dto = toDto(dailyEntries.save(entry));
+        if (isNew) {
+            fanOutEvent(user, NotificationKind.FRIEND_GOAL,
+                    "FRIEND_GOAL:" + user.getId() + ":" + today,
+                    user.getNickname() + "님이 오늘의 목표를 정했어요",
+                    request.goal());
+        }
+        return dto;
     }
 
     @Transactional
@@ -117,7 +141,23 @@ public class DailyService {
         if (reflections.findByDailyEntry(entry).isPresent()) {
             throw new BadRequestException("이미 회고를 제출했습니다.");
         }
-        return toDto(reflections.save(new Reflection(entry, request.body())));
+        DailyController.ReflectionDto dto = toDto(reflections.save(new Reflection(entry, request.body())));
+        fanOutEvent(user, NotificationKind.FRIEND_REFLECTION,
+                "FRIEND_REFLECTION:" + user.getId() + ":" + entry.getDate(),
+                user.getNickname() + "님이 오늘 회고를 남겼어요",
+                "프로필에서 함께 살펴봐요.");
+        return dto;
+    }
+
+    /**
+     * Pushes an event-style nudge to every fellow room-member of {@code actor}.
+     * Each recipient's send is independently gated on prefs/quiet hours/debounce
+     * inside {@link NotificationService#sendEvent}.
+     */
+    private void fanOutEvent(User actor, NotificationKind kind, String key, String title, String body) {
+        for (User mate : roomMembers.findRoomMates(actor)) {
+            notifications.sendEvent(mate, kind, key, title, body, EVENT_DEBOUNCE);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -188,6 +228,16 @@ public class DailyService {
             }
         }
         return streak;
+    }
+
+    /**
+     * Most recent reflections for a user, newest first. Caller is responsible
+     * for visibility checks; this method does not consult any room/friend gate.
+     */
+    @Transactional(readOnly = true)
+    public List<Reflection> recentReflections(User user, int limit) {
+        int capped = Math.max(1, Math.min(limit, 100));
+        return reflections.findRecentByUser(user, PageRequest.of(0, capped));
     }
 
     public DailyController.DailyEntryDto toDto(DailyEntry entry) {
