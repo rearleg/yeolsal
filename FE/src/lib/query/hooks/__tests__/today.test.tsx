@@ -28,9 +28,11 @@ const SAMPLE: DailyEntryDto = {
 };
 
 function makeClient() {
+  // gcTime > 0 so observer-less cache entries seeded via setQueryData
+  // (used by the optimistic-update tests) survive until the test ends.
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false, staleTime: 0, gcTime: 0 },
+      queries: { retry: false, staleTime: 0, gcTime: 60_000 },
       mutations: { retry: false },
     },
   });
