@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 import type { DailyEntryDto } from "../../api/types";
 import { useUpdateGoal } from "../../lib/query/hooks/today";
+import { toast } from "../../lib/toast";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Text } from "../ui/Text";
@@ -24,7 +25,7 @@ export function GoalCard({ entry }: Props) {
   function save() {
     const trimmed = draft.trim();
     if (!trimmed) {
-      Alert.alert("오늘의 목표", "목표를 입력하세요.");
+      toast.warning("목표를 입력하세요.");
       return;
     }
     update.mutate(trimmed);
