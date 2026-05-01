@@ -187,7 +187,15 @@ public class DailyService {
 
     @Transactional(readOnly = true)
     public List<GrassDay> grass(User user, LocalDate from, LocalDate to) {
-        List<DailyEntry> entries = dailyEntries.findByUserAndDateBetween(user, from, to);
+        return grassFromEntries(user, from, to, dailyEntries.findByUserAndDateBetween(user, from, to));
+    }
+
+    /**
+     * Compute the grass window from a pre-fetched entry list. Used by the
+     * friend feed to share a single batched query across all friends so
+     * streak computation does not trigger per-entry lazy-load N+1.
+     */
+    public List<GrassDay> grassFromEntries(User user, LocalDate from, LocalDate to, List<DailyEntry> entries) {
         return from.datesUntil(to.plusDays(1)).map(date -> entries.stream()
                 .filter(entry -> entry.getDate().equals(date))
                 .findFirst()
@@ -215,7 +223,15 @@ public class DailyService {
     public int currentStreak(User user, int windowDays) {
         LocalDate today = currentEntryDate(user);
         LocalDate from = today.minusDays(Math.max(1, windowDays) - 1);
-        List<GrassDay> window = grass(user, from, today);
+        return streakFromGrass(today, grass(user, from, today));
+    }
+
+    /**
+     * Walk a grass window backwards and count gate-passing days. Pure
+     * function over a pre-computed grass list so callers can share one
+     * batched query across multiple users (see FriendService.dailyFeed).
+     */
+    public int streakFromGrass(LocalDate today, List<GrassDay> window) {
         int streak = 0;
         for (int i = window.size() - 1; i >= 0; i -= 1) {
             GrassDay d = window.get(i);

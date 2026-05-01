@@ -1,6 +1,7 @@
 package com.yeosal.api.profile;
 
 import com.yeosal.api.common.ApiResponse;
+import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
@@ -11,6 +12,7 @@ import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
@@ -65,6 +67,7 @@ public class ProfileController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
+        validateGrassRange(from, to);
         User viewer = currentUser.require(authentication);
         User target = users.findById(userId).orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
         if (!friendService.canView(viewer, target)) {
@@ -81,10 +84,31 @@ public class ProfileController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
+        validateGrassRange(from, to);
         User user = currentUser.require(authentication);
         return ApiResponse.of(dailyService.grass(user, from, to).stream()
                 .map(day -> new GrassDayDto(day.date(), day.missionCompleted(), day.completedTodoCount(), day.reflectionSubmitted(), day.intensity()))
                 .toList());
+    }
+
+    private static final long MAX_GRASS_RANGE_DAYS = 366;
+
+    /**
+     * Bounds-check the grass / contributions date range so callers cannot
+     * push a 100-year window through and force the BE to materialize an
+     * unbounded grass list. Inclusive on both ends.
+     */
+    private static void validateGrassRange(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new BadRequestException("from and to are required.");
+        }
+        if (from.isAfter(to)) {
+            throw new BadRequestException("from must be on or before to.");
+        }
+        long days = ChronoUnit.DAYS.between(from, to) + 1;
+        if (days > MAX_GRASS_RANGE_DAYS) {
+            throw new BadRequestException("date range exceeds " + MAX_GRASS_RANGE_DAYS + " days.");
+        }
     }
 
     /**
