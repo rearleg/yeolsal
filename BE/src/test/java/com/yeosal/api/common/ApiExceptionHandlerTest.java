@@ -68,4 +68,16 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody().error().code()).isEqualTo("FORBIDDEN");
     }
+
+    @Test
+    @DisplayName("UnauthorizedException maps to 401 + UNAUTHORIZED code with the original message")
+    void unauthorized_returns401() {
+        ResponseEntity<ApiErrorResponse> response =
+                handler.unauthorized(new UnauthorizedException("인증이 필요합니다."));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        ApiErrorResponse.Error err = response.getBody().error();
+        assertThat(err.code()).isEqualTo("UNAUTHORIZED");
+        assertThat(err.message()).isEqualTo("인증이 필요합니다.");
+    }
 }

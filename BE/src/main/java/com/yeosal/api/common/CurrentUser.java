@@ -16,8 +16,9 @@ public class CurrentUser {
 
     public User require(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
-            throw new IllegalStateException("Authentication required");
+            throw new UnauthorizedException("인증이 필요합니다.");
         }
-        return users.findById(principal.id()).orElseThrow();
+        return users.findById(principal.id())
+                .orElseThrow(() -> new UnauthorizedException("인증이 필요합니다."));
     }
 }

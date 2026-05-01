@@ -1,10 +1,10 @@
 package com.yeosal.api.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -178,17 +178,73 @@ class NotificationServiceTest {
     }
 
     @Test
-    @DisplayName("getOrCreatePref: lazily inserts default row when missing")
+    @DisplayName("getOrCreatePref: native upsert path returns the row the upsert wrote")
     void getOrCreatePrefInsertsDefault() {
-        when(prefs.findById(1L)).thenReturn(Optional.empty());
-        lenient().when(prefs.save(any(NotificationPref.class))).thenAnswer(inv -> inv.getArgument(0));
+        NotificationPref winner = new NotificationPref(alice);
+        when(prefs.findById(1L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(winner));
 
         NotificationPref result = service.getOrCreatePref(alice);
 
-        assertThat(result.getQuietStartHour()).isEqualTo((short) 22);
-        assertThat(result.getQuietEndHour()).isEqualTo((short) 8);
-        assertThat(result.isGoalNudgeEnabled()).isTrue();
-        verify(prefs).save(any(NotificationPref.class));
+        assertThat(result).isSameAs(winner);
+        verify(prefs).insertDefaultIfAbsent(1L);
+    }
+
+    @Test
+    @DisplayName("getOrCreatePref: dup race resolves through Postgres — re-read returns the peer's row")
+    void getOrCreatePrefRecoversAfterDupRace() {
+        NotificationPref winner = new NotificationPref(alice);
+        // The peer's insert already committed. Our insertDefaultIfAbsent is a no-op
+        // (ON CONFLICT DO NOTHING), and the second findById returns the peer's row.
+        when(prefs.findById(1L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(winner));
+
+        NotificationPref result = service.getOrCreatePref(alice);
+
+        assertThat(result).isSameAs(winner);
+        verify(prefs).insertDefaultIfAbsent(1L);
+    }
+
+    @Test
+    @DisplayName("getOrCreatePref: re-read miss after upsert surfaces an explicit IllegalStateException")
+    void getOrCreatePrefRereadMissThrows() {
+        when(prefs.findById(1L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getOrCreatePref(alice))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("user_id=1");
+    }
+
+    @Test
+    @DisplayName("isInQuietHours fallback: blank user timezone is treated as Asia/Seoul")
+    void quietHoursFallbackForBlankTimezone() {
+        // 14:00 UTC == 23:00 KST → inside default quiet window 22-08, so we should skip.
+        Clock quiet = Clock.fixed(Instant.parse("2026-04-30T14:00:00Z"), ZoneId.of("Asia/Seoul"));
+        service = new NotificationService(prefs, pushTokens, logs, pushClient, quietHours, quiet);
+        User noTz = makeUserWithTimezone(2L, "bob@example.com", "Bob", "");
+        when(prefs.findById(2L)).thenReturn(Optional.of(prefWithDefaults(noTz)));
+
+        service.sendCron(noTz, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
+
+        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("isInQuietHours fallback: invalid IANA id falls back to Asia/Seoul without throwing")
+    void quietHoursFallbackForInvalidTimezone() {
+        Clock quiet = Clock.fixed(Instant.parse("2026-04-30T14:00:00Z"), ZoneId.of("Asia/Seoul"));
+        service = new NotificationService(prefs, pushTokens, logs, pushClient, quietHours, quiet);
+        User badTz = makeUserWithTimezone(3L, "carol@example.com", "Carol", "Not/A_Real_Zone");
+        when(prefs.findById(3L)).thenReturn(Optional.of(prefWithDefaults(badTz)));
+
+        // No exception bubbles out; quiet-hour check resolves and skip path runs.
+        service.sendCron(badTz, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
+
+        verify(pushClient, never()).send(anyList(), anyString(), anyString());
     }
 
     // -- helpers --
@@ -205,6 +261,12 @@ class NotificationServiceTest {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+        return u;
+    }
+
+    private static User makeUserWithTimezone(long id, String email, String nickname, String timezone) {
+        User u = makeUser(id, email, nickname);
+        setField(u, "timezone", timezone);
         return u;
     }
 
