@@ -88,8 +88,12 @@ public class NotificationService {
         if (tokens.isEmpty()) {
             return;
         }
-        pushClient.send(tokens.stream().map(PushToken::getToken).toList(), title, body);
-        logs.save(new NotificationLog(user, kind, key));
+        boolean sent = pushClient.send(tokens.stream().map(PushToken::getToken).toList(), title, body);
+        if (sent) {
+            // Only record the dedup row when delivery actually went through;
+            // otherwise the next cron / event cycle should be allowed to retry.
+            logs.save(new NotificationLog(user, kind, key));
+        }
     }
 
     private boolean isCronEnabled(NotificationPref pref, NotificationKind kind) {

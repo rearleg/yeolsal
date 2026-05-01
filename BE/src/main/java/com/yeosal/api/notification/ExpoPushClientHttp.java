@@ -14,8 +14,9 @@ import org.springframework.web.client.RestTemplate;
  * HTTP-backed {@link ExpoPushClient} that POSTs to Expo's push endpoint.
  *
  * <p>A failed push should not unwind the surrounding business transaction, so
- * we catch and log instead of rethrowing — the dedup row is still written and
- * the user simply misses one nudge cycle.
+ * we catch and log instead of rethrowing. The boolean return value lets
+ * {@link NotificationService} skip the dedup-log write, so the next nudge
+ * cycle can retry.
  */
 @Component
 public class ExpoPushClientHttp implements ExpoPushClient {
@@ -26,9 +27,9 @@ public class ExpoPushClientHttp implements ExpoPushClient {
     private final RestTemplate http = new RestTemplate();
 
     @Override
-    public void send(List<String> tokens, String title, String body) {
+    public boolean send(List<String> tokens, String title, String body) {
         if (tokens == null || tokens.isEmpty()) {
-            return;
+            return false;
         }
         Map<String, Object> payload = Map.of(
                 "to", tokens,
@@ -39,8 +40,10 @@ public class ExpoPushClientHttp implements ExpoPushClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
         try {
             http.postForEntity(ENDPOINT, new HttpEntity<>(payload, headers), String.class);
+            return true;
         } catch (Exception ex) {
             log.warn("Expo push send failed (tokens={}): {}", tokens.size(), ex.getMessage());
+            return false;
         }
     }
 }
