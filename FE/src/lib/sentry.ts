@@ -22,7 +22,6 @@ export function bootstrapSentry(): void {
   if (initialized) return;
   if (!DSN) {
     if (__DEV__) {
-      // eslint-disable-next-line no-console
       console.log("[sentry] EXPO_PUBLIC_SENTRY_DSN not set — Sentry disabled");
     }
     return;

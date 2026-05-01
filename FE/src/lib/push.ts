@@ -31,8 +31,11 @@ type ConstantsModule = {
  */
 export async function registerForPushAsync(): Promise<string | null> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy load; see top-of-file comment
     const Device: DeviceModule = require("expo-device");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy load; see top-of-file comment
     const Notifications: NotificationsModule = require("expo-notifications");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy load; see top-of-file comment
     const ConstantsMod: ConstantsModule = require("expo-constants");
     const Constants = ConstantsMod.default;
 
