@@ -18,7 +18,8 @@
       "expo-router",
       "expo-notifications",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "@sentry/react-native/expo"
     ],
     "ios": {
       "supportsTablet": false,
