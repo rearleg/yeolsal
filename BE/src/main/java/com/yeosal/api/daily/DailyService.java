@@ -29,7 +29,6 @@ public class DailyService {
     private final DailyEntryRepository dailyEntries;
     private final TodoItemRepository todoItems;
     private final ReflectionRepository reflections;
-    private final MonthlyGoalRepository monthlyGoals;
     private final EntryDateResolver entryDateResolver;
     private final GateRule gateRule;
     private final Clock clock;
@@ -41,7 +40,6 @@ public class DailyService {
             DailyEntryRepository dailyEntries,
             TodoItemRepository todoItems,
             ReflectionRepository reflections,
-            MonthlyGoalRepository monthlyGoals,
             EntryDateResolver entryDateResolver,
             GateRule gateRule,
             Clock clock,
@@ -51,7 +49,6 @@ public class DailyService {
         this.dailyEntries = dailyEntries;
         this.todoItems = todoItems;
         this.reflections = reflections;
-        this.monthlyGoals = monthlyGoals;
         this.entryDateResolver = entryDateResolver;
         this.gateRule = gateRule;
         this.clock = clock;
@@ -159,22 +156,6 @@ public class DailyService {
         for (User mate : roomMembers.findRoomMates(actor)) {
             notifications.sendEvent(mate, kind, key, title, body, EVENT_DEBOUNCE);
         }
-    }
-
-    @Transactional(readOnly = true)
-    public DailyController.MonthlyGoalDto monthlyGoal(User user, String month) {
-        return monthlyGoals.findByUserAndMonth(user, month)
-                .map(goal -> new DailyController.MonthlyGoalDto(goal.getMonth(), goal.getGoal()))
-                .orElse(new DailyController.MonthlyGoalDto(month, ""));
-    }
-
-    @Transactional
-    public DailyController.MonthlyGoalDto createMonthlyGoal(User user, DailyController.MonthlyGoalCreate request) {
-        MonthlyGoal goal = monthlyGoals.findByUserAndMonth(user, request.month())
-                .orElseGet(() -> new MonthlyGoal(user, request.month(), request.goal()));
-        goal.setGoal(request.goal());
-        MonthlyGoal saved = monthlyGoals.save(goal);
-        return new DailyController.MonthlyGoalDto(saved.getMonth(), saved.getGoal());
     }
 
     @Transactional(readOnly = true)

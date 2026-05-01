@@ -49,11 +49,6 @@ public class AuthController {
         return ApiResponse.of(authService.login(request));
     }
 
-    @PostMapping("/kakao")
-    public ApiResponse<AuthTokens> kakao(@Valid @RequestBody KakaoLoginRequest request) {
-        return ApiResponse.of(authService.kakao(request));
-    }
-
     @GetMapping("/kakao/authorize")
     public RedirectView kakaoAuthorize() {
         String target = "https://kauth.kakao.com/oauth/authorize" +
@@ -93,7 +88,6 @@ public class AuthController {
 
     public record SignupRequest(@Email String email, @NotBlank String password, @NotBlank String nickname) {}
     public record LoginRequest(@Email String email, @NotBlank String password) {}
-    public record KakaoLoginRequest(@NotBlank String authorizationCode) {}
     public record KakaoExchangeRequest(@NotBlank String code) {}
     public record RefreshRequest(@NotBlank String refreshToken) {}
     public record AuthTokens(String accessToken, String refreshToken, String tokenType, UserDto user) {}

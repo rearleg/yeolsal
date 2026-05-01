@@ -67,11 +67,6 @@ public class AuthService {
         return issue(user);
     }
 
-    @Transactional
-    public AuthController.AuthTokens kakao(AuthController.KakaoLoginRequest request) {
-        return issue(kakaoUserFor(request.authorizationCode()));
-    }
-
     /**
      * Run the Kakao OAuth user lookup/create flow without issuing yeosal
      * tokens. Used by the deep-link callback path so the caller can hand

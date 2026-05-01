@@ -65,16 +65,6 @@ public class DailyController {
         return ApiResponse.of(dailyService.createReflection(currentUser.require(authentication), request));
     }
 
-    @GetMapping("/monthly-goals")
-    public ApiResponse<MonthlyGoalDto> monthlyGoal(Authentication authentication, @RequestParam String month) {
-        return ApiResponse.of(dailyService.monthlyGoal(currentUser.require(authentication), month));
-    }
-
-    @PostMapping("/monthly-goals")
-    public ApiResponse<MonthlyGoalDto> createMonthlyGoal(Authentication authentication, @Valid @RequestBody MonthlyGoalCreate request) {
-        return ApiResponse.of(dailyService.createMonthlyGoal(currentUser.require(authentication), request));
-    }
-
     public record DailyEntryCreate(@NotBlank String goal, List<@NotBlank String> todos) {}
     public record DailyEntryUpdate(@NotBlank String goal) {}
     public record DailyEntryDto(long id, LocalDate date, String goal, List<TodoDto> todos, ReflectionDto reflection) {}
@@ -83,6 +73,4 @@ public class DailyController {
     public record TodoUpdate(String title, Boolean completed) {}
     public record ReflectionCreate(long dailyEntryId, @NotBlank String body) {}
     public record ReflectionDto(long id, long dailyEntryId, String body, boolean submitted) {}
-    public record MonthlyGoalCreate(@NotBlank String month, @NotBlank String goal) {}
-    public record MonthlyGoalDto(String month, String goal) {}
 }

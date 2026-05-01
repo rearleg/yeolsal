@@ -28,11 +28,6 @@ public class FriendController {
         this.currentUser = currentUser;
     }
 
-    @GetMapping("/friends")
-    public ApiResponse<List<FriendDto>> friends(Authentication authentication) {
-        return ApiResponse.of(friendService.friends(currentUser.require(authentication)));
-    }
-
     @GetMapping("/friends/requests")
     public ApiResponse<List<FriendRequestDto>> requests(Authentication authentication) {
         return ApiResponse.of(friendService.requests(currentUser.require(authentication)));
@@ -56,7 +51,6 @@ public class FriendController {
         return ApiResponse.of(friendService.dailyFeed(currentUser.require(authentication), date));
     }
 
-    public record FriendDto(long userId, String nickname, String status) {}
     public record FriendRequestCreate(@NotBlank String targetEmail) {}
     public record FriendRequestDecision(boolean accepted) {}
     public record FriendRequestDto(long id, String requesterEmail, String requesterNickname, String status) {}

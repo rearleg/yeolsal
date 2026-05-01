@@ -18,3 +18,12 @@ yeosal:
     client-id: ${KAKAO_CLIENT_ID}
     redirect-uri: ${KAKAO_REDIRECT_URI}
     mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI}
+
+# Hide the OpenAPI spec and Swagger UI in production. The schema is still
+# auto-generated at build time, but the runtime endpoints (/v3/api-docs,
+# /swagger-ui/**) are disabled so the API surface is not advertised.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

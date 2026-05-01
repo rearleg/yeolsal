@@ -24,7 +24,6 @@ class DailyServiceStreakTest {
                 mock(DailyEntryRepository.class),
                 mock(TodoItemRepository.class),
                 mock(ReflectionRepository.class),
-                mock(MonthlyGoalRepository.class),
                 mock(EntryDateResolver.class),
                 new GateRule(),
                 Clock.systemUTC(),

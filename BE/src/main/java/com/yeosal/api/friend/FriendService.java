@@ -44,13 +44,6 @@ public class FriendService {
     }
 
     @Transactional(readOnly = true)
-    public List<FriendController.FriendDto> friends(User user) {
-        return friendships.findByUserAndStatus(user, FriendshipStatus.ACCEPTED).stream()
-                .map(friendship -> toFriendDto(other(friendship, user)))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<FriendController.FriendRequestDto> requests(User user) {
         return friendships.findByAddresseeAndStatus(user, FriendshipStatus.PENDING).stream()
                 .map(this::toRequestDto)
@@ -138,10 +131,6 @@ public class FriendService {
 
     private User other(Friendship friendship, User user) {
         return friendship.getRequester().getId().equals(user.getId()) ? friendship.getAddressee() : friendship.getRequester();
-    }
-
-    private FriendController.FriendDto toFriendDto(User user) {
-        return new FriendController.FriendDto(user.getId(), user.getNickname(), "ACCEPTED");
     }
 
     private FriendController.FriendRequestDto toRequestDto(Friendship friendship) {
