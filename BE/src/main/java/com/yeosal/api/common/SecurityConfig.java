@@ -46,7 +46,13 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
+                // Both custom filters anchor against UsernamePasswordAuthenticationFilter
+                // because Spring Security's addFilterBefore requires the marker to be a
+                // framework filter with a registered order. Anchoring rate-limit against
+                // our own JwtAuthenticationFilter throws "does not have a registered
+                // order". Filters added at the same offset run in registration order,
+                // so rate-limit (registered first) executes before JWT — desirable.
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
