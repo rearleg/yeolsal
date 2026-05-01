@@ -1,12 +1,13 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { joinRoom } from "../src/api/rooms";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
 import { Screen } from "../src/components/Screen";
 import { Button } from "../src/components/ui/Button";
 import { Card } from "../src/components/ui/Card";
 import { Text } from "../src/components/ui/Text";
+import { toast } from "../src/lib/toast";
 import { space } from "../src/theme/spacing";
 import { palette, surface } from "../src/theme/tokens";
 
@@ -18,7 +19,7 @@ export default function JoinRoomScreen() {
   async function submit() {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length < 4) {
-      Alert.alert("초대 코드", "코드를 정확히 입력하세요.");
+      toast.warning("초대 코드를 정확히 입력하세요.");
       return;
     }
     setSubmitting(true);
@@ -26,7 +27,7 @@ export default function JoinRoomScreen() {
       const member = await joinRoom(trimmed);
       router.replace(`/rooms/${member.roomId}`);
     } catch (error) {
-      Alert.alert("참여 실패", error instanceof Error ? error.message : "다시 시도하세요.");
+      toast.error(error instanceof Error ? error.message : "그룹 참여에 실패했어요.");
     } finally {
       setSubmitting(false);
     }

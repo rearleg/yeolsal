@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import {
   getNotificationPrefs,
   updateNotificationPrefs,
@@ -11,6 +11,7 @@ import { Button } from "../src/components/ui/Button";
 import { Card } from "../src/components/ui/Card";
 import { Skeleton } from "../src/components/ui/Skeleton";
 import { Text } from "../src/components/ui/Text";
+import { toast } from "../src/lib/toast";
 import { space } from "../src/theme/spacing";
 import { palette, surface } from "../src/theme/tokens";
 
@@ -29,7 +30,7 @@ export default function NotificationSettingsScreen() {
     try {
       setPrefs(await getNotificationPrefs());
     } catch (error) {
-      Alert.alert("알림", error instanceof Error ? error.message : "설정을 불러오지 못했습니다.");
+      toast.error(error instanceof Error ? error.message : "알림 설정을 불러오지 못했어요.");
     }
   }
 
@@ -43,9 +44,9 @@ export default function NotificationSettingsScreen() {
     try {
       const next = await updateNotificationPrefs(prefs);
       setPrefs(next);
-      Alert.alert("알림", "저장했어요.");
+      toast.success("알림 설정을 저장했어요.");
     } catch (error) {
-      Alert.alert("저장 실패", error instanceof Error ? error.message : "다시 시도하세요.");
+      toast.error(error instanceof Error ? error.message : "알림 설정 저장에 실패했어요.");
     } finally {
       setSaving(false);
     }

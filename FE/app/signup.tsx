@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TextInput } from "react-native";
+import { ActivityIndicator, StyleSheet, TextInput } from "react-native";
 import { Link, router } from "expo-router";
 import { Screen } from "../src/components/Screen";
 import { Card } from "../src/components/ui/Card";
 import { Button } from "../src/components/ui/Button";
 import { Text } from "../src/components/ui/Text";
 import { useAuth } from "../src/auth/AuthContext";
+import { toast } from "../src/lib/toast";
 import { palette, surface } from "../src/theme/tokens";
 import { space } from "../src/theme/spacing";
 
@@ -18,7 +19,7 @@ export default function SignupScreen() {
 
   async function submit() {
     if (!nickname.trim() || !email.trim() || password.length < 8) {
-      Alert.alert("가입", "닉네임, 이메일, 8자 이상 비밀번호를 입력하세요.");
+      toast.warning("닉네임, 이메일, 8자 이상 비밀번호를 입력하세요.");
       return;
     }
     setSubmitting(true);
@@ -26,7 +27,7 @@ export default function SignupScreen() {
       await signUp(email.trim(), password, nickname.trim());
       router.replace("/today");
     } catch (error) {
-      Alert.alert("가입 실패", error instanceof Error ? error.message : "다시 시도하세요.");
+      toast.error(error instanceof Error ? error.message : "가입에 실패했어요.");
     } finally {
       setSubmitting(false);
     }

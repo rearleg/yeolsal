@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Alert, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 import type { DailyEntryDto } from "../../api/types";
 import { useSubmitReflection } from "../../lib/query/hooks/today";
+import { toast } from "../../lib/toast";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Text } from "../ui/Text";
@@ -22,7 +23,7 @@ export function ReflectionCard({ entry }: Props) {
 
   function send() {
     if (!entry || !draft.trim()) {
-      Alert.alert("회고", "회고 내용을 입력하세요.");
+      toast.warning("회고 내용을 입력하세요.");
       return;
     }
     submit.mutate(

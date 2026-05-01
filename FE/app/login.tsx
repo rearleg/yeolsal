@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
 import { useAuth } from "../src/auth/AuthContext";
 import { Card } from "../src/components/ui/Card";
 import { Button } from "../src/components/ui/Button";
 import { Text } from "../src/components/ui/Text";
+import { toast } from "../src/lib/toast";
 import { palette, surface } from "../src/theme/tokens";
 import { space } from "../src/theme/spacing";
 
@@ -23,7 +24,7 @@ export default function LoginScreen() {
 
   async function submit() {
     if (!email.trim() || !password) {
-      Alert.alert("로그인", "이메일과 비밀번호를 입력하세요.");
+      toast.warning("이메일과 비밀번호를 입력하세요.");
       return;
     }
     setSubmitting(true);
@@ -31,7 +32,7 @@ export default function LoginScreen() {
       await signIn(email.trim(), password);
       router.replace("/today");
     } catch (error) {
-      Alert.alert("로그인 실패", error instanceof Error ? error.message : "다시 시도하세요.");
+      toast.error(error instanceof Error ? error.message : "로그인에 실패했어요.");
     } finally {
       setSubmitting(false);
     }
@@ -43,7 +44,7 @@ export default function LoginScreen() {
       await signInWithKakao();
       router.replace("/today");
     } catch (error) {
-      Alert.alert("카카오 로그인 실패", error instanceof Error ? error.message : "다시 시도하세요.");
+      toast.error(error instanceof Error ? error.message : "카카오 로그인에 실패했어요.");
     } finally {
       setSubmitting(false);
     }
