@@ -1,77 +1,51 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../../src/api/client";
-import type { DailyFeedItem, FriendRequestDto } from "../../src/api/types";
+import { router } from "expo-router";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import type { DailyFeedItem } from "../../src/api/types";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
 import { Card } from "../../src/components/ui/Card";
 import { Button } from "../../src/components/ui/Button";
 import { Text } from "../../src/components/ui/Text";
+import {
+  useFeedQuery,
+  useFriendRequestsQuery,
+  useRespondFriendRequest,
+  useSendFriendRequest,
+} from "../../src/lib/query/hooks/feed";
+import { toast } from "../../src/lib/toast";
 import { palette, pickRoomAccent, roomHues, semantic, surface } from "../../src/theme/tokens";
 import { space } from "../../src/theme/spacing";
 import { entryDateOf } from "../../src/lib/calendar";
 
 export default function FeedScreen() {
-  const auth = useRequireAuth();
-  const [items, setItems] = useState<DailyFeedItem[]>([]);
-  const [requests, setRequests] = useState<FriendRequestDto[]>([]);
+  useRequireAuth();
+  const feedQuery = useFeedQuery(entryDateOf());
+  const requestsQuery = useFriendRequestsQuery();
+  const sendMut = useSendFriendRequest();
+  const respondMut = useRespondFriendRequest();
   const [targetEmail, setTargetEmail] = useState("");
-  const [loading, setLoading] = useState(true);
   const [showRequest, setShowRequest] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!auth.loading && auth.user) {
-        load();
-      }
-    }, [auth.loading, auth.user])
-  );
+  const items = feedQuery.data ?? [];
+  const requests = requestsQuery.data ?? [];
+  const loading = feedQuery.isLoading || requestsQuery.isLoading;
 
-  async function load() {
-    setLoading(true);
-    try {
-      const date = entryDateOf();
-      const [feedResponse, requestsResponse] = await Promise.all([
-        apiRequest<ApiEnvelope<DailyFeedItem[]>>(`/feed/daily?date=${date}`),
-        apiRequest<ApiEnvelope<FriendRequestDto[]>>("/friends/requests")
-      ]);
-      setItems(feedResponse.data);
-      setRequests(requestsResponse.data);
-    } catch (error) {
-      Alert.alert("친구", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
+  function requestFriend() {
+    const email = targetEmail.trim();
+    if (!email) return;
+    sendMut.mutate(email, {
+      onSuccess: () => {
+        setTargetEmail("");
+        setShowRequest(false);
+        toast.success("친구 요청을 보냈습니다.");
+      },
+    });
   }
 
-  async function requestFriend() {
-    if (!targetEmail.trim()) return;
-    try {
-      await apiRequest("/friends/requests", {
-        method: "POST",
-        body: JSON.stringify({ targetEmail: targetEmail.trim() })
-      });
-      setTargetEmail("");
-      setShowRequest(false);
-      Alert.alert("친구", "친구 요청을 보냈습니다.");
-      await load();
-    } catch (error) {
-      Alert.alert("친구 요청 실패", error instanceof Error ? error.message : "다시 시도하세요.");
-    }
-  }
-
-  async function respond(id: number, accepted: boolean) {
-    try {
-      await apiRequest(`/friends/requests/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ accepted })
-      });
-      await load();
-    } catch (error) {
-      Alert.alert("친구 요청", error instanceof Error ? error.message : "응답하지 못했습니다.");
-    }
+  function respond(id: number, accepted: boolean) {
+    respondMut.mutate({ id, accepted });
   }
 
   const reflectionDoneCount = useMemo(() => items.filter((i) => i.reflectionSubmitted).length, [items]);
