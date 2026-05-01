@@ -10,6 +10,7 @@ import {
   type RoomInvite,
   type RoomMember,
 } from "../../../api/rooms";
+import { useHaptic } from "../../../hooks/useHaptics";
 import { qk } from "../keys";
 import { toast } from "../../toast";
 
@@ -22,10 +23,12 @@ export function useRoomsQuery() {
 
 export function useCreateRoom() {
   const qc = useQueryClient();
+  const haptic = useHaptic();
   return useMutation<Room, Error, string>({
     mutationFn: (name) => createRoom(name),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
+      haptic("success");
       qc.invalidateQueries({ queryKey: qk.rooms });
     },
   });
@@ -40,18 +43,24 @@ export function useRoomMembersQuery(roomId: number) {
 }
 
 export function useCreateInvite() {
+  const haptic = useHaptic();
   return useMutation<RoomInvite, Error, number>({
     mutationFn: (roomId) => createInvite(roomId),
     onError: (e) => toast.error(e.message),
+    onSuccess: () => {
+      haptic("success");
+    },
   });
 }
 
 export function useLeaveRoom() {
   const qc = useQueryClient();
+  const haptic = useHaptic();
   return useMutation<void, Error, number>({
     mutationFn: (roomId) => leaveRoom(roomId),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
+      haptic("light");
       qc.invalidateQueries({ queryKey: qk.rooms });
     },
   });
@@ -59,10 +68,12 @@ export function useLeaveRoom() {
 
 export function useJoinRoom() {
   const qc = useQueryClient();
+  const haptic = useHaptic();
   return useMutation<RoomMember, Error, string>({
     mutationFn: (code) => joinRoom(code),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
+      haptic("success");
       qc.invalidateQueries({ queryKey: qk.rooms });
     },
   });

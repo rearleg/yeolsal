@@ -53,7 +53,7 @@ export default function MonthlyScreen() {
               </View>
             </View>
             <View style={styles.rateBadge}>
-              <Text variant="caption" color={palette.inkMute}>달성률</Text>
+              <Text variant="caption" color={palette.inkSoft}>달성률</Text>
               <Text variant="title" color={palette.ink}>{rate}%</Text>
             </View>
           </View>
