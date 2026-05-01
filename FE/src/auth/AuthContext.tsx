@@ -98,8 +98,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function signInWithKakao() {
-    const tokens = await openKakaoAuthorization();
-    await apply(tokens);
+    const code = await openKakaoAuthorization();
+    const response = await apiRequest<ApiEnvelope<AuthTokens>>("/auth/kakao/exchange", {
+      method: "POST",
+      skipAuth: true,
+      body: JSON.stringify({ code })
+    });
+    await apply(response.data);
   }
 
   async function signOut() {
@@ -125,8 +130,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function openKakaoAuthorization() {
-  return new Promise<AuthTokens>((resolve, reject) => {
+function openKakaoAuthorization(): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(() => {
       subscription.remove();
       reject(new Error("Kakao 로그인 시간이 초과되었습니다."));
@@ -134,25 +139,14 @@ function openKakaoAuthorization() {
 
     const subscription = Linking.addEventListener("url", (event) => {
       const url = new URL(event.url);
-      const accessToken = url.searchParams.get("accessToken");
-      const refreshToken = url.searchParams.get("refreshToken");
-      const tokenType = url.searchParams.get("tokenType") ?? "Bearer";
-      const userId = Number(url.searchParams.get("userId"));
-      const email = url.searchParams.get("email");
-      const nickname = url.searchParams.get("nickname");
-      const timezone = url.searchParams.get("timezone") ?? "Asia/Seoul";
+      const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
-      if ((accessToken && refreshToken && email && nickname && userId) || error) {
+      if (code || error) {
         clearTimeout(timeout);
         subscription.remove();
       }
-      if (accessToken && refreshToken && email && nickname && userId) {
-        resolve({
-          accessToken,
-          refreshToken,
-          tokenType,
-          user: { id: userId, email, nickname, timezone }
-        });
+      if (code) {
+        resolve(code);
       } else if (error) {
         reject(new Error(`Kakao 로그인 실패: ${error}`));
       }

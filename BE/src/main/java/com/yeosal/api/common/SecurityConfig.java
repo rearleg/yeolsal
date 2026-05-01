@@ -31,6 +31,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/kakao",
                                 "/api/v1/auth/kakao/authorize",
                                 "/api/v1/auth/kakao/callback",
+                                "/api/v1/auth/kakao/exchange",
                                 "/api/v1/auth/refresh"
                         ).permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

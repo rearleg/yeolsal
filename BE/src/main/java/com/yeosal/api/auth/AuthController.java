@@ -20,17 +20,20 @@ import org.springframework.web.servlet.view.RedirectView;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthService authService;
+    private final LoginCodeService loginCodeService;
     private final String mobileRedirectUri;
     private final String kakaoClientId;
     private final String kakaoRedirectUri;
 
     public AuthController(
             AuthService authService,
+            LoginCodeService loginCodeService,
             @Value("${yeosal.kakao.mobile-redirect-uri}") String mobileRedirectUri,
             @Value("${yeosal.kakao.client-id}") String kakaoClientId,
             @Value("${yeosal.kakao.redirect-uri}") String kakaoRedirectUri
     ) {
         this.authService = authService;
+        this.loginCodeService = loginCodeService;
         this.mobileRedirectUri = mobileRedirectUri;
         this.kakaoClientId = kakaoClientId;
         this.kakaoRedirectUri = kakaoRedirectUri;
@@ -62,16 +65,19 @@ public class AuthController {
 
     @GetMapping("/kakao/callback")
     public RedirectView kakaoCallback(@RequestParam String code) {
-        AuthTokens tokens = authService.kakao(new KakaoLoginRequest(code));
-        String target = mobileRedirectUri +
-                "?accessToken=" + encode(tokens.accessToken()) +
-                "&refreshToken=" + encode(tokens.refreshToken()) +
-                "&tokenType=" + encode(tokens.tokenType()) +
-                "&userId=" + tokens.user().id() +
-                "&email=" + encode(tokens.user().email()) +
-                "&nickname=" + encode(tokens.user().nickname()) +
-                "&timezone=" + encode(tokens.user().timezone());
+        // Run the Kakao OAuth user lookup, then hand the mobile app a
+        // single-use login code instead of access/refresh tokens. The app
+        // exchanges the code for tokens via POST /auth/kakao/exchange so
+        // tokens never appear in the deep-link query string.
+        var user = authService.kakaoUserFor(code);
+        String loginCode = loginCodeService.issue(user);
+        String target = mobileRedirectUri + "?code=" + encode(loginCode);
         return new RedirectView(target);
+    }
+
+    @PostMapping("/kakao/exchange")
+    public ApiResponse<AuthTokens> kakaoExchange(@Valid @RequestBody KakaoExchangeRequest request) {
+        return ApiResponse.of(authService.exchangeKakaoLoginCode(request.code()));
     }
 
     @PostMapping("/refresh")
@@ -88,6 +94,7 @@ public class AuthController {
     public record SignupRequest(@Email String email, @NotBlank String password, @NotBlank String nickname) {}
     public record LoginRequest(@Email String email, @NotBlank String password) {}
     public record KakaoLoginRequest(@NotBlank String authorizationCode) {}
+    public record KakaoExchangeRequest(@NotBlank String code) {}
     public record RefreshRequest(@NotBlank String refreshToken) {}
     public record AuthTokens(String accessToken, String refreshToken, String tokenType, UserDto user) {}
     public record UserDto(long id, String email, String nickname, String timezone) {
