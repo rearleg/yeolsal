@@ -5,6 +5,7 @@ import { GoalCard } from "../../src/components/today/GoalCard";
 import { ReflectionCard } from "../../src/components/today/ReflectionCard";
 import { TodayChips } from "../../src/components/today/TodayChips";
 import { TodoList } from "../../src/components/today/TodoList";
+import { useAndroidBack } from "../../src/hooks/useAndroidBack";
 import { useTodayQuery } from "../../src/lib/query/hooks/today";
 import { useFeedQuery } from "../../src/lib/query/hooks/feed";
 import { entryDateOf } from "../../src/lib/calendar";
@@ -13,6 +14,7 @@ import { palette } from "../../src/theme/tokens";
 
 export default function TodayScreen() {
   useRequireAuth();
+  useAndroidBack({ confirmExitOnRoot: true });
   const today = useTodayQuery();
   const feed = useFeedQuery(entryDateOf());
 
