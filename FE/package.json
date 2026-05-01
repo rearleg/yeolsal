@@ -22,7 +22,8 @@
     ],
     "testMatch": [
       "<rootDir>/src/**/__tests__/**/*.test.{ts,tsx}"
-    ]
+    ],
+    "forceExit": true
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.0",
