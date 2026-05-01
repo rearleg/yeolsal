@@ -54,11 +54,28 @@ class NotificationServiceTest {
         when(pushTokens.findByUser(alice)).thenReturn(List.of(
                 new PushToken(alice, "ExponentPushToken[abc]", "ios")
         ));
+        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(true);
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "오늘의 목표", "정해보세요");
 
         verify(pushClient).send(List.of("ExponentPushToken[abc]"), "오늘의 목표", "정해보세요");
         verify(logs).save(any(NotificationLog.class));
+    }
+
+    @Test
+    @DisplayName("sendCron: skips dedup-log write when push send fails")
+    void sendCronSendFailureSkipsLog() {
+        when(prefs.findById(1L)).thenReturn(Optional.of(prefWithDefaults(alice)));
+        when(logs.existsByUserAndKindAndKey(alice, NotificationKind.GOAL_NUDGE, "2026-04-30")).thenReturn(false);
+        when(pushTokens.findByUser(alice)).thenReturn(List.of(
+                new PushToken(alice, "ExponentPushToken[abc]", "ios")
+        ));
+        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(false);
+
+        service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
+
+        verify(pushClient).send(List.of("ExponentPushToken[abc]"), "t", "b");
+        verify(logs, never()).save(any());
     }
 
     @Test
@@ -122,6 +139,7 @@ class NotificationServiceTest {
         when(pushTokens.findByUser(alice)).thenReturn(List.of(
                 new PushToken(alice, "ExponentPushToken[abc]", "ios")
         ));
+        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(true);
 
         service.sendEvent(alice, NotificationKind.FRIEND_GOAL, "FRIEND_GOAL:42", "친구 알림", "본문",
                 Duration.ofMinutes(30));
