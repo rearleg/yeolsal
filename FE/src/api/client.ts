@@ -14,6 +14,24 @@ export type ApiEnvelope<T> = { data: T };
 export type AuthUser = { id: number; email: string; nickname: string; timezone: string };
 export type AuthTokens = { accessToken: string; refreshToken: string; tokenType: string; user: AuthUser };
 
+/**
+ * Thrown by {@link apiRequest} for any non-2xx response. Subclass of Error
+ * so existing `catch (e) { e.message }` paths keep working; new callers can
+ * narrow to {@code ApiError} and branch on {@code code} for stable UX
+ * (e.g. show a localized toast for {@code "RATE_LIMITED"}, redirect to
+ * login for {@code "FORBIDDEN"}, etc.).
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export async function saveTokens(tokens: AuthTokens) {
   await setStoredValue(ACCESS_TOKEN_KEY, tokens.accessToken);
   await setStoredValue(REFRESH_TOKEN_KEY, tokens.refreshToken);
@@ -62,16 +80,22 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok) {
+    let code = `HTTP_${response.status}`;
     let message = `API request failed: ${response.status}`;
     try {
       const body = await response.json();
-      if (body?.message) {
+      const envelope = body?.error;
+      if (envelope && typeof envelope === "object") {
+        if (typeof envelope.code === "string") code = envelope.code;
+        if (typeof envelope.message === "string") message = envelope.message;
+      } else if (typeof body?.message === "string") {
+        // Transitional fallback for any caller still on the old {message} shape.
         message = body.message;
       }
     } catch {
       // Ignore non-JSON error bodies.
     }
-    throw new Error(message);
+    throw new ApiError(response.status, code, message);
   }
 
   if (response.status === 204) {
