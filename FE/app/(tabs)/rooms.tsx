@@ -2,16 +2,16 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { createRoom, listRooms, type Room } from "../src/api/rooms";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Button } from "../src/components/ui/Button";
-import { Card } from "../src/components/ui/Card";
-import { EmptyState } from "../src/components/ui/EmptyState";
-import { Skeleton } from "../src/components/ui/Skeleton";
-import { Text } from "../src/components/ui/Text";
-import { space } from "../src/theme/spacing";
-import { palette, pickRoomAccent, roomHues, surface } from "../src/theme/tokens";
+import { createRoom, listRooms, type Room } from "../../src/api/rooms";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Button } from "../../src/components/ui/Button";
+import { Card } from "../../src/components/ui/Card";
+import { EmptyState } from "../../src/components/ui/EmptyState";
+import { Skeleton } from "../../src/components/ui/Skeleton";
+import { Text } from "../../src/components/ui/Text";
+import { space } from "../../src/theme/spacing";
+import { palette, pickRoomAccent, roomHues, surface } from "../../src/theme/tokens";
 
 export default function RoomsScreen() {
   const auth = useRequireAuth();

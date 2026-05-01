@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
-import { NavDirectionProvider, useNavDirection } from "../src/navigation/NavDirectionContext";
 import { QueryProvider } from "../src/providers/QueryProvider";
 
 export default function RootLayout() {
@@ -15,26 +14,11 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <QueryProvider>
-        <NavDirectionProvider>
-          <PushTokenBootstrap />
-          <DirectionalStack />
-          <StatusBar style="dark" />
-        </NavDirectionProvider>
+        <PushTokenBootstrap />
+        <Stack screenOptions={{ headerShown: false }} />
+        <StatusBar style="dark" />
       </QueryProvider>
     </AuthProvider>
-  );
-}
-
-function DirectionalStack() {
-  const { animation } = useNavDirection();
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="today" options={{ animation }} />
-      <Stack.Screen name="feed" options={{ animation }} />
-      <Stack.Screen name="rooms" options={{ animation }} />
-      <Stack.Screen name="monthly" options={{ animation }} />
-      <Stack.Screen name="profile" options={{ animation }} />
-    </Stack>
   );
 }
 

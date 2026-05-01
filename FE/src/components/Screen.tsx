@@ -4,14 +4,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { surface } from "../theme/tokens";
 import { layout, space } from "../theme/spacing";
 import { Text } from "./ui/Text";
-import { BottomNav } from "./BottomNav";
 
 type Props = PropsWithChildren<{
   title: string;
+  // Retained for source compatibility with callers from before the (tabs)
+  // migration. The bottom bar now lives in app/(tabs)/_layout.tsx and is
+  // rendered as the Tabs `tabBar`. Passing this prop is a no-op.
   showFooter?: boolean;
 }>;
 
-export function Screen({ children, title, showFooter = true }: Props) {
+export function Screen({ children, title }: Props) {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -20,7 +22,6 @@ export function Screen({ children, title, showFooter = true }: Props) {
         </Text>
       </View>
       <View style={styles.content}>{children}</View>
-      {showFooter ? <BottomNav /> : null}
     </SafeAreaView>
   );
 }

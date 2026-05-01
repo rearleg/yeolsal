@@ -1,18 +1,18 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { DailyFeedItem } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { GoalCard } from "../src/components/today/GoalCard";
-import { ReflectionCard } from "../src/components/today/ReflectionCard";
-import { TodayChips } from "../src/components/today/TodayChips";
-import { TodoList } from "../src/components/today/TodoList";
-import { useTodayQuery } from "../src/lib/query/hooks/today";
-import { entryDateOf } from "../src/lib/calendar";
-import { space } from "../src/theme/spacing";
-import { palette } from "../src/theme/tokens";
+import { type ApiEnvelope, apiRequest } from "../../src/api/client";
+import type { DailyFeedItem } from "../../src/api/types";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { GoalCard } from "../../src/components/today/GoalCard";
+import { ReflectionCard } from "../../src/components/today/ReflectionCard";
+import { TodayChips } from "../../src/components/today/TodayChips";
+import { TodoList } from "../../src/components/today/TodoList";
+import { useTodayQuery } from "../../src/lib/query/hooks/today";
+import { entryDateOf } from "../../src/lib/calendar";
+import { space } from "../../src/theme/spacing";
+import { palette } from "../../src/theme/tokens";
 
 export default function TodayScreen() {
   const auth = useRequireAuth();

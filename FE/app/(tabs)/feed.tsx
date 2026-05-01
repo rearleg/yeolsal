@@ -2,16 +2,16 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { DailyFeedItem, FriendRequestDto } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Card } from "../src/components/ui/Card";
-import { Button } from "../src/components/ui/Button";
-import { Text } from "../src/components/ui/Text";
-import { palette, pickRoomAccent, roomHues, semantic, surface } from "../src/theme/tokens";
-import { space } from "../src/theme/spacing";
-import { entryDateOf } from "../src/lib/calendar";
+import { type ApiEnvelope, apiRequest } from "../../src/api/client";
+import type { DailyFeedItem, FriendRequestDto } from "../../src/api/types";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Card } from "../../src/components/ui/Card";
+import { Button } from "../../src/components/ui/Button";
+import { Text } from "../../src/components/ui/Text";
+import { palette, pickRoomAccent, roomHues, semantic, surface } from "../../src/theme/tokens";
+import { space } from "../../src/theme/spacing";
+import { entryDateOf } from "../../src/lib/calendar";
 
 export default function FeedScreen() {
   const auth = useRequireAuth();

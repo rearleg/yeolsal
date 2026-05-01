@@ -1,19 +1,19 @@
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { GrassDayDto, ProfileDto } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Card } from "../src/components/ui/Card";
-import { Text } from "../src/components/ui/Text";
-import { Button } from "../src/components/ui/Button";
-import { ContributionGrid } from "../src/components/grid/ContributionGrid";
-import { DayDetailCard } from "../src/components/grid/DayDetailCard";
-import { bucketFor } from "../src/lib/bucket";
-import { entryDateOf, rollingRange } from "../src/lib/calendar";
-import { palette, surface } from "../src/theme/tokens";
-import { space } from "../src/theme/spacing";
+import { type ApiEnvelope, apiRequest } from "../../src/api/client";
+import type { GrassDayDto, ProfileDto } from "../../src/api/types";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Card } from "../../src/components/ui/Card";
+import { Text } from "../../src/components/ui/Text";
+import { Button } from "../../src/components/ui/Button";
+import { ContributionGrid } from "../../src/components/grid/ContributionGrid";
+import { DayDetailCard } from "../../src/components/grid/DayDetailCard";
+import { bucketFor } from "../../src/lib/bucket";
+import { entryDateOf, rollingRange } from "../../src/lib/calendar";
+import { palette, surface } from "../../src/theme/tokens";
+import { space } from "../../src/theme/spacing";
 
 const ROLLING_DAYS = 365;
 

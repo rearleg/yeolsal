@@ -1,16 +1,16 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { GrassDayDto, MonthlyStatsDto } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Card } from "../src/components/ui/Card";
-import { Text } from "../src/components/ui/Text";
-import { ContributionGrid } from "../src/components/grid/ContributionGrid";
-import { bucketFor } from "../src/lib/bucket";
-import { palette, surface } from "../src/theme/tokens";
-import { space } from "../src/theme/spacing";
+import { type ApiEnvelope, apiRequest } from "../../src/api/client";
+import type { GrassDayDto, MonthlyStatsDto } from "../../src/api/types";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Card } from "../../src/components/ui/Card";
+import { Text } from "../../src/components/ui/Text";
+import { ContributionGrid } from "../../src/components/grid/ContributionGrid";
+import { bucketFor } from "../../src/lib/bucket";
+import { palette, surface } from "../../src/theme/tokens";
+import { space } from "../../src/theme/spacing";
 
 export default function MonthlyScreen() {
   const auth = useRequireAuth();
