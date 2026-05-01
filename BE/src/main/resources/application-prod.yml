@@ -1,0 +1,20 @@
+# Production profile overrides.
+#
+# Activated when SPRING_PROFILES_ACTIVE=prod (or includes "prod").
+# All values below intentionally have NO default; missing environment
+# variables will fail context startup with a property-resolution error.
+# StartupConfigValidator adds extra checks (e.g. dev placeholder strings
+# rejected even when explicitly supplied).
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+yeosal:
+  auth:
+    jwt-secret: ${YEOSAL_JWT_SECRET}
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID}
+    redirect-uri: ${KAKAO_REDIRECT_URI}
+    mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI}
