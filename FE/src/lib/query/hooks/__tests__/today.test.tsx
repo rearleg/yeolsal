@@ -222,6 +222,41 @@ describe("useUpdateGoal", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(client.getQueryData<DailyEntryDto | null>(qk.today)).toEqual(updated);
   });
+
+  it("invokes onSaved callback with the persisted entry", async () => {
+    const updated: DailyEntryDto = { ...SAMPLE, goal: "서버 확정 목표" };
+    updateGoalMock.mockResolvedValue(updated);
+    const onSaved = jest.fn();
+    const { result } = renderHook(() => useUpdateGoal({ onSaved }), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate("서버 확정 목표");
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(onSaved).toHaveBeenCalledWith(updated);
+  });
+
+  it("invokes onFailed callback after rollback", async () => {
+    jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
+    const failure = new Error("save failed");
+    updateGoalMock.mockRejectedValue(failure);
+    const onFailed = jest.fn();
+    const { result } = renderHook(() => useUpdateGoal({ onFailed }), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate("실패할 목표");
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(onFailed).toHaveBeenCalledWith(failure);
+    // Cache rolled back so the stale optimistic value isn't left behind.
+    expect(client.getQueryData<DailyEntryDto | null>(qk.today)?.goal).toBe(SAMPLE.goal);
+  });
 });
 
 describe("useAddTodo", () => {
