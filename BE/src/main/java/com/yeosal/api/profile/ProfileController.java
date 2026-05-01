@@ -112,46 +112,6 @@ public class ProfileController {
     }
 
     /**
-     * Rolling-window contributions for the GitHub-style 잔디 grid.
-     * Returns the most recent {@code days} entries ending today (06:00 boundary).
-     * Visibility: viewer must be self or share a confirmed friendship (Phase 4-A
-     * will extend this to "shares at least one room").
-     */
-    @GetMapping("/{userId}/contributions")
-    public ApiResponse<List<GrassDayDto>> contributions(
-            Authentication authentication,
-            @PathVariable long userId,
-            @RequestParam(defaultValue = "365") int days
-    ) {
-        User viewer = currentUser.require(authentication);
-        User target = users.findById(userId).orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
-        if (!friendService.canView(viewer, target)) {
-            throw new ForbiddenException("잔디 접근 권한이 없습니다.");
-        }
-        int windowDays = Math.max(1, Math.min(days, 366));
-        LocalDate to = LocalDate.now();
-        LocalDate from = to.minusDays(windowDays - 1L);
-        return ApiResponse.of(dailyService.grass(target, from, to).stream()
-                .map(day -> new GrassDayDto(day.date(), day.missionCompleted(), day.completedTodoCount(), day.reflectionSubmitted(), day.intensity()))
-                .toList());
-    }
-
-    @GetMapping("/{userId}/streak")
-    public ApiResponse<StreakDto> streak(
-            Authentication authentication,
-            @PathVariable long userId,
-            @RequestParam(defaultValue = "365") int windowDays
-    ) {
-        User viewer = currentUser.require(authentication);
-        User target = users.findById(userId).orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
-        if (!friendService.canView(viewer, target)) {
-            throw new ForbiddenException("스트릭 접근 권한이 없습니다.");
-        }
-        int capped = Math.max(1, Math.min(windowDays, 366));
-        return ApiResponse.of(new StreakDto(target.getId(), dailyService.currentStreak(target, capped)));
-    }
-
-    /**
      * Recent reflections for the target user. Visibility:
      * <ul>
      *   <li>403 if viewer cannot see the target at all (no friendship, no shared room).</li>
@@ -190,7 +150,6 @@ public class ProfileController {
         }
     }
     public record GrassDayDto(LocalDate date, boolean missionCompleted, int completedTodoCount, boolean reflectionSubmitted, int intensity) {}
-    public record StreakDto(long userId, int currentStreak) {}
     public record ReflectionDto(LocalDate date, String body, Instant submittedAt, boolean bodyVisible) {
         static ReflectionDto from(DailyService.ReflectionView r, boolean canSeeBody) {
             return new ReflectionDto(

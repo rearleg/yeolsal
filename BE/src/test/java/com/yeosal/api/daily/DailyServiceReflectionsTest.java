@@ -30,7 +30,6 @@ class DailyServiceReflectionsTest {
         DailyEntryRepository entries = mock(DailyEntryRepository.class);
         TodoItemRepository todos = mock(TodoItemRepository.class);
         ReflectionRepository reflections = mock(ReflectionRepository.class);
-        MonthlyGoalRepository monthlyGoals = mock(MonthlyGoalRepository.class);
         EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
         GateRule gateRule = mock(GateRule.class);
         com.yeosal.api.room.RoomMemberRepository roomMembers =
@@ -39,7 +38,7 @@ class DailyServiceReflectionsTest {
                 mock(com.yeosal.api.notification.NotificationService.class);
 
         DailyService service = new DailyService(
-                entries, todos, reflections, monthlyGoals, entryDateResolver, gateRule,
+                entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications);
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
@@ -67,7 +66,6 @@ class DailyServiceReflectionsTest {
         DailyEntryRepository entries = mock(DailyEntryRepository.class);
         TodoItemRepository todos = mock(TodoItemRepository.class);
         ReflectionRepository reflections = mock(ReflectionRepository.class);
-        MonthlyGoalRepository monthlyGoals = mock(MonthlyGoalRepository.class);
         EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
         GateRule gateRule = mock(GateRule.class);
         com.yeosal.api.room.RoomMemberRepository roomMembers =
@@ -76,7 +74,7 @@ class DailyServiceReflectionsTest {
                 mock(com.yeosal.api.notification.NotificationService.class);
 
         DailyService service = new DailyService(
-                entries, todos, reflections, monthlyGoals, entryDateResolver, gateRule,
+                entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications);
         User alice = makeUser(1L, "alice@example.com", "Alice");
 
