@@ -18,6 +18,10 @@ yeosal:
     client-id: ${KAKAO_CLIENT_ID}
     redirect-uri: ${KAKAO_REDIRECT_URI}
     mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI}
+  cors:
+    # Comma-separated list of allowed origins. Required in prod to avoid
+    # falling through to the dev wildcard.
+    allowed-origins: ${YEOSAL_CORS_ALLOWED_ORIGINS}
 
 # Hide the OpenAPI spec and Swagger UI in production. The schema is still
 # auto-generated at build time, but the runtime endpoints (/v3/api-docs,
