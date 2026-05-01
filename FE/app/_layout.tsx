@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
 import { QueryProvider } from "../src/providers/QueryProvider";
+import { ToastProvider } from "../src/components/feedback/ToastProvider";
+import { ErrorBoundary } from "../src/components/feedback/ErrorBoundary";
 
 export default function RootLayout() {
   const fonts = useWantedSans();
@@ -14,9 +16,13 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <QueryProvider>
-        <PushTokenBootstrap />
-        <Stack screenOptions={{ headerShown: false }} />
-        <StatusBar style="dark" />
+        <ToastProvider>
+          <ErrorBoundary>
+            <PushTokenBootstrap />
+            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBar style="dark" />
+          </ErrorBoundary>
+        </ToastProvider>
       </QueryProvider>
     </AuthProvider>
   );

@@ -5,18 +5,20 @@ import { ErrorBoundary } from "../ErrorBoundary";
 
 function Boom({ when }: { when: boolean }) {
   if (when) throw new Error("kaboom");
-  return <Text>safe</Text>;
+  return <Text>recovered</Text>;
 }
 
-function Toggle() {
-  const [thrown, setThrown] = useState(true);
+function Wrapper() {
+  const [throws, setThrows] = useState(true);
   return (
-    <ErrorBoundary>
-      <Pressable accessibilityLabel="recover" onPress={() => setThrown(false)}>
-        <Text>recover</Text>
+    <>
+      <Pressable accessibilityLabel="fix" onPress={() => setThrows(false)}>
+        <Text>fix</Text>
       </Pressable>
-      <Boom when={thrown} />
-    </ErrorBoundary>
+      <ErrorBoundary>
+        <Boom when={throws} />
+      </ErrorBoundary>
+    </>
   );
 }
 
@@ -45,13 +47,22 @@ describe("ErrorBoundary", () => {
     expect(getByText("문제가 발생했어요")).toBeOnTheScreen();
   });
 
-  it("exposes a retry control that resets the error state", () => {
-    const { getByText, queryByText } = render(<Toggle />);
+  it("exposes a retry control that resets the error state once root cause is fixed", () => {
+    const { getByText, getByLabelText, queryByText } = render(<Wrapper />);
 
+    // Initial render: Boom throws → boundary fallback shows.
     expect(getByText("문제가 발생했어요")).toBeOnTheScreen();
 
+    // External fix: flip Wrapper state so Boom no longer throws.
+    fireEvent.press(getByLabelText("fix"));
+
+    // Boundary still in error state until reset.
+    expect(getByText("문제가 발생했어요")).toBeOnTheScreen();
+
+    // Press retry → boundary clears, re-renders children with the fix.
     fireEvent.press(getByText("다시 시도"));
 
     expect(queryByText("문제가 발생했어요")).toBeNull();
+    expect(getByText("recovered")).toBeOnTheScreen();
   });
 });
