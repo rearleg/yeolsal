@@ -55,7 +55,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   });
 
   if (response.status === 401 && !options.skipAuth && options.retry !== false) {
-    const refreshed = await refreshAccessToken();
+    const refreshed = await refreshAccessTokenOnce();
     if (refreshed) {
       return apiRequest<T>(path, { ...options, retry: false });
     }
@@ -84,23 +84,47 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   return JSON.parse(text) as T;
 }
 
-async function refreshAccessToken() {
-  const refreshToken = await getRefreshToken();
-  if (!refreshToken) {
-    return false;
+let refreshInflight: Promise<boolean> | null = null;
+let onAuthInvalid: (() => void | Promise<void>) | null = null;
+
+export function setOnAuthInvalid(cb: (() => void | Promise<void>) | null): void {
+  onAuthInvalid = cb;
+}
+
+async function refreshAccessTokenOnce(): Promise<boolean> {
+  if (refreshInflight) {
+    return refreshInflight;
   }
+  refreshInflight = (async () => {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) {
+      return false;
+    }
+    try {
+      const envelope = await apiRequest<ApiEnvelope<AuthTokens>>("/auth/refresh", {
+        method: "POST",
+        skipAuth: true,
+        retry: false,
+        body: JSON.stringify({ refreshToken })
+      });
+      await saveTokens(envelope.data);
+      return true;
+    } catch {
+      await clearTokens();
+      if (onAuthInvalid) {
+        try {
+          await onAuthInvalid();
+        } catch {
+          // swallow — auth-invalid handler must not break refresh flow
+        }
+      }
+      return false;
+    }
+  })();
   try {
-    const envelope = await apiRequest<ApiEnvelope<AuthTokens>>("/auth/refresh", {
-      method: "POST",
-      skipAuth: true,
-      retry: false,
-      body: JSON.stringify({ refreshToken })
-    });
-    await saveTokens(envelope.data);
-    return true;
-  } catch {
-    await clearTokens();
-    return false;
+    return await refreshInflight;
+  } finally {
+    refreshInflight = null;
   }
 }
 

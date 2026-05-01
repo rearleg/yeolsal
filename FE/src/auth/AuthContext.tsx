@@ -1,7 +1,18 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Linking } from "react-native";
 import { API_BASE_URL } from "../api/config";
-import { apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens } from "../api/client";
+import { apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens, setOnAuthInvalid } from "../api/client";
+import { queryClient } from "../lib/query/client";
+import { purgePersistedQueries } from "../lib/query/persist";
+
+async function clearAllCaches(): Promise<void> {
+  queryClient.clear();
+  try {
+    await purgePersistedQueries();
+  } catch {
+    // best-effort: storage failure must not block auth state cleanup
+  }
+}
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -17,13 +28,32 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef<AuthUser | null>(null);
+
+  const handleAuthInvalid = useCallback(async () => {
+    await clearAllCaches();
+    userRef.current = null;
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    setOnAuthInvalid(handleAuthInvalid);
+    return () => {
+      setOnAuthInvalid(null);
+    };
+  }, [handleAuthInvalid]);
 
   useEffect(() => {
     restoreSession();
   }, []);
 
   async function apply(tokens: AuthTokens) {
+    const prev = userRef.current;
+    if (!prev || prev.id !== tokens.user.id) {
+      await clearAllCaches();
+    }
     await saveTokens(tokens);
+    userRef.current = tokens.user;
     setUser(tokens.user);
   }
 
@@ -41,6 +71,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await apply(response.data);
     } catch {
       await clearTokens();
+      await clearAllCaches();
+      userRef.current = null;
       setUser(null);
     } finally {
       setLoading(false);
@@ -83,6 +115,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
     await clearTokens();
+    await clearAllCaches();
+    userRef.current = null;
     setUser(null);
   }
 

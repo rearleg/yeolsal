@@ -3,9 +3,11 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { queryClient } from "./client";
 
+const PERSIST_KEY = "yeosal.query.v1";
+
 const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
-  key: "yeosal.query.v1",
+  key: PERSIST_KEY,
   throttleTime: 1000,
 });
 
@@ -19,4 +21,8 @@ export function bootstrapPersist(): void {
       shouldDehydrateQuery: (q) => q.state.status === "success",
     },
   });
+}
+
+export async function purgePersistedQueries(): Promise<void> {
+  await AsyncStorage.removeItem(PERSIST_KEY);
 }
