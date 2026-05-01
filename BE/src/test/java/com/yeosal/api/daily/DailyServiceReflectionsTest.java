@@ -1,11 +1,15 @@
 package com.yeosal.api.daily;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -14,8 +18,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
@@ -89,6 +95,72 @@ class DailyServiceReflectionsTest {
         List<Pageable> pageables = captor.getAllValues();
         assertThat(pageables.get(0)).isEqualTo(PageRequest.of(0, 1));
         assertThat(pageables.get(1)).isEqualTo(PageRequest.of(0, 100));
+    }
+
+    @Test
+    @DisplayName("createReflection: pre-flight find sees existing reflection → BadRequestException")
+    void createReflection_alreadySubmitted_throwsBadRequest() {
+        DailyEntryRepository entries = mock(DailyEntryRepository.class);
+        TodoItemRepository todos = mock(TodoItemRepository.class);
+        ReflectionRepository reflections = mock(ReflectionRepository.class);
+        EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
+        GateRule gateRule = mock(GateRule.class);
+        com.yeosal.api.room.RoomMemberRepository roomMembers =
+                mock(com.yeosal.api.room.RoomMemberRepository.class);
+        com.yeosal.api.notification.NotificationService notifications =
+                mock(com.yeosal.api.notification.NotificationService.class);
+
+        DailyService service = new DailyService(
+                entries, todos, reflections, entryDateResolver, gateRule,
+                clock, roomMembers, notifications);
+
+        User alice = makeUser(1L, "alice@example.com", "Alice");
+        DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");
+        setId(entry, 100L);
+        Reflection existing = new Reflection(entry, "기존 회고");
+        setId(existing, 11L);
+
+        when(entries.findById(100L)).thenReturn(Optional.of(entry));
+        when(reflections.findByDailyEntry(entry)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() ->
+                service.createReflection(alice, new DailyController.ReflectionCreate(100L, "두 번째 본문")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("이미 회고를 제출했습니다.");
+
+        verify(reflections, never()).saveAndFlush(any(Reflection.class));
+    }
+
+    @Test
+    @DisplayName("createReflection: dup race on saveAndFlush is remapped to BadRequestException (no 500 leak)")
+    void createReflection_dupRace_remapsToBadRequest() {
+        DailyEntryRepository entries = mock(DailyEntryRepository.class);
+        TodoItemRepository todos = mock(TodoItemRepository.class);
+        ReflectionRepository reflections = mock(ReflectionRepository.class);
+        EntryDateResolver entryDateResolver = mock(EntryDateResolver.class);
+        GateRule gateRule = mock(GateRule.class);
+        com.yeosal.api.room.RoomMemberRepository roomMembers =
+                mock(com.yeosal.api.room.RoomMemberRepository.class);
+        com.yeosal.api.notification.NotificationService notifications =
+                mock(com.yeosal.api.notification.NotificationService.class);
+
+        DailyService service = new DailyService(
+                entries, todos, reflections, entryDateResolver, gateRule,
+                clock, roomMembers, notifications);
+
+        User alice = makeUser(1L, "alice@example.com", "Alice");
+        DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");
+        setId(entry, 100L);
+
+        when(entries.findById(100L)).thenReturn(Optional.of(entry));
+        when(reflections.findByDailyEntry(entry)).thenReturn(Optional.empty());
+        when(reflections.saveAndFlush(any(Reflection.class)))
+                .thenThrow(new DataIntegrityViolationException("uq_reflections_daily_entry_id"));
+
+        assertThatThrownBy(() ->
+                service.createReflection(alice, new DailyController.ReflectionCreate(100L, "본문")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("이미 회고를 제출했습니다.");
     }
 
     private static User makeUser(long id, String email, String nickname) {

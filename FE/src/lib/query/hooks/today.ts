@@ -9,8 +9,13 @@ import {
 } from "../api";
 import { qk } from "../keys";
 import { toast } from "../../toast";
+import { captureQueryError } from "../../sentry";
 import { useHaptic } from "../../../hooks/useHaptics";
+import { ApiError } from "../../../api/client";
 import type { DailyEntryDto } from "../../../api/types";
+
+const REFLECTION_ALREADY_SUBMITTED = "이미 회고를 제출했습니다.";
+const REFLECTION_GENERIC_ERROR = "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.";
 
 type Snapshot = DailyEntryDto | null | undefined;
 interface RollbackContext {
@@ -139,7 +144,25 @@ export function useSubmitReflection() {
       qc.invalidateQueries({ queryKey: qk.today });
     },
     onError: (error) => {
-      toast.error(error.message);
+      // The BE remaps the dup-race on `reflections.daily_entry_id` to a 400
+      // BAD_REQUEST. That state means "the server already accepted it" — refresh
+      // the cache so the UI flips into the submitted state instead of nagging.
+      if (error instanceof ApiError) {
+        if (error.code === "BAD_REQUEST" && error.message === REFLECTION_ALREADY_SUBMITTED) {
+          // The server already has the reflection — match the success path's
+          // tactile feedback so the user perceives the action as completed.
+          haptic("success");
+          toast.info(REFLECTION_ALREADY_SUBMITTED);
+          qc.invalidateQueries({ queryKey: qk.today });
+          return;
+        }
+        if (error.status >= 500 || error.code === "INTERNAL_ERROR") {
+          captureQueryError(error, { kind: "mutation", key: qk.today });
+          toast.error(REFLECTION_GENERIC_ERROR);
+          return;
+        }
+      }
+      toast.error(error.message || REFLECTION_GENERIC_ERROR);
     },
   });
 }

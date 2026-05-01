@@ -12,7 +12,9 @@ import {
 import * as api from "../../api";
 import { qk } from "../../keys";
 import * as toastMod from "../../../toast";
+import * as sentryMod from "../../../sentry";
 import * as hapticsMod from "../../../../hooks/useHaptics";
+import { ApiError } from "../../../../api/client";
 import type { DailyEntryDto } from "../../../../api/types";
 
 jest.mock("../../api", () => ({
@@ -22,6 +24,10 @@ jest.mock("../../api", () => ({
   patchTodo: jest.fn(),
   deleteTodo: jest.fn(),
   submitReflection: jest.fn(),
+}));
+
+jest.mock("../../../sentry", () => ({
+  captureQueryError: jest.fn(),
 }));
 
 const fetchTodayMock = api.fetchToday as jest.MockedFunction<typeof api.fetchToday>;
@@ -375,5 +381,60 @@ describe("useSubmitReflection", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(errorSpy).toHaveBeenCalledWith("reflection failed");
     expect(hapticTrigger).not.toHaveBeenCalledWith("success");
+  });
+
+  it("treats BAD_REQUEST 'already submitted' as info + cache invalidation + success haptic", async () => {
+    const infoSpy = jest.spyOn(toastMod.toast, "info").mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
+    const invalidateSpy = jest.spyOn(client, "invalidateQueries");
+    submitReflectionMock.mockRejectedValue(new ApiError(400, "BAD_REQUEST", "이미 회고를 제출했습니다."));
+
+    const { result } = renderHook(() => useSubmitReflection(), { wrapper: makeWrapper(client) });
+
+    act(() => {
+      result.current.mutate({ dailyEntryId: SAMPLE.id, body: "재시도 회고" });
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(infoSpy).toHaveBeenCalledWith("이미 회고를 제출했습니다.");
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: qk.today });
+    expect(hapticTrigger).toHaveBeenCalledWith("success");
+  });
+
+  it("INTERNAL_ERROR shows generic toast and reports to Sentry (no server-message leak)", async () => {
+    const errorSpy = jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
+    const captureMock = sentryMod.captureQueryError as jest.MockedFunction<
+      typeof sentryMod.captureQueryError
+    >;
+    captureMock.mockClear();
+    const apiError = new ApiError(500, "INTERNAL_ERROR", "내부 오류가 발생했습니다.");
+    submitReflectionMock.mockRejectedValue(apiError);
+
+    const { result } = renderHook(() => useSubmitReflection(), { wrapper: makeWrapper(client) });
+
+    act(() => {
+      result.current.mutate({ dailyEntryId: SAMPLE.id, body: "본문" });
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(errorSpy).toHaveBeenCalledWith(
+      "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.",
+    );
+    expect(captureMock).toHaveBeenCalledWith(apiError, { kind: "mutation", key: qk.today });
+  });
+
+  it("falls through to message toast for other ApiError codes", async () => {
+    const errorSpy = jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
+    submitReflectionMock.mockRejectedValue(new ApiError(403, "FORBIDDEN", "권한이 없습니다."));
+
+    const { result } = renderHook(() => useSubmitReflection(), { wrapper: makeWrapper(client) });
+
+    act(() => {
+      result.current.mutate({ dailyEntryId: SAMPLE.id, body: "본문" });
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(errorSpy).toHaveBeenCalledWith("권한이 없습니다.");
   });
 });

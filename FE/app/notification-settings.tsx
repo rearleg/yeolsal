@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import {
   getNotificationPrefs,
@@ -16,23 +16,32 @@ import { space } from "../src/theme/spacing";
 import { palette, surface } from "../src/theme/tokens";
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
+const LOAD_FAILED_MESSAGE = "알림 설정을 불러오지 못했어요.";
 
 export default function NotificationSettingsScreen() {
   useRequireAuth();
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       setPrefs(await getNotificationPrefs());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "알림 설정을 불러오지 못했어요.");
+      const message = error instanceof Error && error.message ? error.message : LOAD_FAILED_MESSAGE;
+      setPrefs(null);
+      setLoadError(message);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function update<K extends keyof NotificationPrefs>(key: K, value: NotificationPrefs[K]) {
     setPrefs((p) => (p ? { ...p, [key]: value } : p));
@@ -61,13 +70,33 @@ export default function NotificationSettingsScreen() {
             방해 받지 않을 시간을 지정할 수 있어요.
           </Text>
 
-          {!prefs ? (
+          {loading ? (
             <View style={{ marginTop: space[3], gap: space[2] }}>
               <Skeleton height={32} />
               <Skeleton height={32} />
               <Skeleton height={32} />
             </View>
-          ) : (
+          ) : loadError ? (
+            <View
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={{ marginTop: space[3], gap: space[2] }}
+            >
+              <Text variant="bodyStrong">{LOAD_FAILED_MESSAGE}</Text>
+              {loadError !== LOAD_FAILED_MESSAGE && (
+                <Text variant="caption" color={palette.inkMute}>
+                  {loadError}
+                </Text>
+              )}
+              <Button
+                label="다시 시도"
+                tone="primary"
+                size="md"
+                fullWidth
+                onPress={() => void load()}
+              />
+            </View>
+          ) : prefs ? (
             <View style={{ marginTop: space[3], gap: space[3] }}>
               <ToggleRow
                 label="아침 8시 목표 알림"
@@ -88,17 +117,17 @@ export default function NotificationSettingsScreen() {
               <View>
                 <Text variant="bodyStrong">방해 금지 시간</Text>
                 <Text variant="caption" color={palette.inkMute}>
-                  {formatHour(prefs.quietStartHour)} – {formatHour(prefs.quietEndHour)}
+                  {formatHour(prefs.quietStartHour ?? 22)} – {formatHour(prefs.quietEndHour ?? 8)}
                 </Text>
               </View>
               <HourSelector
                 label="시작"
-                value={prefs.quietStartHour}
+                value={prefs.quietStartHour ?? 22}
                 onChange={(v) => update("quietStartHour", v)}
               />
               <HourSelector
                 label="종료"
-                value={prefs.quietEndHour}
+                value={prefs.quietEndHour ?? 8}
                 onChange={(v) => update("quietEndHour", v)}
               />
 
@@ -111,7 +140,7 @@ export default function NotificationSettingsScreen() {
                 onPress={save}
               />
             </View>
-          )}
+          ) : null}
         </Card>
       </ScrollView>
     </Screen>

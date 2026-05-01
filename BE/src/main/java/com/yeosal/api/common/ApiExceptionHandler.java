@@ -28,6 +28,12 @@ public class ApiExceptionHandler {
                 .body(ApiErrorResponse.of("BAD_REQUEST", exception.getMessage()));
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    ResponseEntity<ApiErrorResponse> unauthorized(UnauthorizedException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiErrorResponse.of("UNAUTHORIZED", exception.getMessage()));
+    }
+
     @ExceptionHandler(NotFoundException.class)
     ResponseEntity<ApiErrorResponse> notFound(NotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

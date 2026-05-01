@@ -15,6 +15,9 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,8 @@ public class DailyService {
      * so within a 30-minute span at most one FRIEND_GOAL or FRIEND_REFLECTION push
      * lands per recipient. */
     private static final Duration EVENT_DEBOUNCE = Duration.ofMinutes(30);
+
+    private static final Logger log = LoggerFactory.getLogger(DailyService.class);
 
     private final DailyEntryRepository dailyEntries;
     private final TodoItemRepository todoItems;
@@ -139,7 +144,16 @@ public class DailyService {
         if (reflections.findByDailyEntry(entry).isPresent()) {
             throw new BadRequestException("이미 회고를 제출했습니다.");
         }
-        DailyController.ReflectionDto dto = toDto(reflections.save(new Reflection(entry, request.body())));
+        Reflection saved;
+        try {
+            // Flush eagerly so a concurrent duplicate insert (FE retry / double-tap)
+            // surfaces the unique-constraint failure here and we can remap to a 400
+            // envelope instead of leaking a 500 at commit time.
+            saved = reflections.saveAndFlush(new Reflection(entry, request.body()));
+        } catch (DataIntegrityViolationException dup) {
+            throw new BadRequestException("이미 회고를 제출했습니다.");
+        }
+        DailyController.ReflectionDto dto = toDto(saved);
         fanOutEvent(user, NotificationKind.FRIEND_REFLECTION,
                 "FRIEND_REFLECTION:" + user.getId() + ":" + entry.getDate(),
                 user.getNickname() + "님이 오늘 회고를 남겼어요",
@@ -150,11 +164,18 @@ public class DailyService {
     /**
      * Pushes an event-style nudge to every fellow room-member of {@code actor}.
      * Each recipient's send is independently gated on prefs/quiet hours/debounce
-     * inside {@link NotificationService#sendEvent}.
+     * inside {@link NotificationService#sendEvent}. Per-mate failures (bad
+     * timezone, push provider hiccup, …) are isolated so the actor's primary
+     * write transaction never rolls back because of a notification side effect.
      */
     private void fanOutEvent(User actor, NotificationKind kind, String key, String title, String body) {
         for (User mate : roomMembers.findRoomMates(actor)) {
-            notifications.sendEvent(mate, kind, key, title, body, EVENT_DEBOUNCE);
+            try {
+                notifications.sendEvent(mate, kind, key, title, body, EVENT_DEBOUNCE);
+            } catch (RuntimeException ex) {
+                log.warn("[notif] fan-out failed actor={} mate={} kind={}: {}",
+                        actor.getId(), mate.getId(), kind, ex.toString());
+            }
         }
     }
 
