@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, type ApiEnvelope } from "../../../api/client";
 import type { DailyFeedItem, FriendRequestDto } from "../../../api/types";
+import { useHaptic } from "../../../hooks/useHaptics";
 import { qk } from "../keys";
 import { toast } from "../../toast";
 
@@ -22,6 +23,7 @@ export function useFriendRequestsQuery() {
 
 export function useSendFriendRequest() {
   const qc = useQueryClient();
+  const haptic = useHaptic();
   return useMutation<void, Error, string>({
     mutationFn: (targetEmail) =>
       apiRequest<void>("/friends/requests", {
@@ -30,6 +32,7 @@ export function useSendFriendRequest() {
       }),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
+      haptic("success");
       qc.invalidateQueries({ queryKey: qk.friendRequests });
     },
   });
@@ -37,6 +40,7 @@ export function useSendFriendRequest() {
 
 export function useRespondFriendRequest() {
   const qc = useQueryClient();
+  const haptic = useHaptic();
   return useMutation<void, Error, { id: number; accepted: boolean }>({
     mutationFn: ({ id, accepted }) =>
       apiRequest<void>(`/friends/requests/${id}`, {
@@ -45,6 +49,7 @@ export function useRespondFriendRequest() {
       }),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
+      haptic("light");
       qc.invalidateQueries({ queryKey: qk.friendRequests });
       qc.invalidateQueries({ queryKey: ["feed"] });
     },

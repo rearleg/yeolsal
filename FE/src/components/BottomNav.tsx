@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
   label: {
     color: textColors.tertiary,
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: 0.2,
   },
-  activeLabel: { color: palette.coralDeep, fontWeight: "700" },
+  activeLabel: { color: palette.coralDeep },
 });
