@@ -22,6 +22,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final KakaoAuthClient kakaoAuthClient;
+    private final LoginCodeService loginCodeService;
     private final long refreshTokenDays;
 
     public AuthService(
@@ -30,6 +31,7 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             KakaoAuthClient kakaoAuthClient,
+            LoginCodeService loginCodeService,
             @Value("${yeosal.auth.refresh-token-days}") long refreshTokenDays
     ) {
         this.users = users;
@@ -37,6 +39,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.kakaoAuthClient = kakaoAuthClient;
+        this.loginCodeService = loginCodeService;
         this.refreshTokenDays = refreshTokenDays;
     }
 
@@ -66,7 +69,18 @@ public class AuthService {
 
     @Transactional
     public AuthController.AuthTokens kakao(AuthController.KakaoLoginRequest request) {
-        KakaoAuthClient.KakaoUser kakaoUser = kakaoAuthClient.fetchUser(request.authorizationCode());
+        return issue(kakaoUserFor(request.authorizationCode()));
+    }
+
+    /**
+     * Run the Kakao OAuth user lookup/create flow without issuing yeosal
+     * tokens. Used by the deep-link callback path so the caller can hand
+     * off a single-use login code instead of placing tokens in a redirect
+     * URL query string.
+     */
+    @Transactional
+    public User kakaoUserFor(String authorizationCode) {
+        KakaoAuthClient.KakaoUser kakaoUser = kakaoAuthClient.fetchUser(authorizationCode);
         User user = users.findByEmail(kakaoUser.email().toLowerCase())
                 .orElseGet(() -> users.save(new User(
                         kakaoUser.email().toLowerCase(),
@@ -75,7 +89,16 @@ public class AuthService {
                         AuthProvider.KAKAO
                 )));
         user.setAuthProvider(AuthProvider.KAKAO);
-        return issue(user);
+        return user;
+    }
+
+    /**
+     * Consume a single-use Kakao login code (issued by /auth/kakao/callback)
+     * and return a fresh access/refresh token pair for the bound user.
+     */
+    @Transactional
+    public AuthController.AuthTokens exchangeKakaoLoginCode(String code) {
+        return issue(loginCodeService.exchange(code));
     }
 
     @Transactional
