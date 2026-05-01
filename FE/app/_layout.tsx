@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
 import { NavDirectionProvider, useNavDirection } from "../src/navigation/NavDirectionContext";
+import { QueryProvider } from "../src/providers/QueryProvider";
 
 export default function RootLayout() {
   const fonts = useWantedSans();
@@ -13,11 +14,13 @@ export default function RootLayout() {
   }
   return (
     <AuthProvider>
-      <NavDirectionProvider>
-        <PushTokenBootstrap />
-        <DirectionalStack />
-        <StatusBar style="dark" />
-      </NavDirectionProvider>
+      <QueryProvider>
+        <NavDirectionProvider>
+          <PushTokenBootstrap />
+          <DirectionalStack />
+          <StatusBar style="dark" />
+        </NavDirectionProvider>
+      </QueryProvider>
     </AuthProvider>
   );
 }
