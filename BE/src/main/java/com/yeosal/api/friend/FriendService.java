@@ -7,11 +7,14 @@ import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,11 +86,26 @@ public class FriendService {
         List<User> friendUsers = friendships.findByUserAndStatus(user, FriendshipStatus.ACCEPTED).stream()
                 .map(friendship -> other(friendship, user))
                 .toList();
-        List<DailyEntry> entries = dailyEntries.findByUserInAndDate(friendUsers, date);
+        if (friendUsers.isEmpty()) {
+            return List.of();
+        }
+        List<DailyEntry> todayEntries = dailyEntries.findByUserInAndDate(friendUsers, date);
+
+        // Batch fetch the streak window (todos + reflection eagerly loaded) for
+        // ALL friends in one query, then group by user. Replaces the per-friend
+        // currentStreak() loop that triggered O(friends * windowDays) lazy
+        // todos fetches in the previous implementation.
+        LocalDate streakFrom = date.minusDays(STREAK_WINDOW_DAYS - 1L);
+        List<DailyEntry> streakEntries = dailyEntries.findGrassEntriesByUsersBetween(friendUsers, streakFrom, date);
+        Map<Long, List<DailyEntry>> entriesByUser = streakEntries.stream()
+                .collect(Collectors.groupingBy(e -> e.getUser().getId()));
+
         return friendUsers.stream()
                 .map(friend -> {
-                    int streak = dailyService.currentStreak(friend, STREAK_WINDOW_DAYS);
-                    return entries.stream()
+                    List<DailyEntry> friendEntries = entriesByUser.getOrDefault(friend.getId(), List.of());
+                    List<GrassDay> window = dailyService.grassFromEntries(friend, streakFrom, date, friendEntries);
+                    int streak = dailyService.streakFromGrass(date, window);
+                    return todayEntries.stream()
                             .filter(entry -> entry.getUser().getId().equals(friend.getId()))
                             .findFirst()
                             .map(entry -> new FriendController.DailyFeedItem(
