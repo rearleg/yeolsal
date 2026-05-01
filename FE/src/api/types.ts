@@ -48,6 +48,14 @@ export type ProfileDto = {
   timezone: string;
 };
 
+// /api/v1/profiles/{userId} omits email (other users' email is no longer
+// exposed). /api/v1/profiles/me still returns the full ProfileDto above.
+export type PublicProfileDto = {
+  userId: number;
+  nickname: string;
+  timezone: string;
+};
+
 export type GrassDayDto = {
   date: string;
   missionCompleted: boolean;
