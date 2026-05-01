@@ -9,7 +9,15 @@ interface TextProps extends RNTextProps {
   numberOfLines?: number;
 }
 
-export function Text({ variant = "body", color, align, weight, style, ...rest }: TextProps) {
+export function Text({
+  variant = "body",
+  color,
+  align,
+  weight,
+  style,
+  maxFontSizeMultiplier = 1.3,
+  ...rest
+}: TextProps) {
   const base = textStyles[variant];
   const composed: TextStyle = {
     ...base,
@@ -17,5 +25,7 @@ export function Text({ variant = "body", color, align, weight, style, ...rest }:
     ...(align !== undefined && { textAlign: align }),
     ...(weight !== undefined && { fontWeight: weight })
   };
-  return <RNText {...rest} style={[composed, style]} />;
+  return (
+    <RNText maxFontSizeMultiplier={maxFontSizeMultiplier} {...rest} style={[composed, style]} />
+  );
 }

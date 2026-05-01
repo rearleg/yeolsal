@@ -1,5 +1,5 @@
 import { type PropsWithChildren } from "react";
-import { StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { surface } from "../theme/tokens";
 import { layout, space } from "../theme/spacing";
@@ -7,13 +7,16 @@ import { Text } from "./ui/Text";
 
 type Props = PropsWithChildren<{
   title: string;
-  // Retained for source compatibility with callers from before the (tabs)
-  // migration. The bottom bar now lives in app/(tabs)/_layout.tsx and is
-  // rendered as the Tabs `tabBar`. Passing this prop is a no-op.
+  // No-op — see (tabs)/_layout.tsx for the tab bar.
   showFooter?: boolean;
+  // Wrap content in KeyboardAvoidingView so text inputs stay visible
+  // above the keyboard. Default true; opt out for screens that manage
+  // their own keyboard layout.
+  avoidKeyboard?: boolean;
 }>;
 
-export function Screen({ children, title }: Props) {
+export function Screen({ children, title, avoidKeyboard = true }: Props) {
+  const body = <View style={styles.content}>{children}</View>;
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -21,7 +24,16 @@ export function Screen({ children, title }: Props) {
           {title}
         </Text>
       </View>
-      <View style={styles.content}>{children}</View>
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          {body}
+        </KeyboardAvoidingView>
+      ) : (
+        body
+      )}
     </SafeAreaView>
   );
 }
@@ -30,6 +42,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: surface.page
+  },
+  flex: {
+    flex: 1
   },
   header: {
     minHeight: layout.headerHeight,
