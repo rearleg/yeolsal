@@ -7,7 +7,7 @@ import { Card } from "../src/components/ui/Card";
 import { Button } from "../src/components/ui/Button";
 import { Text } from "../src/components/ui/Text";
 import { toast } from "../src/lib/toast";
-import { palette, surface } from "../src/theme/tokens";
+import { palette, semantic, surface } from "../src/theme/tokens";
 import { space } from "../src/theme/spacing";
 
 export default function LoginScreen() {
@@ -15,6 +15,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -22,11 +23,16 @@ export default function LoginScreen() {
     }
   }, [loading, user]);
 
+  function clearFormError() {
+    if (formError) setFormError(null);
+  }
+
   async function submit() {
     if (!email.trim() || !password) {
-      toast.warning("이메일과 비밀번호를 입력하세요.");
+      setFormError("이메일과 비밀번호를 입력하세요.");
       return;
     }
+    setFormError(null);
     setSubmitting(true);
     try {
       await signIn(email.trim(), password);
@@ -63,7 +69,10 @@ export default function LoginScreen() {
         <Card tone="hero" size="hero" style={styles.form}>
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => {
+              setEmail(v);
+              clearFormError();
+            }}
             placeholder="이메일"
             autoCapitalize="none"
             keyboardType="email-address"
@@ -72,12 +81,20 @@ export default function LoginScreen() {
           />
           <TextInput
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(v) => {
+              setPassword(v);
+              clearFormError();
+            }}
             placeholder="비밀번호"
             secureTextEntry
             placeholderTextColor={palette.inkFaint}
             style={styles.input}
           />
+          {formError ? (
+            <Text variant="caption" color={semantic.danger.fg}>
+              {formError}
+            </Text>
+          ) : null}
           {submitting ? <ActivityIndicator color={palette.coralDeep} /> : null}
           <Button label="로그인" tone="primary" size="lg" fullWidth onPress={submit} disabled={submitting} />
           <Button label="카카오로 계속" tone="kakao" size="lg" fullWidth onPress={kakao} disabled={submitting} />
