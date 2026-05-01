@@ -1,53 +1,37 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { createRoom, listRooms, type Room } from "../src/api/rooms";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Button } from "../src/components/ui/Button";
-import { Card } from "../src/components/ui/Card";
-import { EmptyState } from "../src/components/ui/EmptyState";
-import { Skeleton } from "../src/components/ui/Skeleton";
-import { Text } from "../src/components/ui/Text";
-import { space } from "../src/theme/spacing";
-import { palette, pickRoomAccent, roomHues, surface } from "../src/theme/tokens";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { type Room } from "../../src/api/rooms";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Button } from "../../src/components/ui/Button";
+import { Card } from "../../src/components/ui/Card";
+import { EmptyState } from "../../src/components/ui/EmptyState";
+import { Skeleton } from "../../src/components/ui/Skeleton";
+import { Text } from "../../src/components/ui/Text";
+import { useCreateRoom, useRoomsQuery } from "../../src/lib/query/hooks/rooms";
+import { space } from "../../src/theme/spacing";
+import { palette, pickRoomAccent, roomHues, surface } from "../../src/theme/tokens";
 
 export default function RoomsScreen() {
-  const auth = useRequireAuth();
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
+  useRequireAuth();
+  const roomsQuery = useRoomsQuery();
+  const createMut = useCreateRoom();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
+  const rooms = roomsQuery.data ?? [];
+  const loading = roomsQuery.isLoading;
 
-  useEffect(() => {
-    if (!auth.loading && auth.user) {
-      void load();
-    }
-  }, [auth.loading, auth.user]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setRooms(await listRooms());
-    } catch (error) {
-      Alert.alert("그룹", error instanceof Error ? error.message : "그룹 목록을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function submitCreate() {
+  function submitCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    try {
-      await createRoom(trimmed);
-      setName("");
-      setShowCreate(false);
-      await load();
-    } catch (error) {
-      Alert.alert("그룹 만들기 실패", error instanceof Error ? error.message : "다시 시도하세요.");
-    }
+    createMut.mutate(trimmed, {
+      onSuccess: () => {
+        setName("");
+        setShowCreate(false);
+      },
+    });
   }
 
   return (

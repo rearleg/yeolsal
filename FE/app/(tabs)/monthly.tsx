@@ -1,57 +1,33 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { GrassDayDto, MonthlyStatsDto } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Card } from "../src/components/ui/Card";
-import { Text } from "../src/components/ui/Text";
-import { ContributionGrid } from "../src/components/grid/ContributionGrid";
-import { bucketFor } from "../src/lib/bucket";
-import { palette, surface } from "../src/theme/tokens";
-import { space } from "../src/theme/spacing";
+import { useMemo } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Card } from "../../src/components/ui/Card";
+import { Text } from "../../src/components/ui/Text";
+import { ContributionGrid } from "../../src/components/grid/ContributionGrid";
+import { bucketFor } from "../../src/lib/bucket";
+import { useGrassQuery, useMonthlyStatsQuery } from "../../src/lib/query/hooks/profile";
+import { palette, surface } from "../../src/theme/tokens";
+import { space } from "../../src/theme/spacing";
 
 export default function MonthlyScreen() {
-  const auth = useRequireAuth();
-  const [stats, setStats] = useState<MonthlyStatsDto | null>(null);
-  const [grass, setGrass] = useState<GrassDayDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  useRequireAuth();
   const month = useMemo(() => new Date().toISOString().slice(0, 7), []);
-  const totalDays = useMemo(
-    () => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate(),
-    [month]
-  );
+  const { first, last, totalDays } = useMemo(() => {
+    const year = Number(month.slice(0, 4));
+    const m = Number(month.slice(5, 7));
+    const days = new Date(year, m, 0).getDate();
+    const lastDate = new Date(year, m, 0).toISOString().slice(0, 10);
+    return { first: `${month}-01`, last: lastDate, totalDays: days };
+  }, [month]);
+
+  const statsQuery = useMonthlyStatsQuery(month);
+  const grassQuery = useGrassQuery(first, last);
+  const stats = statsQuery.data ?? null;
+  const grass = useMemo(() => grassQuery.data ?? [], [grassQuery.data]);
+  const loading = statsQuery.isLoading || grassQuery.isLoading;
   const completed = stats?.completedDailyCount ?? 0;
   const rate = totalDays === 0 ? 0 : Math.min(100, Math.round((completed / totalDays) * 100));
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!auth.loading && auth.user) {
-        load();
-      }
-    }, [auth.loading, auth.user])
-  );
-
-  async function load() {
-    setLoading(true);
-    try {
-      const first = `${month}-01`;
-      const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
-        .toISOString()
-        .slice(0, 10);
-      const [statsResponse, grassResponse] = await Promise.all([
-        apiRequest<ApiEnvelope<MonthlyStatsDto>>(`/stats/monthly?month=${month}`),
-        apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/me/grass?from=${first}&to=${last}`)
-      ]);
-      setStats(statsResponse.data);
-      setGrass(grassResponse.data);
-    } catch (error) {
-      Alert.alert("월간 통계", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const reflectionCount = useMemo(() => grass.filter((d) => d.reflectionSubmitted).length, [grass]);
   const todoTotal = useMemo(() => grass.reduce((sum, d) => sum + d.completedTodoCount, 0), [grass]);

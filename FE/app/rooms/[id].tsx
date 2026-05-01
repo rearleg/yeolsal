@@ -1,54 +1,37 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
-import {
-  createInvite,
-  leaveRoom,
-  listMembers,
-  type RoomInvite,
-  type RoomMember,
-} from "../../src/api/rooms";
+import { type RoomInvite } from "../../src/api/rooms";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { Skeleton } from "../../src/components/ui/Skeleton";
 import { Text } from "../../src/components/ui/Text";
+import {
+  useCreateInvite,
+  useLeaveRoom,
+  useRoomMembersQuery,
+} from "../../src/lib/query/hooks/rooms";
 import { space } from "../../src/theme/spacing";
 import { palette, pickRoomAccent, roomHues, surface } from "../../src/theme/tokens";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const roomId = Number(params.id);
-  const auth = useRequireAuth();
-  const [members, setMembers] = useState<RoomMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  useRequireAuth();
+  const membersQuery = useRoomMembersQuery(roomId);
+  const inviteMut = useCreateInvite();
+  const leaveMut = useLeaveRoom();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
 
-  useEffect(() => {
-    if (!auth.loading && auth.user && Number.isFinite(roomId)) {
-      void load();
-    }
-  }, [auth.loading, auth.user, roomId]);
+  const members = membersQuery.data ?? [];
+  const loading = membersQuery.isLoading;
 
-  async function load() {
-    setLoading(true);
-    try {
-      setMembers(await listMembers(roomId));
-    } catch (error) {
-      Alert.alert("그룹", error instanceof Error ? error.message : "멤버를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCreateInvite() {
-    try {
-      const next = await createInvite(roomId);
-      setInvite(next);
-    } catch (error) {
-      Alert.alert("초대 코드 생성 실패", error instanceof Error ? error.message : "다시 시도하세요.");
-    }
+  function handleCreateInvite() {
+    inviteMut.mutate(roomId, {
+      onSuccess: (next) => setInvite(next),
+    });
   }
 
   async function shareInvite() {
@@ -60,19 +43,16 @@ export default function RoomDetailScreen() {
     }
   }
 
-  async function handleLeave() {
+  function handleLeave() {
     Alert.alert("그룹 나가기", "정말 이 그룹을 나가시겠어요?", [
       { text: "취소", style: "cancel" },
       {
         text: "나가기",
         style: "destructive",
-        onPress: async () => {
-          try {
-            await leaveRoom(roomId);
-            router.back();
-          } catch (error) {
-            Alert.alert("나가기 실패", error instanceof Error ? error.message : "다시 시도하세요.");
-          }
+        onPress: () => {
+          leaveMut.mutate(roomId, {
+            onSuccess: () => router.back(),
+          });
         },
       },
     ]);

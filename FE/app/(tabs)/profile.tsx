@@ -1,58 +1,43 @@
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
-import type { GrassDayDto, ProfileDto } from "../src/api/types";
-import { useRequireAuth } from "../src/auth/useRequireAuth";
-import { Screen } from "../src/components/Screen";
-import { Card } from "../src/components/ui/Card";
-import { Text } from "../src/components/ui/Text";
-import { Button } from "../src/components/ui/Button";
-import { ContributionGrid } from "../src/components/grid/ContributionGrid";
-import { DayDetailCard } from "../src/components/grid/DayDetailCard";
-import { bucketFor } from "../src/lib/bucket";
-import { entryDateOf, rollingRange } from "../src/lib/calendar";
-import { palette, surface } from "../src/theme/tokens";
-import { space } from "../src/theme/spacing";
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import type { GrassDayDto } from "../../src/api/types";
+import { useRequireAuth } from "../../src/auth/useRequireAuth";
+import { Screen } from "../../src/components/Screen";
+import { Card } from "../../src/components/ui/Card";
+import { Text } from "../../src/components/ui/Text";
+import { Button } from "../../src/components/ui/Button";
+import { ContributionGrid } from "../../src/components/grid/ContributionGrid";
+import { DayDetailCard } from "../../src/components/grid/DayDetailCard";
+import { bucketFor } from "../../src/lib/bucket";
+import { entryDateOf, rollingRange } from "../../src/lib/calendar";
+import { useGrassQuery, useProfileQuery } from "../../src/lib/query/hooks/profile";
+import { palette, surface } from "../../src/theme/tokens";
+import { space } from "../../src/theme/spacing";
 
 const ROLLING_DAYS = 365;
 
 export default function ProfileScreen() {
   const auth = useRequireAuth();
-  const [profile, setProfile] = useState<ProfileDto | null>(null);
-  const [grass, setGrass] = useState<GrassDayDto[]>([]);
   const [selected, setSelected] = useState<GrassDayDto | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!auth.loading && auth.user) {
-        load();
-      }
-    }, [auth.loading, auth.user])
-  );
+  const { from, to, today } = useMemo(() => {
+    const t = entryDateOf();
+    const range = rollingRange(t, ROLLING_DAYS);
+    return { from: range[0], to: range[range.length - 1], today: t };
+  }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const today = entryDateOf();
-      const range = rollingRange(today, ROLLING_DAYS);
-      const from = range[0];
-      const to = range[range.length - 1];
-      const [profileResponse, grassResponse] = await Promise.all([
-        apiRequest<ApiEnvelope<ProfileDto>>("/profiles/me"),
-        apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/me/grass?from=${from}&to=${to}`)
-      ]);
-      setProfile(profileResponse.data);
-      setGrass(grassResponse.data);
-      const todays = grassResponse.data.find((d) => d.date === today);
-      setSelected(todays ?? grassResponse.data[grassResponse.data.length - 1] ?? null);
-    } catch (error) {
-      Alert.alert("프로필", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const profileQuery = useProfileQuery();
+  const grassQuery = useGrassQuery(from, to);
+  const profile = profileQuery.data ?? null;
+  const grass = useMemo(() => grassQuery.data ?? [], [grassQuery.data]);
+  const loading = profileQuery.isLoading || grassQuery.isLoading;
+
+  useEffect(() => {
+    if (selected || grass.length === 0) return;
+    const todays = grass.find((d) => d.date === today);
+    setSelected(todays ?? grass[grass.length - 1] ?? null);
+  }, [grass, selected, today]);
 
   const stats = useMemo(() => {
     let success = 0;

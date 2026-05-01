@@ -1,9 +1,9 @@
 import { useLocalSearchParams } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
-import { type ApiEnvelope, apiRequest } from "../src/api/client";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { listReflections, type ReflectionEntry } from "../src/api/reflections";
-import type { GrassDayDto, ProfileDto } from "../src/api/types";
+import type { GrassDayDto } from "../src/api/types";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
 import { Screen } from "../src/components/Screen";
 import { Card } from "../src/components/ui/Card";
@@ -14,50 +14,46 @@ import { ContributionGrid } from "../src/components/grid/ContributionGrid";
 import { DayDetailCard } from "../src/components/grid/DayDetailCard";
 import { bucketFor } from "../src/lib/bucket";
 import { entryDateOf, rollingRange } from "../src/lib/calendar";
+import {
+  useFriendGrassQuery,
+  useFriendProfileQuery,
+} from "../src/lib/query/hooks/profile";
 import { palette, pickRoomAccent, roomHues, surface } from "../src/theme/tokens";
 import { space } from "../src/theme/spacing";
 
 const ROLLING_DAYS = 365;
+const REFLECTION_LIMIT = 20;
 
 export default function FriendProfileScreen() {
-  const auth = useRequireAuth();
+  useRequireAuth();
   const params = useLocalSearchParams<{ userId?: string }>();
   const userId = Number(params.userId);
-  const [profile, setProfile] = useState<ProfileDto | null>(null);
-  const [grass, setGrass] = useState<GrassDayDto[]>([]);
   const [selected, setSelected] = useState<GrassDayDto | null>(null);
-  const [reflections, setReflections] = useState<ReflectionEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { from, to, today } = useMemo(() => {
+    const t = entryDateOf();
+    const range = rollingRange(t, ROLLING_DAYS);
+    return { from: range[0], to: range[range.length - 1], today: t };
+  }, []);
+
+  const profileQuery = useFriendProfileQuery(userId);
+  const grassQuery = useFriendGrassQuery(userId, from, to);
+  const reflectionsQuery = useQuery<ReflectionEntry[]>({
+    queryKey: ["friendReflections", userId, REFLECTION_LIMIT] as const,
+    queryFn: () => listReflections(userId, REFLECTION_LIMIT),
+    enabled: Number.isFinite(userId) && userId > 0,
+  });
+
+  const profile = profileQuery.data ?? null;
+  const grass = useMemo(() => grassQuery.data ?? [], [grassQuery.data]);
+  const reflections = reflectionsQuery.data ?? [];
+  const loading = profileQuery.isLoading || grassQuery.isLoading || reflectionsQuery.isLoading;
 
   useEffect(() => {
-    if (!auth.loading && auth.user && userId) {
-      load();
-    }
-  }, [auth.loading, auth.user, userId]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const today = entryDateOf();
-      const range = rollingRange(today, ROLLING_DAYS);
-      const from = range[0];
-      const to = range[range.length - 1];
-      const [profileResponse, grassResponse, reflectionsResponse] = await Promise.all([
-        apiRequest<ApiEnvelope<ProfileDto>>(`/profiles/${userId}`),
-        apiRequest<ApiEnvelope<GrassDayDto[]>>(`/profiles/${userId}/grass?from=${from}&to=${to}`),
-        listReflections(userId, 20)
-      ]);
-      setProfile(profileResponse.data);
-      setGrass(grassResponse.data);
-      setReflections(reflectionsResponse);
-      const todays = grassResponse.data.find((d) => d.date === today);
-      setSelected(todays ?? grassResponse.data[grassResponse.data.length - 1] ?? null);
-    } catch (error) {
-      Alert.alert("친구 프로필", error instanceof Error ? error.message : "데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    if (selected || grass.length === 0) return;
+    const todays = grass.find((d) => d.date === today);
+    setSelected(todays ?? grass[grass.length - 1] ?? null);
+  }, [grass, selected, today]);
 
   const stats = useMemo(() => {
     let success = 0;
