@@ -1,3 +1,4 @@
+/* global __dirname */
 // Metro config for the yeosal monorepo.
 // FE is an npm workspace under yeosal/, so dependencies are hoisted to
 // yeosal/node_modules. Metro needs to watch the workspace root and resolve

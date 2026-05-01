@@ -97,6 +97,11 @@ describe("useToggleTodo", () => {
     jest.spyOn(hapticsMod, "useHaptic").mockReturnValue(hapticTrigger);
   });
 
+  afterEach(() => {
+    // Cancel scheduled GC timers so jest workers can exit cleanly.
+    client.clear();
+  });
+
   it("applies optimistic update to cached entry on mutate", async () => {
     patchTodoMock.mockImplementation(() => new Promise(() => undefined));
     const { result } = renderHook(() => useToggleTodo(), { wrapper: makeWrapper(client) });
@@ -171,6 +176,11 @@ describe("useUpdateGoal", () => {
     client.setQueryData(qk.today, SAMPLE);
   });
 
+  afterEach(() => {
+    // Cancel scheduled GC timers so jest workers can exit cleanly.
+    client.clear();
+  });
+
   it("optimistically updates the cached goal", async () => {
     updateGoalMock.mockImplementation(() => new Promise(() => undefined));
     const { result } = renderHook(() => useUpdateGoal(), { wrapper: makeWrapper(client) });
@@ -223,6 +233,11 @@ describe("useAddTodo", () => {
     client.setQueryData(qk.today, SAMPLE);
   });
 
+  afterEach(() => {
+    // Cancel scheduled GC timers so jest workers can exit cleanly.
+    client.clear();
+  });
+
   it("calls addTodo with the trimmed title", async () => {
     addTodoMock.mockResolvedValue(undefined);
     const { result } = renderHook(() => useAddTodo(), { wrapper: makeWrapper(client) });
@@ -270,6 +285,11 @@ describe("useDeleteTodo", () => {
     client.setQueryData(qk.today, SAMPLE);
   });
 
+  afterEach(() => {
+    // Cancel scheduled GC timers so jest workers can exit cleanly.
+    client.clear();
+  });
+
   it("optimistically removes the todo from cache", async () => {
     deleteTodoMock.mockImplementation(() => new Promise(() => undefined));
     const { result } = renderHook(() => useDeleteTodo(), { wrapper: makeWrapper(client) });
@@ -309,6 +329,11 @@ describe("useSubmitReflection", () => {
     client.setQueryData(qk.today, SAMPLE);
     hapticTrigger = jest.fn();
     jest.spyOn(hapticsMod, "useHaptic").mockReturnValue(hapticTrigger);
+  });
+
+  afterEach(() => {
+    // Cancel scheduled GC timers so jest workers can exit cleanly.
+    client.clear();
   });
 
   it("calls submitReflection with dailyEntryId and body", async () => {

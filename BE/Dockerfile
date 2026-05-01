@@ -1,7 +1,16 @@
-FROM gradle:8.10.2-jdk21 AS build
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
-COPY . .
-RUN gradle bootJar --no-daemon
+
+# Prime the dependency cache as a separate layer so re-builds that
+# only change source code do not re-download every dependency.
+COPY gradlew settings.gradle build.gradle ./
+COPY gradle ./gradle
+RUN chmod +x gradlew && ./gradlew --no-daemon --version \
+    && ./gradlew --no-daemon dependencies > /dev/null
+
+# Copy sources and build the boot jar.
+COPY src ./src
+RUN ./gradlew --no-daemon bootJar
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
