@@ -536,3 +536,52 @@ APK:
 cd FE
 eas build --platform android --profile preview
 ```
+
+## 15. Sentry 설정
+
+FE `src/lib/sentry.ts`는 `EXPO_PUBLIC_SENTRY_DSN`이 없으면 자동으로 비활성화됩니다 (개발 시 fork에서 별도 처리 불필요).
+
+### 처음 한 번만
+
+1. https://sentry.io 에서 프로젝트 생성 (`react-native` 플랫폼).
+2. DSN을 복사. (`https://...@o123.ingest.sentry.io/456`)
+3. https://sentry.io/settings/account/api/auth-tokens/ 에서 Auth Token 발급. 권한: `project:releases`, `org:read`. (sourcemap 업로드용)
+
+### 로컬 개발
+
+DSN 없이 사용 (Sentry 비활성화).
+
+```bash
+cd FE
+echo "EXPO_PUBLIC_SENTRY_DSN=" >> .env
+```
+
+또는 staging 프로젝트에 직접 보고하려면 `.env`에 DSN을 채워 넣으세요. `.env`는 `.gitignore`에 있어야 합니다.
+
+### EAS 빌드용 시크릿
+
+`SENTRY_AUTH_TOKEN`은 빌드 시점에만 필요하고 클라이언트 번들로 새지 않습니다. EAS Secrets에 저장하세요.
+
+```bash
+cd FE
+eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value <TOKEN>
+eas secret:create --scope project --name EXPO_PUBLIC_SENTRY_DSN --value <DSN>
+```
+
+`EXPO_PUBLIC_SENTRY_ENVIRONMENT`는 `eas.json` 프로필별로 박혀 있으므로 시크릿으로 관리할 필요가 없습니다.
+
+### 빌드 시 sourcemap 업로드
+
+`@sentry/react-native/expo` 플러그인이 자동으로 처리합니다. EAS Secrets에 `SENTRY_AUTH_TOKEN`이 있으면 production 빌드에서 sourcemap을 Sentry에 업로드합니다.
+
+### 검증
+
+앱 실행 후 임의로 throw → ErrorBoundary fallback → Sentry 대시보드의 Issues 탭에 1분 내 이벤트가 떠야 정상.
+
+```bash
+cd FE
+npm run ios
+# 또는 Android
+```
+
+login.tsx 등에 임시로 `throw new Error("sentry test")`를 넣고 화면을 열면 ErrorBoundary가 fallback을 그리고 동시에 Sentry로 이벤트가 갑니다.

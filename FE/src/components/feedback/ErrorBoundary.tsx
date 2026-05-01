@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type PropsWithChildren, type ReactNode } from "react";
+import { captureRenderError } from "../../lib/sentry";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 
@@ -18,7 +19,7 @@ export class ErrorBoundary extends Component<PropsWithChildren, State> {
       // eslint-disable-next-line no-console
       console.error("[ErrorBoundary]", error, info.componentStack);
     }
-    // Production hook for Sentry — wired in a later sprint.
+    captureRenderError(error, { componentStack: info.componentStack });
   }
 
   reset = (): void => {
