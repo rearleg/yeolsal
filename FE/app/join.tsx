@@ -9,19 +9,21 @@ import { Card } from "../src/components/ui/Card";
 import { Text } from "../src/components/ui/Text";
 import { toast } from "../src/lib/toast";
 import { space } from "../src/theme/spacing";
-import { palette, surface } from "../src/theme/tokens";
+import { palette, semantic, surface } from "../src/theme/tokens";
 
 export default function JoinRoomScreen() {
   useRequireAuth();
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function submit() {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length < 4) {
-      toast.warning("초대 코드를 정확히 입력하세요.");
+      setFormError("초대 코드를 정확히 입력하세요.");
       return;
     }
+    setFormError(null);
     setSubmitting(true);
     try {
       const member = await joinRoom(trimmed);
@@ -43,7 +45,10 @@ export default function JoinRoomScreen() {
           </Text>
           <TextInput
             value={code}
-            onChangeText={(v) => setCode(v.toUpperCase())}
+            onChangeText={(v) => {
+              setCode(v.toUpperCase());
+              if (formError) setFormError(null);
+            }}
             placeholder="ABCD1234"
             placeholderTextColor={palette.inkFaint}
             autoCapitalize="characters"
@@ -52,6 +57,11 @@ export default function JoinRoomScreen() {
             style={styles.input}
             accessibilityLabel="초대 코드"
           />
+          {formError ? (
+            <Text variant="caption" color={semantic.danger.fg} style={{ marginTop: space[2] }}>
+              {formError}
+            </Text>
+          ) : null}
           <View style={{ marginTop: space[2] }}>
             <Button
               label={submitting ? "참여 중…" : "참여하기"}
