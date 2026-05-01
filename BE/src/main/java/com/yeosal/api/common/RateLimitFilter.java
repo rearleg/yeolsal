@@ -74,7 +74,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!tryAcquire(key, matched)) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"message\":\"요청이 너무 많습니다.\"}");
+            response.getWriter().write(
+                    "{\"error\":{\"code\":\"RATE_LIMITED\",\"message\":\"요청이 너무 많습니다.\"}}");
             return;
         }
         filterChain.doFilter(request, response);
