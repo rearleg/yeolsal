@@ -1,0 +1,162 @@
+package com.yeosal.api.common;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.env.Environment;
+
+class StartupConfigValidatorTest {
+
+    private static final String VALID_SECRET_32 = "01234567890123456789012345678901"; // 32 ASCII bytes
+    private static final String VALID_PROD_USER = "yeosal_prod_user";
+    private static final String VALID_PROD_PASSWORD = "s3cret-from-vault";
+    private static final String VALID_KAKAO_ID = "real-kakao-app-id";
+
+    private Environment devEnv() {
+        Environment env = mock(Environment.class);
+        when(env.getActiveProfiles()).thenReturn(new String[]{"dev"});
+        return env;
+    }
+
+    private Environment prodEnv() {
+        Environment env = mock(Environment.class);
+        when(env.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        return env;
+    }
+
+    @Nested
+    @DisplayName("JWT secret validation (all profiles)")
+    class JwtSecret {
+
+        @Test
+        @DisplayName("blank secret fails")
+        void blankSecret_fails() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    devEnv(), "", "u", "p", "k");
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("YEOSAL_JWT_SECRET");
+        }
+
+        @Test
+        @DisplayName("secret shorter than 32 bytes fails")
+        void shortSecret_fails() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    devEnv(), "tooshort", "u", "p", "k");
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("at least 32 bytes");
+        }
+
+        @Test
+        @DisplayName("dev placeholder allowed in dev profile")
+        void devPlaceholder_allowedInDev() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    devEnv(),
+                    StartupConfigValidator.DEV_JWT_SECRET_PLACEHOLDER,
+                    "yeosal-dev-only", "yeosal-dev-only", "");
+            assertThatCode(v::validate).doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("dev placeholder rejected in prod profile")
+        void devPlaceholder_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(),
+                    StartupConfigValidator.DEV_JWT_SECRET_PLACEHOLDER,
+                    VALID_PROD_USER, VALID_PROD_PASSWORD, VALID_KAKAO_ID);
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("dev placeholder");
+        }
+    }
+
+    @Nested
+    @DisplayName("Datasource validation (prod only)")
+    class Datasource {
+
+        @Test
+        @DisplayName("dev username 'yeosal' rejected in prod")
+        void devUsername_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(), VALID_SECRET_32, "yeosal", VALID_PROD_PASSWORD, VALID_KAKAO_ID);
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("SPRING_DATASOURCE_USERNAME");
+        }
+
+        @Test
+        @DisplayName("dev placeholder username 'yeosal-dev-only' rejected in prod")
+        void devPlaceholderUsername_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(), VALID_SECRET_32, "yeosal-dev-only", VALID_PROD_PASSWORD, VALID_KAKAO_ID);
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("SPRING_DATASOURCE_USERNAME");
+        }
+
+        @Test
+        @DisplayName("dev password 'yeosal' rejected in prod")
+        void devPassword_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(), VALID_SECRET_32, VALID_PROD_USER, "yeosal", VALID_KAKAO_ID);
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("SPRING_DATASOURCE_PASSWORD");
+        }
+
+        @Test
+        @DisplayName("blank password rejected in prod")
+        void blankPassword_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(), VALID_SECRET_32, VALID_PROD_USER, "", VALID_KAKAO_ID);
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("SPRING_DATASOURCE_PASSWORD");
+        }
+
+        @Test
+        @DisplayName("dev creds allowed in dev profile")
+        void devCreds_allowedInDev() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    devEnv(), VALID_SECRET_32, "yeosal", "yeosal", "");
+            assertThatCode(v::validate).doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("Kakao client-id validation (prod only)")
+    class Kakao {
+
+        @Test
+        @DisplayName("blank client-id rejected in prod")
+        void blankClientId_rejectedInProd() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    prodEnv(), VALID_SECRET_32, VALID_PROD_USER, VALID_PROD_PASSWORD, "");
+            assertThatThrownBy(v::validate)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("KAKAO_CLIENT_ID");
+        }
+
+        @Test
+        @DisplayName("blank client-id allowed in dev")
+        void blankClientId_allowedInDev() {
+            StartupConfigValidator v = new StartupConfigValidator(
+                    devEnv(), VALID_SECRET_32, "yeosal-dev-only", "yeosal-dev-only", "");
+            assertThatCode(v::validate).doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    @DisplayName("fully valid prod config passes")
+    void validProd_passes() {
+        StartupConfigValidator v = new StartupConfigValidator(
+                prodEnv(), VALID_SECRET_32, VALID_PROD_USER, VALID_PROD_PASSWORD, VALID_KAKAO_ID);
+        assertThatCode(v::validate).doesNotThrowAnyException();
+    }
+}
