@@ -49,13 +49,13 @@ public class ProfileController {
     }
 
     @GetMapping("/{userId}")
-    public ApiResponse<ProfileDto> profile(Authentication authentication, @PathVariable long userId) {
+    public ApiResponse<PublicProfileDto> profile(Authentication authentication, @PathVariable long userId) {
         User viewer = currentUser.require(authentication);
         User target = users.findById(userId).orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
         if (!friendService.canView(viewer, target)) {
             throw new ForbiddenException("프로필 접근 권한이 없습니다.");
         }
-        return ApiResponse.of(ProfileDto.from(target));
+        return ApiResponse.of(PublicProfileDto.from(target));
     }
 
     @GetMapping("/{userId}/grass")
@@ -158,6 +158,11 @@ public class ProfileController {
     public record ProfileDto(long userId, String email, String nickname, String timezone) {
         static ProfileDto from(User user) {
             return new ProfileDto(user.getId(), user.getEmail(), user.getNickname(), user.getTimezone());
+        }
+    }
+    public record PublicProfileDto(long userId, String nickname, String timezone) {
+        static PublicProfileDto from(User user) {
+            return new PublicProfileDto(user.getId(), user.getNickname(), user.getTimezone());
         }
     }
     public record GrassDayDto(LocalDate date, boolean missionCompleted, int completedTodoCount, boolean reflectionSubmitted, int intensity) {}

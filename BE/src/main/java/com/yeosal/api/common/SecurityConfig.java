@@ -16,7 +16,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            RateLimitFilter rateLimitFilter
+    ) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -37,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

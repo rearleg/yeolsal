@@ -95,7 +95,6 @@ export default function FriendProfileScreen() {
             </View>
             <View style={styles.identityText}>
               <Text variant="h2">{profile?.nickname ?? "친구"}</Text>
-              <Text variant="bodySmall" color={palette.inkMute}>{profile?.email ?? ""}</Text>
             </View>
           </View>
           <View style={styles.metricsRow}>

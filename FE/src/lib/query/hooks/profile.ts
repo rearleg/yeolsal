@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, type ApiEnvelope } from "../../../api/client";
-import type { GrassDayDto, MonthlyStatsDto, ProfileDto } from "../../../api/types";
+import type {
+  GrassDayDto,
+  MonthlyStatsDto,
+  ProfileDto,
+  PublicProfileDto,
+} from "../../../api/types";
 import { qk } from "../keys";
 
 export function useProfileQuery() {
@@ -31,10 +36,10 @@ export function useMonthlyStatsQuery(month: string) {
 }
 
 export function useFriendProfileQuery(userId: number) {
-  return useQuery<ProfileDto>({
+  return useQuery<PublicProfileDto>({
     queryKey: qk.friendProfile(userId),
     queryFn: () =>
-      apiRequest<ApiEnvelope<ProfileDto>>(`/profiles/${userId}`).then((r) => r.data),
+      apiRequest<ApiEnvelope<PublicProfileDto>>(`/profiles/${userId}`).then((r) => r.data),
     enabled: Number.isFinite(userId) && userId > 0,
   });
 }
