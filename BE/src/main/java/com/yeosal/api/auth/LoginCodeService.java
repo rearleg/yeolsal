@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,10 +31,14 @@ public class LoginCodeService {
     private final SecureRandom secureRandom;
     private final Clock clock;
 
+    @Autowired
     public LoginCodeService(LoginCodeRepository loginCodes) {
         this(loginCodes, new SecureRandom(), Clock.systemUTC());
     }
 
+    // Package-private for tests; @Autowired above tells Spring to use the
+    // public single-arg constructor at runtime so the presence of two
+    // non-private constructors does not become an ambiguity.
     LoginCodeService(LoginCodeRepository loginCodes, SecureRandom secureRandom, Clock clock) {
         this.loginCodes = loginCodes;
         this.secureRandom = secureRandom;
