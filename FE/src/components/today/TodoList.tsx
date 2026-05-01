@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DailyEntryDto } from "../../api/types";
 import { patchTodo } from "../../lib/query/api";
 import { useAddTodo, useDeleteTodo, useToggleTodo } from "../../lib/query/hooks/today";
 import { qk } from "../../lib/query/keys";
+import { toast } from "../../lib/toast";
 import { Card } from "../ui/Card";
 import { Text } from "../ui/Text";
 import { palette, surface } from "../../theme/tokens";
@@ -29,7 +30,7 @@ export function TodoList({ entry }: Props) {
     const title = draft.trim();
     if (!title) return;
     if (!entry) {
-      Alert.alert("ToDo", "오늘의 목표를 먼저 저장하세요.");
+      toast.warning("오늘의 목표를 먼저 저장하세요.");
       return;
     }
     addMut.mutate(title);
