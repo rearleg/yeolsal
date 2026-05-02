@@ -26,3 +26,10 @@ yeosal:
     client-id: ${KAKAO_CLIENT_ID:}
     redirect-uri: ${KAKAO_REDIRECT_URI:https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback}
     mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI:yeosal://auth/kakao}
+  rate-limit:
+    # When true, RateLimitFilter trusts the leftmost X-Forwarded-For value as
+    # the client IP. Only enable when the app is deployed behind a trusted
+    # proxy that strips/rewrites this header (e.g. ALB, Cloudflare). Default
+    # is false so a directly-exposed instance can't be IP-spoofed for rate
+    # limiting.
+    trust-forwarded-for: ${YEOSAL_RATE_LIMIT_TRUST_FORWARDED_FOR:false}
