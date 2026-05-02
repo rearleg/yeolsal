@@ -7,7 +7,9 @@ import com.yeosal.api.user.User;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ public class RoomService {
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final RoomInviteRepository roomInvites;
+    private final GroupMemberMinimumRepository minimums;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
 
@@ -25,23 +28,38 @@ public class RoomService {
             RoomRepository rooms,
             RoomMemberRepository roomMembers,
             RoomInviteRepository roomInvites,
+            GroupMemberMinimumRepository minimums,
             InviteCodeGenerator codeGenerator,
             Clock clock
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
         this.roomInvites = roomInvites;
+        this.minimums = minimums;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
     }
 
-    @Transactional
+    /** Backwards-compatible overload that creates a room with the default minimum. */
     public RoomSummary create(User owner, String name) {
+        return create(owner, name, GoalMinimumDays.DEFAULT);
+    }
+
+    @Transactional
+    public RoomSummary create(User owner, String name, int minDailyGoalDays) {
         if (name == null || name.isBlank()) {
             throw new BadRequestException("방 이름은 비어있을 수 없습니다.");
         }
-        Room room = rooms.save(new Room(name.trim(), owner));
+        // Whitelist check runs on the full int so out-of-range values
+        // (including ones that would alias to an allowed short) are rejected.
+        if (!GoalMinimumDays.isAllowed(minDailyGoalDays)) {
+            throw new BadRequestException("최소 목표일수는 10/15/20/매일 중 하나여야 합니다.");
+        }
+        short min = (short) minDailyGoalDays;
+        Room room = rooms.save(new Room(name.trim(), owner, min));
         roomMembers.save(new RoomMember(room, owner, RoomRole.OWNER));
+        // Owner's per-member row mirrors the room minimum at creation time.
+        minimums.save(new GroupMemberMinimum(room.getId(), owner.getId(), min));
         return RoomSummary.from(room);
     }
 
@@ -57,8 +75,14 @@ public class RoomService {
     public List<MemberSummary> members(User viewer, long roomId) {
         Room room = requireRoom(roomId);
         requireMembership(room, viewer);
+        // Batch-load every minimum row for this room so we don't issue one query
+        // per member while building the response.
+        Map<Long, GroupMemberMinimum> byUserId = new HashMap<>();
+        for (GroupMemberMinimum m : minimums.findByRoomId(room.getId())) {
+            byUserId.put(m.getUserId(), m);
+        }
         return roomMembers.findByRoom(room).stream()
-                .map(MemberSummary::from)
+                .map(rm -> MemberSummary.from(rm, byUserId.get(rm.getUser().getId())))
                 .toList();
     }
 
@@ -82,14 +106,22 @@ public class RoomService {
 
         Optional<RoomMember> existing = roomMembers.findByRoomAndUser(room, user);
         if (existing.isPresent()) {
-            return MemberSummary.from(existing.get());
+            GroupMemberMinimum existingMin =
+                    minimums.findByRoomIdAndUserId(room.getId(), user.getId()).orElse(null);
+            return MemberSummary.from(existing.get(), existingMin);
         }
 
         long memberCount = roomMembers.countByRoom(room);
         if (memberCount >= room.getMaxMembers()) {
             throw new BadRequestException("방 정원을 초과했습니다.");
         }
-        return MemberSummary.from(roomMembers.save(new RoomMember(room, user, RoomRole.MEMBER)));
+        RoomMember saved = roomMembers.save(new RoomMember(room, user, RoomRole.MEMBER));
+        // New members start by mirroring the room's current minimum. They can
+        // raise (but not lower) their own minimum later via the PATCH endpoint
+        // introduced in PR E.
+        GroupMemberMinimum minimum = minimums.save(new GroupMemberMinimum(
+                room.getId(), user.getId(), room.getMinDailyGoalDays()));
+        return MemberSummary.from(saved, minimum);
     }
 
     @Transactional
@@ -104,6 +136,9 @@ public class RoomService {
                 throw new BadRequestException(
                         "owner는 다른 멤버가 남아있는 동안 방을 떠날 수 없습니다.");
             }
+            // group_member_minimums(room_id, user_id) FK has ON DELETE CASCADE
+            // against room_members, so deleting the last RoomMember reaps the
+            // matching minimum row automatically.
             roomMembers.delete(membership);
             rooms.delete(room);
             return;
@@ -121,24 +156,36 @@ public class RoomService {
                 .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
     }
 
-    public record RoomSummary(long id, String name, long ownerId, int maxMembers) {
+    public record RoomSummary(long id, String name, long ownerId, int maxMembers, int minDailyGoalDays) {
         public static RoomSummary from(Room room) {
             return new RoomSummary(
                     room.getId(),
                     room.getName(),
                     room.getOwner().getId(),
-                    room.getMaxMembers()
+                    room.getMaxMembers(),
+                    room.getMinDailyGoalDays()
             );
         }
     }
 
-    public record MemberSummary(long roomId, long userId, String nickname, RoomRole role) {
-        public static MemberSummary from(RoomMember m) {
+    public record MemberSummary(
+            long roomId,
+            long userId,
+            String nickname,
+            RoomRole role,
+            int currentMinimum,
+            int warningCount
+    ) {
+        public static MemberSummary from(RoomMember m, GroupMemberMinimum minimum) {
+            int min = minimum != null ? minimum.getMinDailyGoalDays() : m.getRoom().getMinDailyGoalDays();
+            int warnings = minimum != null ? minimum.getWarningCount() : 0;
             return new MemberSummary(
                     m.getRoom().getId(),
                     m.getUser().getId(),
                     m.getUser().getNickname(),
-                    m.getRole()
+                    m.getRole(),
+                    min,
+                    warnings
             );
         }
     }

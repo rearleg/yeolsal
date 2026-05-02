@@ -2,9 +2,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { type Room } from "../../src/api/rooms";
+import { MIN_DAYS_LABELS, type MinDays, type Room } from "../../src/api/rooms";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
+import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { EmptyState } from "../../src/components/ui/EmptyState";
@@ -20,18 +21,23 @@ export default function RoomsScreen() {
   const createMut = useCreateRoom();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
+  const [minDays, setMinDays] = useState<MinDays>(10);
   const rooms = roomsQuery.data ?? [];
   const loading = roomsQuery.isLoading;
 
   function submitCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    createMut.mutate(trimmed, {
-      onSuccess: () => {
-        setName("");
-        setShowCreate(false);
+    createMut.mutate(
+      { name: trimmed, minDailyGoalDays: minDays },
+      {
+        onSuccess: () => {
+          setName("");
+          setMinDays(10);
+          setShowCreate(false);
+        },
       },
-    });
+    );
   }
 
   return (
@@ -66,6 +72,15 @@ export default function RoomsScreen() {
               style={styles.input}
               accessibilityLabel="그룹 이름"
             />
+            <View style={styles.minDaysGroup}>
+              <Text variant="bodyStrong">최소 목표일수</Text>
+              <Text variant="caption" color={palette.inkMute}>
+                매월 이 일수만큼 회고를 남기지 못하면 경고가 누적돼요.
+              </Text>
+              <View style={{ marginTop: space[2] }}>
+                <MinDaysSegmented value={minDays} onChange={setMinDays} />
+              </View>
+            </View>
             <Button label="만들기" tone="primary" size="md" fullWidth onPress={submitCreate} />
           </Card>
         ) : null}
@@ -119,10 +134,11 @@ export default function RoomsScreen() {
 function RoomRow({ room }: { room: Room }) {
   const accent = pickRoomAccent(room.id);
   const hue = roomHues[accent];
+  const minLabel = MIN_DAYS_LABELS[room.minDailyGoalDays] ?? `${room.minDailyGoalDays}일`;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${room.name} 그룹 열기`}
+      accessibilityLabel={`${room.name} 그룹 열기 — 최소 ${minLabel}`}
       onPress={() => router.push(`/rooms/${room.id}`)}
       style={({ pressed }) => [pressed && { opacity: 0.85 }]}
     >
@@ -131,7 +147,9 @@ function RoomRow({ room }: { room: Room }) {
           <View style={[styles.dot, { backgroundColor: hue.base }]} />
           <View style={{ flex: 1 }}>
             <Text variant="title" numberOfLines={1}>{room.name}</Text>
-            <Text variant="caption" color={palette.inkMute}>최대 {room.maxMembers}명</Text>
+            <Text variant="caption" color={palette.inkMute}>
+              최대 {room.maxMembers}명 · 매월 {minLabel}
+            </Text>
           </View>
           <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
         </View>
@@ -162,6 +180,7 @@ const styles = StyleSheet.create({
     color: palette.ink,
   },
   joinRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  minDaysGroup: { marginBottom: space[3] },
   skeletonList: { gap: space[2] },
   list: { gap: space[2] },
   roomRow: { flexDirection: "row", alignItems: "center", gap: space[3] },

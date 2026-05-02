@@ -6,6 +6,7 @@ import {
   leaveRoom,
   listMembers,
   listRooms,
+  type CreateRoomInput,
   type Room,
   type RoomInvite,
   type RoomMember,
@@ -24,8 +25,8 @@ export function useRoomsQuery() {
 export function useCreateRoom() {
   const qc = useQueryClient();
   const haptic = useHaptic();
-  return useMutation<Room, Error, string>({
-    mutationFn: (name) => createRoom(name),
+  return useMutation<Room, Error, CreateRoomInput>({
+    mutationFn: (input) => createRoom(input),
     onError: (e) => toast.error(e.message),
     onSuccess: () => {
       haptic("success");
