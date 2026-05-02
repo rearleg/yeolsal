@@ -4,6 +4,28 @@
 // - shows the create-button only until the parent supplies an invite
 // - mutating helpers (onCreate / onShare / onClose) bubble up via props
 // - once an invite is supplied, the code, expiry, and share button render
+// - long-pressing the rendered code copies just the code to the clipboard
+
+const mockSetStringAsync = jest.fn<Promise<void>, [string]>();
+jest.mock("expo-clipboard", () => ({
+  setStringAsync: (s: string) => mockSetStringAsync(s),
+}));
+
+const mockToastSuccess = jest.fn<void, [string]>();
+jest.mock("../../../lib/toast", () => ({
+  toast: {
+    info: jest.fn(),
+    success: (m: string) => mockToastSuccess(m),
+    warning: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+const mockHaptics = jest.fn<Promise<void>, [unknown]>();
+jest.mock("expo-haptics", () => ({
+  notificationAsync: (t: unknown) => mockHaptics(t),
+  NotificationFeedbackType: { Success: "success" },
+}));
 
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
@@ -92,5 +114,43 @@ describe("InviteCodeSheet", () => {
     fireEvent.press(getByLabelText("초대 코드 화면 닫기"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  describe("long-press copy", () => {
+    beforeEach(() => {
+      mockSetStringAsync.mockReset();
+      mockToastSuccess.mockReset();
+      mockHaptics.mockReset();
+      mockSetStringAsync.mockResolvedValue(undefined);
+      mockHaptics.mockResolvedValue(undefined);
+    });
+
+    it("copies just the code (no extra wrapping text) on long-press", async () => {
+      const { getByLabelText } = setup({ invite: sampleInvite });
+
+      // Wrapping the code in its own Pressable lets the test target it via
+      // a stable accessibility label without depending on text positioning.
+      const codeTarget = getByLabelText("초대 코드 길게 눌러 복사");
+      fireEvent(codeTarget, "longPress");
+
+      // Allow any awaited setStringAsync promise to flush before assertions.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockSetStringAsync).toHaveBeenCalledTimes(1);
+      expect(mockSetStringAsync).toHaveBeenCalledWith("A7K9PXMQ");
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        expect.stringMatching(/복사/),
+      );
+    });
+
+    it("does not copy on short press", () => {
+      const { getByLabelText } = setup({ invite: sampleInvite });
+
+      fireEvent.press(getByLabelText("초대 코드 길게 눌러 복사"));
+
+      expect(mockSetStringAsync).not.toHaveBeenCalled();
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
   });
 });
