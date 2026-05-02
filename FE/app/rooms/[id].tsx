@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 import {
   MIN_DAYS_LABELS,
@@ -11,7 +11,6 @@ import { useAuth } from "../../src/auth/AuthContext";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
 import { InviteCodeSheet } from "../../src/components/rooms/InviteCodeSheet";
-import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { Skeleton } from "../../src/components/ui/Skeleton";
@@ -21,7 +20,6 @@ import {
   useLeaveRoom,
   useRoomMembersQuery,
   useRoomsQuery,
-  useUpdateMyMinimum,
 } from "../../src/lib/query/hooks/rooms";
 import { space } from "../../src/theme/spacing";
 import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
@@ -35,7 +33,6 @@ export default function RoomDetailScreen() {
   const roomsQuery = useRoomsQuery();
   const inviteMut = useCreateInvite();
   const leaveMut = useLeaveRoom();
-  const updateMinMut = useUpdateMyMinimum();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
   const [inviteSheetVisible, setInviteSheetVisible] = useState<boolean>(false);
 
@@ -44,18 +41,6 @@ export default function RoomDetailScreen() {
   const me = members.find((m) => user != null && m.userId === user.id) ?? null;
   const room = (roomsQuery.data ?? []).find((r) => r.id === roomId) ?? null;
   const roomFloor: MinDays = room?.minDailyGoalDays ?? 10;
-  const [pendingMin, setPendingMin] = useState<MinDays>(
-    me?.currentMinimum ?? roomFloor,
-  );
-
-  // Re-sync the picker whenever the membership row arrives or changes from
-  // another tab — without this, the segmented control would lock to the
-  // first-seen value.
-  useEffect(() => {
-    if (me?.currentMinimum != null) {
-      setPendingMin(me.currentMinimum);
-    }
-  }, [me?.currentMinimum]);
 
   function handleCreateInvite() {
     inviteMut.mutate(roomId, {
@@ -137,44 +122,37 @@ export default function RoomDetailScreen() {
         </Pressable>
 
         {me ? (
-          <Card tone="raised" size="md">
-            <Text variant="title">내 최소 목표일수</Text>
-            <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
-              그룹 기준({MIN_DAYS_LABELS[roomFloor] ?? `${roomFloor}일`}) 이상으로만 올릴 수 있어요.
-            </Text>
-            {me.warningCount > 0 ? (
-              <View
-                style={styles.warningBadge}
-                accessibilityRole="alert"
-                accessibilityLabel={`경고 ${me.warningCount}회 누적되었습니다. 2회 누적 시 그룹에서 제외될 수 있습니다.`}
-              >
-                <Text variant="caption" color={semantic.danger.fg}>
-                  ⚠️ 경고 {me.warningCount}/2 누적 중
-                </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="그룹 설정 열기"
+            onPress={() => router.push(`/rooms/${roomId}/settings`)}
+          >
+            <Card tone="raised" size="md">
+              <View style={styles.chatRow}>
+                <MaterialIcons name="tune" size={20} color={palette.coralDeep} />
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyStrong">
+                    내 최소 목표일수 · {MIN_DAYS_LABELS[me.currentMinimum] ?? `${me.currentMinimum}일`}
+                  </Text>
+                  <Text variant="caption" color={palette.inkMute}>
+                    그룹 기준({MIN_DAYS_LABELS[roomFloor] ?? `${roomFloor}일`}) 이상으로 변경할 수 있어요.
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
               </View>
-            ) : null}
-            <View style={{ marginTop: space[2] }}>
-              <MinDaysSegmented
-                value={pendingMin}
-                onChange={setPendingMin}
-                minAllowed={roomFloor}
-                disabled={updateMinMut.isPending}
-              />
-            </View>
-            <View style={{ marginTop: space[2] }}>
-              <Button
-                label={updateMinMut.isPending ? "저장 중…" : "변경 저장"}
-                tone="primary"
-                size="md"
-                fullWidth
-                disabled={
-                  updateMinMut.isPending ||
-                  pendingMin === me.currentMinimum
-                }
-                onPress={() => updateMinMut.mutate({ roomId, minDailyGoalDays: pendingMin })}
-              />
-            </View>
-          </Card>
+              {me.warningCount > 0 ? (
+                <View
+                  style={styles.warningBadge}
+                  accessibilityRole="alert"
+                  accessibilityLabel={`경고 ${me.warningCount}회 누적되었습니다. 2회 누적 시 그룹에서 제외될 수 있습니다.`}
+                >
+                  <Text variant="caption" color={semantic.danger.fg}>
+                    ⚠️ 경고 {me.warningCount}/2 누적 중
+                  </Text>
+                </View>
+              ) : null}
+            </Card>
+          </Pressable>
         ) : null}
 
         <View>
