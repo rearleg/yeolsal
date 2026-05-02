@@ -1,8 +1,10 @@
 package com.yeosal.api.room;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +14,18 @@ public interface GroupMemberMinimumRepository extends JpaRepository<GroupMemberM
     Optional<GroupMemberMinimum> findByRoomIdAndUserId(Long roomId, Long userId);
 
     List<GroupMemberMinimum> findByRoomId(Long roomId);
+
+    /**
+     * Same row set as {@link #findByRoomId(Long)}, but acquired with a
+     * pessimistic-write lock so the monthly evaluator can read-then-update
+     * each membership's {@code warning_count} without losing concurrent
+     * updates from an overlapping evaluation run (e.g. an admin backfill
+     * fired against a different {@code YearMonth}). The same-month re-fire
+     * idempotency still lives in {@link GroupWarningRepository#insertIfAbsent}.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from GroupMemberMinimum m where m.roomId = :roomId order by m.userId")
+    List<GroupMemberMinimum> findByRoomIdForEvaluation(@Param("roomId") Long roomId);
 
     /**
      * Race-safe upsert for the (room_id, user_id) pair. Two concurrent PATCH

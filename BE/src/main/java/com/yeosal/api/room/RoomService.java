@@ -3,24 +3,40 @@ package com.yeosal.api.room;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.daily.DailyService;
+import com.yeosal.api.room.chat.ChatMessageKind;
+import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.User;
+import com.yeosal.api.user.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class RoomService {
+
+    private static final Logger log = LoggerFactory.getLogger(RoomService.class);
 
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final RoomInviteRepository roomInvites;
     private final GroupMemberMinimumRepository minimums;
+    private final GroupWarningRepository warnings;
+    private final UserRepository users;
+    private final DailyService dailyService;
+    private final ChatService chatService;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
 
@@ -29,6 +45,10 @@ public class RoomService {
             RoomMemberRepository roomMembers,
             RoomInviteRepository roomInvites,
             GroupMemberMinimumRepository minimums,
+            GroupWarningRepository warnings,
+            UserRepository users,
+            DailyService dailyService,
+            ChatService chatService,
             InviteCodeGenerator codeGenerator,
             Clock clock
     ) {
@@ -36,6 +56,10 @@ public class RoomService {
         this.roomMembers = roomMembers;
         this.roomInvites = roomInvites;
         this.minimums = minimums;
+        this.warnings = warnings;
+        this.users = users;
+        this.dailyService = dailyService;
+        this.chatService = chatService;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
     }
@@ -235,4 +259,131 @@ public class RoomService {
             );
         }
     }
+
+    /**
+     * Per-room run of the monthly minimum-days evaluator. Counts each
+     * active member's mission-completed days in {@code month} (KST) and:
+     * <ul>
+     *   <li>writes an idempotent {@code group_warnings} audit row when the
+     *       member fell short of their personal minimum,</li>
+     *   <li>increments the membership-side {@code warning_count} (capped
+     *       at 2 by {@link GroupMemberMinimum#incrementWarningCount()}),</li>
+     *   <li>auto-removes the member at warning_count = 2 — except for the
+     *       room owner, who keeps their seat so the room is never silently
+     *       orphaned by the cron.</li>
+     * </ul>
+     *
+     * <p>Idempotency lives at the audit row: a re-fired cron writes 0 rows
+     * via the unique {@code (room_id, user_id, evaluation_month)} key, so
+     * the membership counter never double-increments.
+     *
+     * <p>The auto-leave chat publish is registered for {@code afterCommit}
+     * so a chat-row write that fails (room deleted mid-cron, …) cannot roll
+     * back the warning audit. {@link ChatService#publishSystem} runs in
+     * its own {@code REQUIRES_NEW} transaction for the same reason.
+     */
+    @Transactional
+    public EvaluationResult evaluateRoom(long roomId, YearMonth month) {
+        if (month == null) {
+            throw new IllegalArgumentException("month is required");
+        }
+        Room room = rooms.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+        Long ownerId = room.getOwner().getId();
+        LocalDate evaluationMonth = month.atDay(1);
+        String monthKey = month.toString();
+
+        // Pessimistic-write so an overlapping evaluation for a *different*
+        // YearMonth (admin backfill, retry) can't race-read warning_count
+        // and clobber our increment with theirs. Same-month re-fires are
+        // still squashed by the audit-row UNIQUE key inside the loop.
+        List<GroupMemberMinimum> active = minimums.findByRoomIdForEvaluation(roomId);
+        int evaluated = 0;
+        int newWarnings = 0;
+        int autoLefts = 0;
+
+        for (GroupMemberMinimum membership : active) {
+            evaluated += 1;
+            int required = effectiveRequiredDays(membership.getMinDailyGoalDays(), month);
+            User member = users.findById(membership.getUserId()).orElse(null);
+            if (member == null) {
+                log.warn("[evaluator] orphaned minimum row roomId={} userId={}",
+                        roomId, membership.getUserId());
+                continue;
+            }
+            int completed;
+            try {
+                completed = dailyService.monthlyCompletedCount(member, monthKey);
+            } catch (RuntimeException ex) {
+                log.warn("[evaluator] monthly count failed roomId={} userId={}: {}",
+                        roomId, member.getId(), ex.toString());
+                continue;
+            }
+            if (completed >= required) {
+                continue;
+            }
+            int prospective = Math.min(2, membership.getWarningCount() + 1);
+            int inserted = warnings.insertIfAbsent(
+                    roomId,
+                    member.getId(),
+                    evaluationMonth,
+                    (short) Math.min(31, completed),
+                    (short) Math.min(31, required),
+                    (short) prospective);
+            if (inserted == 0) {
+                continue;
+            }
+            membership.incrementWarningCount();
+            newWarnings += 1;
+            if (membership.getWarningCount() >= 2 && !member.getId().equals(ownerId)) {
+                roomMembers.deleteByRoomAndUser(room, member);
+                publishAutoLeaveAfterCommit(roomId, member, month, completed, required);
+                autoLefts += 1;
+            } else if (membership.getWarningCount() >= 2) {
+                log.info(
+                        "[evaluator] owner reached 2 warnings room={} owner={} — keeping seat",
+                        roomId, ownerId);
+            }
+        }
+        return new EvaluationResult(roomId, month, evaluated, newWarnings, autoLefts);
+    }
+
+    private static int effectiveRequiredDays(short minDailyGoalDays, YearMonth month) {
+        int min = minDailyGoalDays;
+        return min >= 31 ? month.lengthOfMonth() : min;
+    }
+
+    private void publishAutoLeaveAfterCommit(
+            long roomId, User member, YearMonth month, int completed, int required) {
+        String body = member.getNickname() + "님이 최소 목표일수를 채우지 못해 그룹에서 자동 탈퇴되었어요.";
+        String payload = String.format(
+                "{\"userId\":%d,\"month\":\"%s\",\"completedDays\":%d,\"requiredDays\":%d}",
+                member.getId(), month, completed, required);
+        Runnable publish = () -> {
+            try {
+                chatService.publishSystem(roomId, ChatMessageKind.AUTO_LEAVE, body, payload);
+            } catch (RuntimeException ex) {
+                log.warn("[evaluator] AUTO_LEAVE chat publish failed roomId={} userId={}: {}",
+                        roomId, member.getId(), ex.toString());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
+    }
+
+    public record EvaluationResult(
+            long roomId,
+            YearMonth month,
+            int evaluatedMembers,
+            int newWarnings,
+            int autoLefts
+    ) {}
 }
