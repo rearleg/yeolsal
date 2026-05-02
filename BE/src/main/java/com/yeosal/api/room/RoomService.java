@@ -304,7 +304,8 @@ public class RoomService {
 
         for (GroupMemberMinimum membership : active) {
             evaluated += 1;
-            int required = effectiveRequiredDays(membership.getMinDailyGoalDays(), month);
+            int required = GoalMinimumDays.effectiveRequiredDays(
+                    membership.getMinDailyGoalDays(), month);
             User member = users.findById(membership.getUserId()).orElse(null);
             if (member == null) {
                 log.warn("[evaluator] orphaned minimum row roomId={} userId={}",
@@ -346,11 +347,6 @@ public class RoomService {
             }
         }
         return new EvaluationResult(roomId, month, evaluated, newWarnings, autoLefts);
-    }
-
-    private static int effectiveRequiredDays(short minDailyGoalDays, YearMonth month) {
-        int min = minDailyGoalDays;
-        return min >= 31 ? month.lengthOfMonth() : min;
     }
 
     private void publishAutoLeaveAfterCommit(

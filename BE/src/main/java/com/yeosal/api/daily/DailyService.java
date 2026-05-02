@@ -168,6 +168,7 @@ public class DailyService {
                 user.getNickname() + "님이 오늘 회고를 남겼어요",
                 "프로필에서 함께 살펴봐요.");
         publishReflectionSystemMessages(user, entry.getDate(), entry.getId());
+        publishMilestoneSystemMessages(user, entry.getDate());
         return dto;
     }
 
@@ -189,6 +190,41 @@ public class DailyService {
         String body = user.getNickname() + "님이 오늘 회고를 남겼어요.";
         String payload = systemPayload(user.getId(), dailyEntryId, date);
         publishAfterCommit(() -> publishSystemMessages(user, ChatMessageKind.REFLECTION, body, payload));
+    }
+
+    /**
+     * Plan 7.1 MILESTONE hook. After today's reflection is saved, count
+     * the actor's mission-completed days for the current calendar month
+     * and let {@link ChatService#publishMilestonesForActor} fan a single
+     * MILESTONE chat row per (room, actor, month) when the actor's
+     * personal minimum has been hit. Idempotency lives at ChatService
+     * via {@code existsMilestoneForMonth}, so a re-fire after a retry
+     * or another reflection in the same month is a no-op.
+     *
+     * <p>Gated on {@code afterCommit} so a chat-row failure cannot roll
+     * back the reflection write, and a rolled-back reflection cannot
+     * leave a stale milestone broadcast behind. Errors inside the
+     * publish path are caught here so they cannot leak into the actor
+     * trace.
+     */
+    private void publishMilestoneSystemMessages(User user, LocalDate date) {
+        YearMonth month = YearMonth.from(date);
+        int completed;
+        try {
+            completed = monthlyCompletedCount(user, month.toString());
+        } catch (RuntimeException ex) {
+            log.warn("[chat] milestone count failed actor={} month={}: {}",
+                    user.getId(), month, ex.toString());
+            return;
+        }
+        publishAfterCommit(() -> {
+            try {
+                chatService.publishMilestonesForActor(user, month, completed);
+            } catch (RuntimeException ex) {
+                log.warn("[chat] milestone fan-out failed actor={} month={}: {}",
+                        user.getId(), month, ex.toString());
+            }
+        });
     }
 
     /**
