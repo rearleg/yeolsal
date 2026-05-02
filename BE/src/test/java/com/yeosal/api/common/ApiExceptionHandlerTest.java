@@ -2,9 +2,11 @@ package com.yeosal.api.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.SQLException;
 import org.hibernate.LazyInitializationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -79,5 +81,44 @@ class ApiExceptionHandlerTest {
         ApiErrorResponse.Error err = response.getBody().error();
         assertThat(err.code()).isEqualTo("UNAUTHORIZED");
         assertThat(err.message()).isEqualTo("인증이 필요합니다.");
+    }
+
+    @Test
+    @DisplayName("DataIntegrityViolationException returns 500 + INTERNAL_ERROR with sanitized message (root-cause stays in logs only)")
+    void dataIntegrity_returns500_sanitized() {
+        // The PR I diagnosis path: prod was returning a generic 500 with no
+        // signal about which constraint blew up. The new handler logs the
+        // root cause for ops while still keeping the response envelope safe.
+        SQLException root = new SQLException(
+                "ERROR: duplicate key value violates unique constraint \"chat_messages_pkey\"",
+                "23505");
+        DataIntegrityViolationException ex =
+                new DataIntegrityViolationException("could not execute statement", root);
+
+        ResponseEntity<ApiErrorResponse> response = handler.dataIntegrity(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        ApiErrorResponse.Error err = response.getBody().error();
+        assertThat(err.code()).isEqualTo("INTERNAL_ERROR");
+        // Response message must not leak the SQL string back to the client.
+        assertThat(err.message()).doesNotContain("constraint");
+        assertThat(err.message()).doesNotContain("chat_messages_pkey");
+    }
+
+    @Test
+    @DisplayName("IllegalArgumentException maps to 400 + VALIDATION (caller-supplied bad input, not a server bug)")
+    void illegalArgument_returns400() {
+        // ChatService.parsePayload throws IllegalArgumentException on
+        // malformed payloads from internal callers — the leaked 500 in
+        // production made it look like a server bug. PR I maps it back
+        // to 400 so the FE/Sentry path doesn't classify it as a 5xx.
+        IllegalArgumentException ex =
+                new IllegalArgumentException("system message payload must be a JSON object");
+
+        ResponseEntity<ApiErrorResponse> response = handler.illegalArgument(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiErrorResponse.Error err = response.getBody().error();
+        assertThat(err.code()).isEqualTo("VALIDATION");
     }
 }
