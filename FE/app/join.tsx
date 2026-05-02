@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { joinRoom } from "../src/api/rooms";
+import { joinRoom, MIN_DAYS_LABELS } from "../src/api/rooms";
 import { useRequireAuth } from "../src/auth/useRequireAuth";
 import { Screen } from "../src/components/Screen";
 import { Button } from "../src/components/ui/Button";
@@ -27,6 +27,8 @@ export default function JoinRoomScreen() {
     setSubmitting(true);
     try {
       const member = await joinRoom(trimmed);
+      const minLabel = MIN_DAYS_LABELS[member.currentMinimum] ?? `${member.currentMinimum}일`;
+      toast.info(`매월 ${minLabel} 회고를 남기는 그룹이에요.`);
       router.replace(`/rooms/${member.roomId}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "그룹 참여에 실패했어요.");

@@ -30,6 +30,9 @@ public class Room {
     @Column(name = "max_members", nullable = false)
     private short maxMembers = 8;
 
+    @Column(name = "min_daily_goal_days", nullable = false)
+    private short minDailyGoalDays = (short) GoalMinimumDays.DEFAULT;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -40,6 +43,11 @@ public class Room {
         this.owner = owner;
     }
 
+    public Room(String name, User owner, short minDailyGoalDays) {
+        this(name, owner);
+        this.minDailyGoalDays = minDailyGoalDays;
+    }
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) {
@@ -48,15 +56,22 @@ public class Room {
         if (maxMembers <= 0) {
             maxMembers = 8;
         }
+        if (!GoalMinimumDays.isAllowed(minDailyGoalDays)) {
+            minDailyGoalDays = (short) GoalMinimumDays.DEFAULT;
+        }
     }
 
     public Long getId() { return id; }
     public String getName() { return name; }
     public User getOwner() { return owner; }
     public short getMaxMembers() { return maxMembers; }
+    public short getMinDailyGoalDays() { return minDailyGoalDays; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setName(String name) { this.name = name; }
     public void setOwner(User owner) { this.owner = owner; }
     public void setMaxMembers(short maxMembers) { this.maxMembers = maxMembers; }
+    public void setMinDailyGoalDays(short minDailyGoalDays) {
+        this.minDailyGoalDays = minDailyGoalDays;
+    }
 }

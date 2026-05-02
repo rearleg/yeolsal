@@ -36,7 +36,15 @@ public class RoomController {
     @PostMapping
     public ApiResponse<RoomService.RoomSummary> create(Authentication auth, @Valid @RequestBody CreateRoomRequest body) {
         User me = currentUser.require(auth);
-        return ApiResponse.of(roomService.create(me, body.name()));
+        // Per-room minimum is optional in the request envelope so older
+        // FE bundles that don't surface the picker yet still create rooms.
+        // We pass the raw int through to the service so any out-of-range
+        // value (including ones that would silently truncate via shortValue)
+        // is rejected by the whitelist check instead of being narrowed in.
+        int min = body.minDailyGoalDays() == null
+                ? GoalMinimumDays.DEFAULT
+                : body.minDailyGoalDays();
+        return ApiResponse.of(roomService.create(me, body.name(), min));
     }
 
     @GetMapping
@@ -70,6 +78,13 @@ public class RoomController {
         return ResponseEntity.noContent().build();
     }
 
-    public record CreateRoomRequest(@NotBlank @Size(max = 80) String name) {}
+    public record CreateRoomRequest(
+            @NotBlank @Size(max = 80) String name,
+            // Nullable for backwards-compat with FE bundles that haven't shipped
+            // the picker yet; the controller falls back to the default and the
+            // service rejects values outside the {10, 15, 20, 31} whitelist.
+            Integer minDailyGoalDays
+    ) {}
+
     public record JoinRequest(@NotBlank @Size(min = 4, max = 32) String code) {}
 }

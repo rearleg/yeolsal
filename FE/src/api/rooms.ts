@@ -1,10 +1,27 @@
 import { apiRequest, type ApiEnvelope } from "./client";
 
+// Whitelisted minimum-days values mirroring the BE CHECK constraint
+// (chk_rooms_min_daily_goal_days). 31 means "every day of the calendar
+// month"; the server caps it to the actual length of the month at the
+// monthly evaluation pass.
+export const MIN_DAYS_OPTIONS = [10, 15, 20, 31] as const;
+export type MinDays = (typeof MIN_DAYS_OPTIONS)[number];
+
+// Single source of truth for the human-readable label so the home tab,
+// join screen, and the segmented control all stay in sync.
+export const MIN_DAYS_LABELS: Record<MinDays, string> = {
+  10: "10일",
+  15: "15일",
+  20: "20일",
+  31: "매일",
+};
+
 export interface Room {
   id: number;
   name: string;
   ownerId: number;
   maxMembers: number;
+  minDailyGoalDays: MinDays;
 }
 
 export interface RoomMember {
@@ -12,6 +29,8 @@ export interface RoomMember {
   userId: number;
   nickname: string;
   role: "OWNER" | "MEMBER";
+  currentMinimum: MinDays;
+  warningCount: number;
 }
 
 export interface RoomInvite {
@@ -21,15 +40,23 @@ export interface RoomInvite {
   expiresAt: string | null;
 }
 
+export interface CreateRoomInput {
+  name: string;
+  minDailyGoalDays: MinDays;
+}
+
 export async function listRooms(): Promise<Room[]> {
   const envelope = await apiRequest<ApiEnvelope<Room[]>>("/rooms");
   return envelope.data;
 }
 
-export async function createRoom(name: string): Promise<Room> {
+export async function createRoom(input: CreateRoomInput): Promise<Room> {
   const envelope = await apiRequest<ApiEnvelope<Room>>("/rooms", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      name: input.name,
+      minDailyGoalDays: input.minDailyGoalDays,
+    }),
   });
   return envelope.data;
 }
