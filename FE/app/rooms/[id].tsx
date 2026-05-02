@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
@@ -87,6 +88,25 @@ export default function RoomDetailScreen() {
           )}
         </Card>
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="그룹 채팅 열기"
+          onPress={() => router.push(`/rooms/${roomId}/chat`)}
+        >
+          <Card tone="raised" size="md">
+            <View style={styles.chatRow}>
+              <MaterialIcons name="chat-bubble-outline" size={20} color={palette.coralDeep} />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyStrong">그룹 채팅</Text>
+                <Text variant="caption" color={palette.inkMute}>
+                  멤버들과 메시지를 주고받아요.
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
+            </View>
+          </Card>
+        </Pressable>
+
         <View>
           <Text variant="title" style={{ marginBottom: space[2] }}>멤버 ({members.length})</Text>
           {loading && members.length === 0 ? (
@@ -143,6 +163,7 @@ const styles = StyleSheet.create({
   skeletonList: { gap: space[2] },
   memberList: { gap: space[2] },
   memberRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  chatRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
   avatar: {
     width: 36,
     height: 36,

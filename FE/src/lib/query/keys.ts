@@ -3,6 +3,7 @@ export const qk = {
   feed: (date: string) => ["feed", date] as const,
   rooms: ["rooms"] as const,
   roomMembers: (id: number) => ["rooms", id, "members"] as const,
+  roomMessages: (id: number) => ["rooms", id, "messages"] as const,
   profile: ["profile"] as const,
   grass: (from: string, to: string) => ["grass", from, to] as const,
   monthlyStats: (month: string) => ["monthly", month] as const,
