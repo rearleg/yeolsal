@@ -6,7 +6,10 @@ import { layout, space } from "../theme/spacing";
 import { Text } from "./ui/Text";
 
 type Props = PropsWithChildren<{
-  title: string;
+  // Default top-bar title. Pass an empty string or omit to suppress the
+  // built-in header — useful for screens that render a custom header
+  // (e.g. the date-driven Today header) inside their own content area.
+  title?: string;
   // No-op — see (tabs)/_layout.tsx for the tab bar.
   showFooter?: boolean;
   // Wrap content in KeyboardAvoidingView so text inputs stay visible
@@ -19,11 +22,13 @@ export function Screen({ children, title, avoidKeyboard = true }: Props) {
   const body = <View style={styles.content}>{children}</View>;
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Text variant="h2" numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
+      {title ? (
+        <View style={styles.header}>
+          <Text variant="h2" numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+      ) : null}
       {avoidKeyboard ? (
         <KeyboardAvoidingView
           style={styles.flex}

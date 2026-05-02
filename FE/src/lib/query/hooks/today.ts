@@ -66,8 +66,17 @@ export function useToggleTodo() {
   });
 }
 
-export function useUpdateGoal() {
+interface UpdateGoalOptions {
+  // Caller-supplied side effects that fire *after* the cache is reconciled.
+  // GoalCard uses these to drive its IDLE/EDITING → SAVING → SAVED state
+  // machine, surface a toast, and trigger haptics on success.
+  onSaved?: (entry: DailyEntryDto) => void;
+  onFailed?: (error: Error) => void;
+}
+
+export function useUpdateGoal(options: UpdateGoalOptions = {}) {
   const qc = useQueryClient();
+  const { onSaved, onFailed } = options;
 
   return useMutation<DailyEntryDto, Error, string, RollbackContext>({
     mutationFn: (goal) => updateGoal(goal),
@@ -82,9 +91,11 @@ export function useUpdateGoal() {
         qc.setQueryData(qk.today, context.prev);
       }
       toast.error(error.message);
+      onFailed?.(error);
     },
     onSuccess: (data) => {
       qc.setQueryData(qk.today, data);
+      onSaved?.(data);
     },
   });
 }
