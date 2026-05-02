@@ -41,7 +41,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new Rule(HttpMethod.POST, "/api/v1/auth/kakao/exchange", 10, Duration.ofMinutes(1)),
             new Rule(HttpMethod.POST, "/api/v1/friends/requests", 20, Duration.ofMinutes(1)),
             new Rule(HttpMethod.POST, "/api/v1/rooms/join", 10, Duration.ofMinutes(1)),
-            new Rule(HttpMethod.POST, "/api/v1/rooms/*/invites", 20, Duration.ofMinutes(1))
+            new Rule(HttpMethod.POST, "/api/v1/rooms/*/invites", 20, Duration.ofMinutes(1)),
+            // 60 messages / minute per IP. Single-instance scope; multi-node
+            // deployments will need to swap the storage for a per-user Redis
+            // counter. Keep the limit comfortably above normal chat speed.
+            new Rule(HttpMethod.POST, "/api/v1/rooms/*/messages", 60, Duration.ofMinutes(1))
     );
 
     private static final AntPathMatcher pathMatcher = new AntPathMatcher();
