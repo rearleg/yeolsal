@@ -1,9 +1,15 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
-import { type RoomInvite } from "../../src/api/rooms";
+import {
+  MIN_DAYS_LABELS,
+  type MinDays,
+  type RoomInvite,
+} from "../../src/api/rooms";
+import { useAuth } from "../../src/auth/AuthContext";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
+import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { Skeleton } from "../../src/components/ui/Skeleton";
@@ -12,21 +18,41 @@ import {
   useCreateInvite,
   useLeaveRoom,
   useRoomMembersQuery,
+  useRoomsQuery,
+  useUpdateMyMinimum,
 } from "../../src/lib/query/hooks/rooms";
 import { space } from "../../src/theme/spacing";
-import { palette, pickRoomAccent, roomHues, surface } from "../../src/theme/tokens";
+import { palette, pickRoomAccent, roomHues, semantic, surface } from "../../src/theme/tokens";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const roomId = Number(params.id);
   useRequireAuth();
+  const { user } = useAuth();
   const membersQuery = useRoomMembersQuery(roomId);
+  const roomsQuery = useRoomsQuery();
   const inviteMut = useCreateInvite();
   const leaveMut = useLeaveRoom();
+  const updateMinMut = useUpdateMyMinimum();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
 
   const members = membersQuery.data ?? [];
   const loading = membersQuery.isLoading;
+  const me = members.find((m) => user != null && m.userId === user.id) ?? null;
+  const room = (roomsQuery.data ?? []).find((r) => r.id === roomId) ?? null;
+  const roomFloor: MinDays = room?.minDailyGoalDays ?? 10;
+  const [pendingMin, setPendingMin] = useState<MinDays>(
+    me?.currentMinimum ?? roomFloor,
+  );
+
+  // Re-sync the picker whenever the membership row arrives or changes from
+  // another tab — without this, the segmented control would lock to the
+  // first-seen value.
+  useEffect(() => {
+    if (me?.currentMinimum != null) {
+      setPendingMin(me.currentMinimum);
+    }
+  }, [me?.currentMinimum]);
 
   function handleCreateInvite() {
     inviteMut.mutate(roomId, {
@@ -87,6 +113,47 @@ export default function RoomDetailScreen() {
           )}
         </Card>
 
+        {me ? (
+          <Card tone="raised" size="md">
+            <Text variant="title">내 최소 목표일수</Text>
+            <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
+              그룹 기준({MIN_DAYS_LABELS[roomFloor] ?? `${roomFloor}일`}) 이상으로만 올릴 수 있어요.
+            </Text>
+            {me.warningCount > 0 ? (
+              <View
+                style={styles.warningBadge}
+                accessibilityRole="alert"
+                accessibilityLabel={`경고 ${me.warningCount}회 누적되었습니다. 2회 누적 시 그룹에서 제외될 수 있습니다.`}
+              >
+                <Text variant="caption" color={semantic.danger.fg}>
+                  ⚠️ 경고 {me.warningCount}/2 누적 중
+                </Text>
+              </View>
+            ) : null}
+            <View style={{ marginTop: space[2] }}>
+              <MinDaysSegmented
+                value={pendingMin}
+                onChange={setPendingMin}
+                minAllowed={roomFloor}
+                disabled={updateMinMut.isPending}
+              />
+            </View>
+            <View style={{ marginTop: space[2] }}>
+              <Button
+                label={updateMinMut.isPending ? "저장 중…" : "변경 저장"}
+                tone="primary"
+                size="md"
+                fullWidth
+                disabled={
+                  updateMinMut.isPending ||
+                  pendingMin === me.currentMinimum
+                }
+                onPress={() => updateMinMut.mutate({ roomId, minDailyGoalDays: pendingMin })}
+              />
+            </View>
+          </Card>
+        ) : null}
+
         <View>
           <Text variant="title" style={{ marginBottom: space[2] }}>멤버 ({members.length})</Text>
           {loading && members.length === 0 ? (
@@ -142,6 +209,14 @@ const styles = StyleSheet.create({
   },
   skeletonList: { gap: space[2] },
   memberList: { gap: space[2] },
+  warningBadge: {
+    marginTop: space[2],
+    paddingHorizontal: space[3],
+    paddingVertical: space[1],
+    borderRadius: 999,
+    backgroundColor: semantic.danger.bg,
+    alignSelf: "flex-start",
+  },
   memberRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
   avatar: {
     width: 36,

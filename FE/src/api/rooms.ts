@@ -84,3 +84,14 @@ export async function joinRoom(code: string): Promise<RoomMember> {
 export async function leaveRoom(roomId: number): Promise<void> {
   await apiRequest<void>(`/rooms/${roomId}/members/me`, { method: "DELETE" });
 }
+
+export async function updateMyMinimum(roomId: number, minDailyGoalDays: MinDays): Promise<RoomMember> {
+  const envelope = await apiRequest<ApiEnvelope<RoomMember>>(
+    `/rooms/${roomId}/members/me/minimum`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ minDailyGoalDays }),
+    },
+  );
+  return envelope.data;
+}
