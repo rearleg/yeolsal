@@ -68,7 +68,7 @@ describe("RoomMinimumSettings", () => {
     );
 
     // The segmented control labels each option; tap the 20-day chip.
-    fireEvent.press(getByLabelText("20일"));
+    fireEvent.press(getByLabelText("최소 목표일수 20일"));
     fireEvent.press(getByText(/저장/));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -81,7 +81,7 @@ describe("RoomMinimumSettings", () => {
       <Harness initial={10} roomFloor={10} saving={true} onSubmit={onSubmit} />,
     );
 
-    fireEvent.press(getByLabelText("20일"));
+    fireEvent.press(getByLabelText("최소 목표일수 20일"));
     fireEvent.press(getByText(/저장/));
 
     expect(onSubmit).not.toHaveBeenCalled();
