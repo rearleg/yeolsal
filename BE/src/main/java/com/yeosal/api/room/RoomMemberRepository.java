@@ -15,6 +15,18 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
 
     List<RoomMember> findByUser(User user);
 
+    /**
+     * Direct {@code Room} fetch — avoids the 1+N lazy load you would get from
+     * {@code findByUser(user).map(RoomMember::getRoom)} when the caller only
+     * cares about the room (e.g. the chat fan-out hooks in {@code DailyService}).
+     */
+    @Query("""
+            select rm.room
+            from RoomMember rm
+            where rm.user = :user
+            """)
+    List<Room> findRoomsByUser(@Param("user") User user);
+
     Optional<RoomMember> findByRoomAndUser(Room room, User user);
 
     void deleteByRoomAndUser(Room room, User user);

@@ -21,9 +21,9 @@ import org.hibernate.type.SqlTypes;
  * cheap to construct in tests and the system-message hooks (PR G) don't have
  * to resolve a {@link com.yeosal.api.user.User} just to write a row.
  *
- * <p>{@code payload} is a JSONB column. Hibernate 6 {@link JdbcTypeCode} casts
- * the {@code String} value to JSONB on insert. PR F only writes {@code "{}"};
- * PR G writes structured metadata such as {@code {"actorUserId":7,"date":...}}.
+ * <p>{@code payload} is a JSONB column mapped as a Jackson {@code JsonNode}.
+ * PR F only writes {@code {}}; PR G writes structured metadata such as
+ * {@code {"actorUserId":7,"date":"2026-05-02"}} via {@code ChatService}.
  */
 @Entity
 @Table(name = "chat_messages")

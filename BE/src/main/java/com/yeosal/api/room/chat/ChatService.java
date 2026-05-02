@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -85,8 +86,13 @@ public class ChatService {
      * (e.g. the daily-service goal hook) is already inside an authenticated
      * write transaction; the room must still exist (asserted here) so that a
      * caller bug can't mask as a silent DB FK failure.
+     *
+     * <p>Runs in {@link Propagation#REQUIRES_NEW}: the actor's primary write
+     * (e.g. {@code DailyService.createOrReplace}) must not roll back if a
+     * single fan-out room can't accept the system message. This mirrors the
+     * isolation pattern PR A applied to {@code NotificationService.sendEvent}.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatMessage publishSystem(long roomId, ChatMessageKind kind, String body, String payload) {
         if (kind == null) {
             throw new IllegalArgumentException("publishSystem kind is required");
