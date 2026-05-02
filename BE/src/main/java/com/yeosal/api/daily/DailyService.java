@@ -9,6 +9,7 @@ import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -62,7 +63,7 @@ public class DailyService {
     }
 
     private LocalDate currentEntryDate(User user) {
-        return entryDateResolver.resolve(clock.instant(), ZoneId.of(user.getTimezone()));
+        return entryDateResolver.resolve(clock.instant(), zoneOfOrDefault(user));
     }
 
     @Transactional(readOnly = true)
@@ -208,7 +209,7 @@ public class DailyService {
                     boolean missionCompleted = reflectionSubmitted && calculator.calculate(
                             entry.getDate(),
                             true,
-                            entry.getReflection().getSubmittedAt().atZone(ZoneId.of(user.getTimezone()))
+                            entry.getReflection().getSubmittedAt().atZone(zoneOfOrDefault(user))
                     ).missionCompleted();
                     int intensity = gateRule.bucket(goalSet, reflectionSubmitted, completedTodos);
                     return new GrassDay(date, missionCompleted, completedTodos, reflectionSubmitted, intensity);
@@ -287,5 +288,23 @@ public class DailyService {
 
     private DailyController.ReflectionDto toDto(Reflection reflection) {
         return new DailyController.ReflectionDto(reflection.getId(), reflection.getDailyEntry().getId(), reflection.getBody(), true);
+    }
+
+    /**
+     * Falls back to {@code Asia/Seoul} when the user's stored timezone is
+     * blank or no longer a valid IANA id. Group queries iterate over many
+     * users, so a single bad row would otherwise abort the whole response —
+     * silent fallback keeps the rest of the group readable.
+     */
+    private static ZoneId zoneOfOrDefault(User user) {
+        String raw = user.getTimezone();
+        if (raw == null || raw.isBlank()) {
+            return ZoneId.of("Asia/Seoul");
+        }
+        try {
+            return ZoneId.of(raw);
+        } catch (DateTimeException ex) {
+            return ZoneId.of("Asia/Seoul");
+        }
     }
 }

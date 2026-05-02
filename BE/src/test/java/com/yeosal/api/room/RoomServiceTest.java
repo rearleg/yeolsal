@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,8 @@ class RoomServiceTest {
     @Mock private RoomMemberRepository roomMembers;
     @Mock private RoomInviteRepository roomInvites;
     @Mock private GroupMemberMinimumRepository minimums;
+    @Mock private com.yeosal.api.daily.DailyEntryRepository dailyEntries;
+    @Mock private com.yeosal.api.daily.DailyService dailyService;
     @Mock private InviteCodeGenerator codeGenerator;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
@@ -50,7 +53,9 @@ class RoomServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(rooms, roomMembers, roomInvites, minimums, codeGenerator, clock);
+        service = new RoomService(
+                rooms, roomMembers, roomInvites, minimums,
+                dailyEntries, dailyService, codeGenerator, clock);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
@@ -400,6 +405,66 @@ class RoomServiceTest {
                 );
         // Single batched lookup, not per-member.
         verify(minimums, times(1)).findByRoomId(42L);
+    }
+
+    @Test
+    @DisplayName("groupToday: stitches per-member entry + streak; missing entry maps to empty goal/0 todos")
+    void groupTodayStitchesEntriesAndStreaks() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER))
+        );
+        com.yeosal.api.daily.DailyEntry aliceEntry = mock(com.yeosal.api.daily.DailyEntry.class);
+        when(aliceEntry.getUser()).thenReturn(alice);
+        when(aliceEntry.getGoal()).thenReturn("오늘 목표");
+        when(aliceEntry.getTodos()).thenReturn(java.util.Collections.emptyList());
+        when(aliceEntry.getReflection()).thenReturn(null);
+
+        RoomMember aliceMember = new RoomMember(room, alice, RoomRole.OWNER);
+        RoomMember bobMember = new RoomMember(room, bob, RoomRole.MEMBER);
+        when(roomMembers.findByRoom(room)).thenReturn(List.of(aliceMember, bobMember));
+
+        java.time.LocalDate today = java.time.LocalDate.parse("2026-04-30");
+        when(dailyEntries.findByUserInAndDate(any(), eqDate(today)))
+                .thenReturn(List.of(aliceEntry));
+        when(dailyEntries.findGrassEntriesByUsersBetween(any(), any(java.time.LocalDate.class), any(java.time.LocalDate.class)))
+                .thenReturn(List.of());
+        when(dailyService.grassFromEntries(any(), any(), any(), any())).thenReturn(List.of());
+        when(dailyService.streakFromGrass(any(), any())).thenReturn(7).thenReturn(0);
+
+        List<RoomService.MemberTodayDto> result = service.groupToday(alice, 42L, today);
+
+        assertThat(result).hasSize(2);
+        RoomService.MemberTodayDto aliceDto = result.stream().filter(d -> d.userId() == 1L).findFirst().orElseThrow();
+        assertThat(aliceDto.goal()).isEqualTo("오늘 목표");
+        assertThat(aliceDto.goalSet()).isTrue();
+        assertThat(aliceDto.completedTodoCount()).isEqualTo(0);
+        assertThat(aliceDto.reflectionSubmitted()).isFalse();
+        assertThat(aliceDto.currentStreak()).isEqualTo(7);
+
+        RoomService.MemberTodayDto bobDto = result.stream().filter(d -> d.userId() == 2L).findFirst().orElseThrow();
+        assertThat(bobDto.goal()).isEmpty();
+        assertThat(bobDto.goalSet()).isFalse();
+        assertThat(bobDto.completedTodoCount()).isEqualTo(0);
+        assertThat(bobDto.reflectionSubmitted()).isFalse();
+        assertThat(bobDto.currentStreak()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("groupToday: forbids non-members")
+    void groupTodayForbidsNonMembers() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.groupToday(bob, 42L, java.time.LocalDate.parse("2026-04-30")))
+                .isInstanceOf(ForbiddenException.class);
+        verify(dailyEntries, never()).findByUserInAndDate(any(), any());
+    }
+
+    private static java.time.LocalDate eqDate(java.time.LocalDate d) {
+        return org.mockito.ArgumentMatchers.eq(d);
     }
 
     // -- helpers --
