@@ -1,11 +1,18 @@
-import { useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
 import type { DailyFeedItem } from "../../api/types";
+import { toast } from "../../lib/toast";
 import { palette, surface } from "../../theme/tokens";
 import { space } from "../../theme/spacing";
 import { FriendsTodayCard } from "./FriendsTodayCard";
 import { GroupTodayCard } from "./GroupTodayCard";
+
+// Bumped if/when the page order or the gesture changes — old keys keep
+// returning users out of the toast loop.
+const ONBOARDING_KEY = "today_pager_onboarding_seen_v1";
+const ONBOARDING_DELAY_MS = 800;
 
 interface Props {
   /** Friend daily feed items already resolved by the parent. */
@@ -22,6 +29,33 @@ const PAGES = [
 export function FriendsTodayPager({ friends, date }: Props) {
   const pagerRef = useRef<PagerView>(null);
   const [page, setPage] = useState<number>(0);
+
+  // Onboarding hint: explain the swipe gesture exactly once per device.
+  // The default page is the group view; first-time users would otherwise
+  // not realise the friends feed still exists one swipe over.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    AsyncStorage.getItem(ONBOARDING_KEY)
+      .then((seen) => {
+        if (cancelled || seen === "1") return;
+        timer = setTimeout(() => {
+          if (cancelled) return;
+          toast.info("← → 슬라이드해서 친구들의 오늘로 전환할 수 있어요");
+          AsyncStorage.setItem(ONBOARDING_KEY, "1").catch(() => {
+            // Silent: failing to persist the flag just means the toast
+            // shows again next launch, which is acceptable.
+          });
+        }, ONBOARDING_DELAY_MS);
+      })
+      .catch(() => {
+        // Storage error: skip the toast rather than annoy on every cold start.
+      });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   return (
     <View>
