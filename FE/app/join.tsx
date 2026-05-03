@@ -29,7 +29,11 @@ export default function JoinRoomScreen() {
       const member = await joinRoom(trimmed);
       const minLabel = MIN_DAYS_LABELS[member.currentMinimum] ?? `${member.currentMinimum}일`;
       toast.info(`매월 ${minLabel} 회고를 남기는 그룹이에요.`);
-      router.replace(`/rooms/${member.roomId}`);
+      // Send first-time joiners to the settings page so they can pick
+      // their personal minimum-days override before settling in. The
+      // ?onboarding=1 flag mounts the explanatory banner, and the
+      // settings page redirects back to /rooms/{id} on save.
+      router.replace(`/rooms/${member.roomId}/settings?onboarding=1`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "그룹 참여에 실패했어요.");
     } finally {

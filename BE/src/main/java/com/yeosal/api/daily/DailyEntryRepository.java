@@ -12,12 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface DailyEntryRepository extends JpaRepository<DailyEntry, Long> {
     Optional<DailyEntry> findByUserAndDate(User user, LocalDate date);
-
-    // Group-mode Today reads todos + reflection off these rows; eagerly load
-    // them so the rendering loop doesn't trigger one lazy query per member.
-    @EntityGraph(attributePaths = {"todos", "reflection"})
     List<DailyEntry> findByUserInAndDate(List<User> users, LocalDate date);
-
     List<DailyEntry> findByUserAndDateBetween(User user, LocalDate from, LocalDate to);
 
     /**

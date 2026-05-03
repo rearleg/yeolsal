@@ -7,16 +7,23 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.room.GoalMinimumDays;
+import com.yeosal.api.room.GroupMemberMinimum;
+import com.yeosal.api.room.GroupMemberMinimumRepository;
 import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.user.User;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -28,21 +35,26 @@ public class ChatService {
     /** Cap on a single message body — Postgres TEXT can hold more, but we don't need to. */
     static final int MAX_BODY_LENGTH = 2000;
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+
     /** Shared JSON parser; payloads are always small ({} or a few short fields). */
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final ChatMessageRepository messages;
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
+    private final GroupMemberMinimumRepository minimums;
 
     public ChatService(
             ChatMessageRepository messages,
             RoomRepository rooms,
-            RoomMemberRepository roomMembers
+            RoomMemberRepository roomMembers,
+            GroupMemberMinimumRepository minimums
     ) {
         this.messages = messages;
         this.rooms = rooms;
         this.roomMembers = roomMembers;
+        this.minimums = minimums;
     }
 
     /**
@@ -85,8 +97,13 @@ public class ChatService {
      * (e.g. the daily-service goal hook) is already inside an authenticated
      * write transaction; the room must still exist (asserted here) so that a
      * caller bug can't mask as a silent DB FK failure.
+     *
+     * <p>Runs in {@link Propagation#REQUIRES_NEW}: the actor's primary write
+     * (e.g. {@code DailyService.createOrReplace}) must not roll back if a
+     * single fan-out room can't accept the system message. This mirrors the
+     * isolation pattern PR A applied to {@code NotificationService.sendEvent}.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatMessage publishSystem(long roomId, ChatMessageKind kind, String body, String payload) {
         if (kind == null) {
             throw new IllegalArgumentException("publishSystem kind is required");
@@ -97,6 +114,82 @@ public class ChatService {
         requireRoom(roomId);
         return messages.save(new ChatMessage(
                 roomId, null, kind, normalizeBody(body), parsePayload(payload)));
+    }
+
+    /**
+     * Reflection-time MILESTONE fan-out. For each room {@code actor}
+     * belongs to, publishes a MILESTONE chat row when the actor's
+     * monthly {@code completed} day count has reached
+     * {@link GoalMinimumDays#effectiveRequiredDays} for that room. The
+     * publish is idempotent per (room, actor, month) — repeat calls in
+     * the same calendar month are no-ops, gated by
+     * {@link ChatMessageRepository#existsMilestoneForMonth}.
+     *
+     * <p>Per-room failures (room deleted mid-tx, JSON encode hiccup) are
+     * caught and logged so a noisy room can never block the rest. Runs
+     * in {@link Propagation#REQUIRES_NEW} for the same reason
+     * {@link #publishSystem} does — a chat row failure must not roll
+     * back the actor's reflection write.
+     *
+     * @return number of rooms that received a freshly-published MILESTONE
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int publishMilestonesForActor(User actor, YearMonth month, int completed) {
+        if (actor == null || month == null) {
+            throw new IllegalArgumentException("actor and month are required");
+        }
+        List<Room> rooms;
+        try {
+            rooms = roomMembers.findRoomsByUser(actor);
+        } catch (RuntimeException ex) {
+            log.warn("[chat] milestone room lookup failed actor={}: {}",
+                    actor.getId(), ex.toString());
+            return 0;
+        }
+        String monthKey = month.toString();
+        int published = 0;
+        for (Room room : rooms) {
+            try {
+                GroupMemberMinimum min = minimums
+                        .findByRoomIdAndUserId(room.getId(), actor.getId())
+                        .orElse(null);
+                if (min == null) {
+                    continue;
+                }
+                int required = GoalMinimumDays.effectiveRequiredDays(
+                        min.getMinDailyGoalDays(), month);
+                if (completed < required) {
+                    continue;
+                }
+                String body = normalizeBody(milestoneBody(actor, monthKey, required));
+                String payload = milestonePayload(actor, monthKey, completed, required);
+                // V8 partial unique index serializes the (room, user, month)
+                // tuple, so a concurrent reflection or retried afterCommit
+                // callback collapses to one inserted row.
+                published += messages.insertMilestoneIfAbsent(room.getId(), body, payload);
+            } catch (RuntimeException ex) {
+                log.warn("[chat] milestone publish failed actor={} room={}: {}",
+                        actor.getId(), room.getId(), ex.toString());
+            }
+        }
+        return published;
+    }
+
+    private static String milestoneBody(User actor, String monthKey, int required) {
+        return actor.getNickname()
+                + "님이 " + monthKey + " 그룹 목표 " + required + "일을 달성했어요!";
+    }
+
+    /**
+     * Stable JSON shape for the dedup index.
+     * {@code userId} is rendered as a string so {@code payload->>'userId'}
+     * matches what callers (and the V8 partial unique index) expect.
+     */
+    private static String milestonePayload(
+            User actor, String monthKey, int completed, int required) {
+        return String.format(
+                "{\"userId\":\"%d\",\"month\":\"%s\",\"completedDays\":%d,\"requiredDays\":%d}",
+                actor.getId(), monthKey, completed, required);
     }
 
     private static String normalizeBody(String body) {

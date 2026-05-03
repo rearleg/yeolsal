@@ -3,6 +3,7 @@ import type { ChatMessageDto } from "../../api/chat";
 import { palette, surface } from "../../theme/tokens";
 import { space } from "../../theme/spacing";
 import { Text } from "../ui/Text";
+import { SystemMessage } from "./SystemMessage";
 
 interface Props {
   message: ChatMessageDto;
@@ -13,20 +14,11 @@ interface Props {
 }
 
 export function MessageBubble({ message, selfUserId, senderName }: Props) {
-  const isSystem = message.kind !== "USER";
-  // System-speech messages (PR G) get a centered, bubble-less treatment so a
-  // GOAL/REFLECTION/MILESTONE/AUTO_LEAVE event isn't visually mistaken for a
-  // user line. PR G will swap this stub for a richer <SystemMessage /> with
-  // icons; this default renders the body text plainly so PR F+G handoff
-  // doesn't leave system rows looking like "상대" speech.
-  if (isSystem) {
-    return (
-      <View style={styles.systemRow} accessibilityLabel={`시스템 알림: ${message.body}`}>
-        <Text variant="caption" color={palette.inkMute} style={styles.systemText}>
-          {message.body}
-        </Text>
-      </View>
-    );
+  // Non-USER kinds delegate to <SystemMessage /> for kind-specific icons +
+  // tones (GOAL/REFLECTION/MILESTONE/AUTO_LEAVE). The bubble path stays
+  // user-only.
+  if (message.kind !== "USER") {
+    return <SystemMessage message={message} />;
   }
 
   const mine = selfUserId != null && message.senderUserId === selfUserId;
@@ -90,14 +82,4 @@ const styles = StyleSheet.create({
   },
   timeMine: { marginRight: space[1] },
   timeTheirs: { marginLeft: space[1] },
-  systemRow: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: space[2],
-    paddingHorizontal: space[6],
-  },
-  systemText: {
-    textAlign: "center",
-    lineHeight: 16,
-  },
 });

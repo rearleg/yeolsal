@@ -9,6 +9,7 @@ import {
   listRooms,
   updateMyMinimum,
   type CreateRoomInput,
+  type MemberTodayDto,
   type MinDays,
   type Room,
   type RoomInvite,

@@ -3,37 +3,40 @@ package com.yeosal.api.room;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
-import com.yeosal.api.daily.DailyEntry;
-import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
-import com.yeosal.api.daily.TodoItem;
-import com.yeosal.api.profile.GrassDay;
+import com.yeosal.api.room.chat.ChatMessageKind;
+import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.User;
+import com.yeosal.api.user.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Comparator;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class RoomService {
 
-    /** Streak window mirrors the friend feed; longer than 365 doesn't add UX value. */
-    private static final int STREAK_WINDOW_DAYS = 365;
+    private static final Logger log = LoggerFactory.getLogger(RoomService.class);
 
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final RoomInviteRepository roomInvites;
     private final GroupMemberMinimumRepository minimums;
-    private final DailyEntryRepository dailyEntries;
+    private final GroupWarningRepository warnings;
+    private final UserRepository users;
     private final DailyService dailyService;
+    private final ChatService chatService;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
 
@@ -42,8 +45,10 @@ public class RoomService {
             RoomMemberRepository roomMembers,
             RoomInviteRepository roomInvites,
             GroupMemberMinimumRepository minimums,
-            DailyEntryRepository dailyEntries,
+            GroupWarningRepository warnings,
+            UserRepository users,
             DailyService dailyService,
+            ChatService chatService,
             InviteCodeGenerator codeGenerator,
             Clock clock
     ) {
@@ -51,8 +56,10 @@ public class RoomService {
         this.roomMembers = roomMembers;
         this.roomInvites = roomInvites;
         this.minimums = minimums;
-        this.dailyEntries = dailyEntries;
+        this.warnings = warnings;
+        this.users = users;
         this.dailyService = dailyService;
+        this.chatService = chatService;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
     }
@@ -208,94 +215,6 @@ public class RoomService {
                 .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
     }
 
-    /**
-     * Per-member snapshot for the Today screen's group-mode card.
-     * Mirrors {@code FriendController.DailyFeedItem} so the FE can switch
-     * between friends and group lists without reshaping data.
-     *
-     * <p>One DB round-trip pulls every member's day-of entry; a second pulls
-     * the streak window (365d) for all members at once and we stitch in
-     * memory. This is the same shape as {@code FriendService.dailyFeed}.
-     */
-    @Transactional(readOnly = true)
-    public List<MemberTodayDto> groupToday(User viewer, long roomId, LocalDate date) {
-        Room room = requireRoom(roomId);
-        requireMembership(room, viewer);
-
-        List<RoomMember> members = roomMembers.findByRoom(room);
-        if (members.isEmpty()) {
-            return List.of();
-        }
-        List<User> users = members.stream().map(RoomMember::getUser).toList();
-        List<DailyEntry> todayEntries = dailyEntries.findByUserInAndDate(users, date);
-        Map<Long, DailyEntry> entryByUserId = todayEntries.stream()
-                .collect(Collectors.toMap(e -> e.getUser().getId(), e -> e));
-
-        LocalDate streakFrom = date.minusDays(STREAK_WINDOW_DAYS - 1L);
-        List<DailyEntry> streakEntries =
-                dailyEntries.findGrassEntriesByUsersBetween(users, streakFrom, date);
-        Map<Long, List<DailyEntry>> streakByUser = streakEntries.stream()
-                .collect(Collectors.groupingBy(e -> e.getUser().getId()));
-
-        return members.stream()
-                // joinedAt is set in @PrePersist; tolerate nulls so unit tests
-                // that build RoomMember in-memory don't blow up the sort. The
-                // user-id tie-breaker keeps ordering stable across requests
-                // when two members joined the same instant (or both are null
-                // in tests).
-                .sorted(Comparator
-                        .comparing(
-                                RoomMember::getJoinedAt,
-                                Comparator.nullsFirst(Comparator.naturalOrder()))
-                        .thenComparing(rm -> rm.getUser().getId()))
-                .map(rm -> {
-                    User user = rm.getUser();
-                    List<DailyEntry> window = streakByUser.getOrDefault(user.getId(), List.of());
-                    List<GrassDay> grass =
-                            dailyService.grassFromEntries(user, streakFrom, date, window);
-                    int streak = dailyService.streakFromGrass(date, grass);
-                    DailyEntry entry = entryByUserId.get(user.getId());
-                    if (entry == null) {
-                        return new MemberTodayDto(
-                                user.getId(),
-                                user.getNickname(),
-                                date,
-                                "",
-                                false,
-                                0,
-                                false,
-                                streak
-                        );
-                    }
-                    boolean goalSet = entry.getGoal() != null && !entry.getGoal().isBlank();
-                    int completedTodos = (int) entry.getTodos().stream()
-                            .filter(TodoItem::isCompleted)
-                            .count();
-                    return new MemberTodayDto(
-                            user.getId(),
-                            user.getNickname(),
-                            date,
-                            entry.getGoal(),
-                            goalSet,
-                            completedTodos,
-                            entry.getReflection() != null,
-                            streak
-                    );
-                })
-                .toList();
-    }
-
-    public record MemberTodayDto(
-            long userId,
-            String nickname,
-            LocalDate date,
-            String goal,
-            boolean goalSet,
-            int completedTodoCount,
-            boolean reflectionSubmitted,
-            int currentStreak
-    ) {}
-
     public record RoomSummary(long id, String name, long ownerId, int maxMembers, int minDailyGoalDays) {
         public static RoomSummary from(Room room) {
             return new RoomSummary(
@@ -340,4 +259,127 @@ public class RoomService {
             );
         }
     }
+
+    /**
+     * Per-room run of the monthly minimum-days evaluator. Counts each
+     * active member's mission-completed days in {@code month} (KST) and:
+     * <ul>
+     *   <li>writes an idempotent {@code group_warnings} audit row when the
+     *       member fell short of their personal minimum,</li>
+     *   <li>increments the membership-side {@code warning_count} (capped
+     *       at 2 by {@link GroupMemberMinimum#incrementWarningCount()}),</li>
+     *   <li>auto-removes the member at warning_count = 2 — except for the
+     *       room owner, who keeps their seat so the room is never silently
+     *       orphaned by the cron.</li>
+     * </ul>
+     *
+     * <p>Idempotency lives at the audit row: a re-fired cron writes 0 rows
+     * via the unique {@code (room_id, user_id, evaluation_month)} key, so
+     * the membership counter never double-increments.
+     *
+     * <p>The auto-leave chat publish is registered for {@code afterCommit}
+     * so a chat-row write that fails (room deleted mid-cron, …) cannot roll
+     * back the warning audit. {@link ChatService#publishSystem} runs in
+     * its own {@code REQUIRES_NEW} transaction for the same reason.
+     */
+    @Transactional
+    public EvaluationResult evaluateRoom(long roomId, YearMonth month) {
+        if (month == null) {
+            throw new IllegalArgumentException("month is required");
+        }
+        Room room = rooms.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+        Long ownerId = room.getOwner().getId();
+        LocalDate evaluationMonth = month.atDay(1);
+        String monthKey = month.toString();
+
+        // Pessimistic-write so an overlapping evaluation for a *different*
+        // YearMonth (admin backfill, retry) can't race-read warning_count
+        // and clobber our increment with theirs. Same-month re-fires are
+        // still squashed by the audit-row UNIQUE key inside the loop.
+        List<GroupMemberMinimum> active = minimums.findByRoomIdForEvaluation(roomId);
+        int evaluated = 0;
+        int newWarnings = 0;
+        int autoLefts = 0;
+
+        for (GroupMemberMinimum membership : active) {
+            evaluated += 1;
+            int required = GoalMinimumDays.effectiveRequiredDays(
+                    membership.getMinDailyGoalDays(), month);
+            User member = users.findById(membership.getUserId()).orElse(null);
+            if (member == null) {
+                log.warn("[evaluator] orphaned minimum row roomId={} userId={}",
+                        roomId, membership.getUserId());
+                continue;
+            }
+            int completed;
+            try {
+                completed = dailyService.monthlyCompletedCount(member, monthKey);
+            } catch (RuntimeException ex) {
+                log.warn("[evaluator] monthly count failed roomId={} userId={}: {}",
+                        roomId, member.getId(), ex.toString());
+                continue;
+            }
+            if (completed >= required) {
+                continue;
+            }
+            int prospective = Math.min(2, membership.getWarningCount() + 1);
+            int inserted = warnings.insertIfAbsent(
+                    roomId,
+                    member.getId(),
+                    evaluationMonth,
+                    (short) Math.min(31, completed),
+                    (short) Math.min(31, required),
+                    (short) prospective);
+            if (inserted == 0) {
+                continue;
+            }
+            membership.incrementWarningCount();
+            newWarnings += 1;
+            if (membership.getWarningCount() >= 2 && !member.getId().equals(ownerId)) {
+                roomMembers.deleteByRoomAndUser(room, member);
+                publishAutoLeaveAfterCommit(roomId, member, month, completed, required);
+                autoLefts += 1;
+            } else if (membership.getWarningCount() >= 2) {
+                log.info(
+                        "[evaluator] owner reached 2 warnings room={} owner={} — keeping seat",
+                        roomId, ownerId);
+            }
+        }
+        return new EvaluationResult(roomId, month, evaluated, newWarnings, autoLefts);
+    }
+
+    private void publishAutoLeaveAfterCommit(
+            long roomId, User member, YearMonth month, int completed, int required) {
+        String body = member.getNickname() + "님이 최소 목표일수를 채우지 못해 그룹에서 자동 탈퇴되었어요.";
+        String payload = String.format(
+                "{\"userId\":%d,\"month\":\"%s\",\"completedDays\":%d,\"requiredDays\":%d}",
+                member.getId(), month, completed, required);
+        Runnable publish = () -> {
+            try {
+                chatService.publishSystem(roomId, ChatMessageKind.AUTO_LEAVE, body, payload);
+            } catch (RuntimeException ex) {
+                log.warn("[evaluator] AUTO_LEAVE chat publish failed roomId={} userId={}: {}",
+                        roomId, member.getId(), ex.toString());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
+    }
+
+    public record EvaluationResult(
+            long roomId,
+            YearMonth month,
+            int evaluatedMembers,
+            int newWarnings,
+            int autoLefts
+    ) {}
 }

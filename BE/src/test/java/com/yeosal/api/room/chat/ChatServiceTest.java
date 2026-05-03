@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.room.GroupMemberMinimum;
+import com.yeosal.api.room.GroupMemberMinimumRepository;
 import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMember;
 import com.yeosal.api.room.RoomMemberRepository;
@@ -19,6 +21,7 @@ import com.yeosal.api.room.RoomRole;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +39,7 @@ class ChatServiceTest {
     @Mock private ChatMessageRepository messages;
     @Mock private RoomRepository rooms;
     @Mock private RoomMemberRepository roomMembers;
+    @Mock private GroupMemberMinimumRepository minimums;
 
     private ChatService service;
     private User alice;
@@ -44,7 +48,7 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ChatService(messages, rooms, roomMembers);
+        service = new ChatService(messages, rooms, roomMembers, minimums);
         alice = makeUser(1L, "Alice");
         bob = makeUser(2L, "Bob");
         room = makeRoom(42L, "기본 방", alice);
@@ -217,6 +221,80 @@ class ChatServiceTest {
         assertThatThrownBy(() ->
                 service.publishSystem(99L, ChatMessageKind.GOAL, "x", "{}"))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("publishMilestonesForActor: writes one MILESTONE row per qualifying room via atomic upsert")
+    void publishMilestoneFanOut() {
+        Room r1 = makeRoom(42L, "방1", alice);
+        Room r2 = makeRoom(43L, "방2", alice);
+        when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1, r2));
+        when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
+                Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 15)));
+        when(minimums.findByRoomIdAndUserId(43L, bob.getId())).thenReturn(
+                Optional.of(new GroupMemberMinimum(43L, bob.getId(), (short) 10)));
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        when(messages.insertMilestoneIfAbsent(eq(42L), bodyCaptor.capture(), payloadCaptor.capture()))
+                .thenReturn(1);
+        when(messages.insertMilestoneIfAbsent(eq(43L), any(String.class), any(String.class)))
+                .thenReturn(1);
+
+        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 16);
+
+        assertThat(published).isEqualTo(2);
+        assertThat(bodyCaptor.getValue()).contains("Bob").contains("2026-04").contains("15일");
+        assertThat(payloadCaptor.getValue())
+                .contains("\"userId\":\"2\"")
+                .contains("\"month\":\"2026-04\"")
+                .contains("\"completedDays\":16")
+                .contains("\"requiredDays\":15");
+    }
+
+    @Test
+    @DisplayName("publishMilestonesForActor: insertMilestoneIfAbsent returning 0 means already announced")
+    void publishMilestoneSkipsAlreadyAnnounced() {
+        Room r1 = makeRoom(42L, "방1", alice);
+        when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
+        when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
+                Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 15)));
+        when(messages.insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class)))
+                .thenReturn(0);
+
+        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 20);
+
+        assertThat(published).isZero();
+    }
+
+    @Test
+    @DisplayName("publishMilestonesForActor: skips rooms where completed < required without touching the DB")
+    void publishMilestoneSkipsBelowThreshold() {
+        Room r1 = makeRoom(42L, "방1", alice);
+        when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
+        when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
+                Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 20)));
+
+        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 15);
+
+        assertThat(published).isZero();
+        verify(messages, never())
+                .insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class));
+    }
+
+    @Test
+    @DisplayName("publishMilestonesForActor: minimum=31 in a 30-day month caps required at month length")
+    void publishMilestoneCapsThirtyOneToMonthLength() {
+        Room r1 = makeRoom(42L, "방1", alice);
+        when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
+        when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
+                Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 31)));
+        when(messages.insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class)))
+                .thenReturn(1);
+
+        // April 2026 has 30 days. completed=30 satisfies the capped requirement.
+        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 30);
+
+        assertThat(published).isEqualTo(1);
     }
 
     private static User makeUser(long id, String nickname) {

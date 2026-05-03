@@ -1,5 +1,6 @@
 package com.yeosal.api.room;
 
+import java.time.YearMonth;
 import java.util.Set;
 
 /**
@@ -23,5 +24,18 @@ public final class GoalMinimumDays {
 
     public static boolean isAllowed(int value) {
         return ALLOWED.contains(value);
+    }
+
+    /**
+     * Resolves the actual day count required in {@code month} for a
+     * member whose configured minimum is {@code minDailyGoalDays}. The
+     * {@code 31} sentinel ("every day") is capped at the calendar length
+     * of the month, so February doesn't auto-warn members and December
+     * still requires all 31. Shared between the monthly evaluator and
+     * the reflection MILESTONE hook.
+     */
+    public static int effectiveRequiredDays(short minDailyGoalDays, YearMonth month) {
+        int min = minDailyGoalDays;
+        return min >= 31 ? month.lengthOfMonth() : min;
     }
 }
