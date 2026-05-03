@@ -1,7 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { RoomInvite } from "../../api/rooms";
+import { toast } from "../../lib/toast";
 import { layout, space } from "../../theme/spacing";
 import { palette, surface } from "../../theme/tokens";
 import { Button } from "../ui/Button";
@@ -62,9 +65,31 @@ export function InviteCodeSheet({
         <View style={styles.body}>
           {invite ? (
             <View style={styles.codeBox}>
-              <Text variant="display" weight="800">
-                {invite.code}
-              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="초대 코드 길게 눌러 복사"
+                accessibilityHint="길게 누르면 초대 코드만 클립보드에 복사돼요"
+                delayLongPress={400}
+                onLongPress={async () => {
+                  try {
+                    await Clipboard.setStringAsync(invite.code);
+                  } catch {
+                    // Clipboard write can fail on locked-down enterprise
+                    // builds; abandon silently rather than fake a copy.
+                    return;
+                  }
+                  // Haptic is a nice-to-have — never block the toast on it.
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success,
+                  ).catch(() => undefined);
+                  toast.success("초대 코드를 복사했어요");
+                }}
+                style={styles.codePress}
+              >
+                <Text variant="display" weight="800">
+                  {invite.code}
+                </Text>
+              </Pressable>
               {invite.expiresAt ? (
                 <Text variant="caption" color={palette.inkMute}>
                   유효기간: {new Date(invite.expiresAt).toLocaleDateString("ko-KR")}
@@ -131,5 +156,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: surface.sunken,
     gap: space[2],
+  },
+  codePress: {
+    paddingHorizontal: space[2],
+    paddingVertical: space[1],
   },
 });
