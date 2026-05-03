@@ -5,6 +5,7 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.user.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -78,6 +80,16 @@ public class RoomController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/members/me/minimum")
+    public ApiResponse<RoomService.MemberSummary> updateMyMinimum(
+            Authentication auth,
+            @PathVariable long id,
+            @Valid @RequestBody UpdateMinimumRequest body
+    ) {
+        User me = currentUser.require(auth);
+        return ApiResponse.of(roomService.updateMyMinimum(me, id, body.minDailyGoalDays()));
+    }
+
     public record CreateRoomRequest(
             @NotBlank @Size(max = 80) String name,
             // Nullable for backwards-compat with FE bundles that haven't shipped
@@ -87,4 +99,6 @@ public class RoomController {
     ) {}
 
     public record JoinRequest(@NotBlank @Size(min = 4, max = 32) String code) {}
+
+    public record UpdateMinimumRequest(@NotNull Integer minDailyGoalDays) {}
 }
