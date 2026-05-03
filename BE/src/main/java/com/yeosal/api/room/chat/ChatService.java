@@ -1,0 +1,161 @@
+package com.yeosal.api.room.chat;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.yeosal.api.common.BadRequestException;
+import com.yeosal.api.common.ForbiddenException;
+import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.room.Room;
+import com.yeosal.api.room.RoomMemberRepository;
+import com.yeosal.api.room.RoomRepository;
+import com.yeosal.api.user.User;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ChatService {
+
+    /** Hard cap on a single fetch page so a misbehaving client cannot bomb the API. */
+    static final int MAX_PAGE_SIZE = 50;
+    static final int DEFAULT_PAGE_SIZE = 30;
+    /** Cap on a single message body — Postgres TEXT can hold more, but we don't need to. */
+    static final int MAX_BODY_LENGTH = 2000;
+
+    /** Shared JSON parser; payloads are always small ({} or a few short fields). */
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private final ChatMessageRepository messages;
+    private final RoomRepository rooms;
+    private final RoomMemberRepository roomMembers;
+
+    public ChatService(
+            ChatMessageRepository messages,
+            RoomRepository rooms,
+            RoomMemberRepository roomMembers
+    ) {
+        this.messages = messages;
+        this.rooms = rooms;
+        this.roomMembers = roomMembers;
+    }
+
+    /**
+     * Cursor pagination, descending by id. The response is reversed back to
+     * ascending so the FE can render bottom-anchored without flipping again.
+     * {@code cursor=null} fetches the most recent page.
+     */
+    @Transactional(readOnly = true)
+    public MessagePage list(User viewer, long roomId, Long cursor, int limit) {
+        Room room = requireRoom(roomId);
+        requireMembership(room, viewer);
+        int capped = limit <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limit, MAX_PAGE_SIZE);
+        Long anchor = cursor == null ? Long.MAX_VALUE : cursor;
+        List<ChatMessage> desc = messages.findByRoomIdAndIdLessThanOrderByIdDesc(
+                room.getId(), anchor, PageRequest.of(0, capped));
+        Long nextCursor = desc.size() == capped ? desc.get(desc.size() - 1).getId() : null;
+        // Reverse to ascending so newest appears at the bottom of the FE list.
+        List<ChatMessage> asc = new ArrayList<>(desc);
+        Collections.reverse(asc);
+        return new MessagePage(asc.stream().map(MessageDto::from).toList(), nextCursor);
+    }
+
+    /**
+     * User-authored message. {@code SYSTEM*} kinds go through the publish
+     * helpers below so the controller can never write a non-USER message.
+     */
+    @Transactional
+    public MessageDto sendUserMessage(User viewer, long roomId, String body) {
+        Room room = requireRoom(roomId);
+        requireMembership(room, viewer);
+        String trimmed = normalizeBody(body);
+        ChatMessage saved = messages.save(
+                new ChatMessage(room.getId(), viewer.getId(), ChatMessageKind.USER, trimmed));
+        return MessageDto.from(saved);
+    }
+
+    /**
+     * PR G hook entry point. Writes a system-speech row with no sender and a
+     * structured payload. Membership is *not* re-checked because the caller
+     * (e.g. the daily-service goal hook) is already inside an authenticated
+     * write transaction; the room must still exist (asserted here) so that a
+     * caller bug can't mask as a silent DB FK failure.
+     */
+    @Transactional
+    public ChatMessage publishSystem(long roomId, ChatMessageKind kind, String body, String payload) {
+        if (kind == null) {
+            throw new IllegalArgumentException("publishSystem kind is required");
+        }
+        if (kind == ChatMessageKind.USER) {
+            throw new IllegalArgumentException("publishSystem must not write USER kind");
+        }
+        requireRoom(roomId);
+        return messages.save(new ChatMessage(
+                roomId, null, kind, normalizeBody(body), parsePayload(payload)));
+    }
+
+    private static String normalizeBody(String body) {
+        String trimmed = body == null ? "" : body.trim();
+        if (trimmed.isEmpty()) {
+            throw new BadRequestException("메시지 내용을 입력하세요.");
+        }
+        if (trimmed.length() > MAX_BODY_LENGTH) {
+            throw new BadRequestException("메시지가 너무 깁니다. (" + MAX_BODY_LENGTH + "자 이하)");
+        }
+        return trimmed;
+    }
+
+    private static JsonNode parsePayload(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return JsonNodeFactory.instance.objectNode();
+        }
+        try {
+            JsonNode node = JSON.readTree(payload);
+            if (!node.isObject()) {
+                throw new IllegalArgumentException("system message payload must be a JSON object");
+            }
+            return node;
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("system message payload must be valid JSON", ex);
+        }
+    }
+
+    private Room requireRoom(long roomId) {
+        return rooms.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+    }
+
+    private void requireMembership(Room room, User user) {
+        roomMembers.findByRoomAndUser(room, user)
+                .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
+    }
+
+    public record MessageDto(
+            long id,
+            long roomId,
+            Long senderUserId,
+            ChatMessageKind kind,
+            String body,
+            JsonNode payload,
+            Instant createdAt
+    ) {
+        public static MessageDto from(ChatMessage m) {
+            return new MessageDto(
+                    m.getId(),
+                    m.getRoomId(),
+                    m.getSenderUserId(),
+                    m.getKind(),
+                    m.getBody(),
+                    m.getPayload(),
+                    m.getCreatedAt()
+            );
+        }
+    }
+
+    public record MessagePage(List<MessageDto> messages, Long nextCursor) {}
+}
