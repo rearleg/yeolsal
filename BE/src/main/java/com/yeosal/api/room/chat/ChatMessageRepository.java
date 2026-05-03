@@ -45,12 +45,17 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             @Param("month") String month);
 
     /**
-     * Atomic once-per-(room, user, month) MILESTONE insert. The V8
+     * Atomic once-per-(room, user, date) MILESTONE insert. The V9
      * partial unique expression index over
-     * {@code (room_id, payload->>'userId', payload->>'month') WHERE kind = 'MILESTONE'}
+     * {@code (room_id, payload->>'userId', payload->>'date') WHERE kind = 'MILESTONE'}
      * is the source of truth — concurrent reflections, retried
-     * afterCommit callbacks, and double-fired schedulers all converge
-     * to a single row. Returns the rows actually inserted (0 or 1).
+     * afterCommit callbacks, and a duplicate same-day publish all
+     * converge to a single row. Returns the rows actually inserted
+     * (0 or 1).
+     *
+     * <p>The product semantic shifted from "once a month at the
+     * threshold" (V8) to "once a day per (goal+reflection) entry"
+     * (V9), so the dedup tuple followed.
      *
      * <p>{@code payload} is a literal JSON object as a String; it is
      * cast to {@code jsonb} so JSONB-side validation rejects malformed
@@ -63,7 +68,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             on conflict (
                 room_id,
                 ((payload ->> 'userId')),
-                ((payload ->> 'month'))
+                ((payload ->> 'date'))
             ) where kind = 'MILESTONE'
             do nothing
             """, nativeQuery = true)

@@ -1,5 +1,5 @@
-import { FlashList } from "@shopify/flash-list";
-import { useMemo } from "react";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import type { ChatMessageDto } from "../../api/chat";
 import { palette, surface } from "../../theme/tokens";
@@ -31,6 +31,18 @@ export function ChatList({
   // shape natural (ascending) while letting the screen render newest-down.
   const data = useMemo(() => [...messages].reverse(), [messages]);
 
+  const listRef = useRef<FlashListRef<ChatMessageDto>>(null);
+  // Newest-message id watcher: fires the moment the user (or anyone in
+  // the room) sends a fresh message, so the inverted list snaps back to
+  // its visual bottom even if the user had scrolled up. `loadOlder`
+  // prepends to the head of `messages`, which leaves the tail id
+  // unchanged — that path stays scroll-stable on purpose.
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  useEffect(() => {
+    if (lastMessageId == null) return;
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [lastMessageId]);
+
   if (messages.length === 0) {
     return (
       <View style={styles.empty}>
@@ -49,6 +61,7 @@ export function ChatList({
   // toward older history.
   return (
     <FlashList
+      ref={listRef}
       data={data}
       style={styles.flipped}
       keyExtractor={(item: ChatMessageDto) => String(item.id)}

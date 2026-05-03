@@ -15,6 +15,7 @@ import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.user.User;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -118,12 +119,14 @@ public class ChatService {
 
     /**
      * Reflection-time MILESTONE fan-out. For each room {@code actor}
-     * belongs to, publishes a MILESTONE chat row when the actor's
-     * monthly {@code completed} day count has reached
-     * {@link GoalMinimumDays#effectiveRequiredDays} for that room. The
-     * publish is idempotent per (room, actor, month) — repeat calls in
-     * the same calendar month are no-ops, gated by
-     * {@link ChatMessageRepository#existsMilestoneForMonth}.
+     * belongs to, publishes a daily progress chat row of the form
+     * "alice님 15일 중 7일 완료!" — the announcement now fires every
+     * day the actor files both today's goal AND today's reflection,
+     * not only when the monthly threshold is finally reached.
+     *
+     * <p>Idempotent per (room, actor, date) via the V9 partial unique
+     * expression index, so a same-day retry / second reflection
+     * collapses to one inserted row.
      *
      * <p>Per-room failures (room deleted mid-tx, JSON encode hiccup) are
      * caught and logged so a noisy room can never block the rest. Runs
@@ -134,9 +137,14 @@ public class ChatService {
      * @return number of rooms that received a freshly-published MILESTONE
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int publishMilestonesForActor(User actor, YearMonth month, int completed) {
-        if (actor == null || month == null) {
-            throw new IllegalArgumentException("actor and month are required");
+    public int publishMilestonesForActor(
+            User actor, YearMonth month, LocalDate date, int completed) {
+        if (actor == null || month == null || date == null) {
+            throw new IllegalArgumentException("actor, month, and date are required");
+        }
+        if (completed <= 0) {
+            // No progress to announce.
+            return 0;
         }
         List<Room> rooms;
         try {
@@ -146,7 +154,7 @@ public class ChatService {
                     actor.getId(), ex.toString());
             return 0;
         }
-        String monthKey = month.toString();
+        String dateKey = date.toString();
         int published = 0;
         for (Room room : rooms) {
             try {
@@ -158,14 +166,11 @@ public class ChatService {
                 }
                 int required = GoalMinimumDays.effectiveRequiredDays(
                         min.getMinDailyGoalDays(), month);
-                if (completed < required) {
-                    continue;
-                }
-                String body = normalizeBody(milestoneBody(actor, monthKey, required));
-                String payload = milestonePayload(actor, monthKey, completed, required);
-                // V8 partial unique index serializes the (room, user, month)
-                // tuple, so a concurrent reflection or retried afterCommit
-                // callback collapses to one inserted row.
+                String body = normalizeBody(milestoneBody(actor, completed, required));
+                String payload = milestonePayload(actor, dateKey, completed, required);
+                // V9 partial unique index serializes the (room, user, date)
+                // tuple, so a same-day duplicate publish collapses to one
+                // inserted row.
                 published += messages.insertMilestoneIfAbsent(room.getId(), body, payload);
             } catch (RuntimeException ex) {
                 log.warn("[chat] milestone publish failed actor={} room={}: {}",
@@ -175,21 +180,22 @@ public class ChatService {
         return published;
     }
 
-    private static String milestoneBody(User actor, String monthKey, int required) {
+    private static String milestoneBody(User actor, int completed, int required) {
         return actor.getNickname()
-                + "님이 " + monthKey + " 그룹 목표 " + required + "일을 달성했어요!";
+                + "님 " + required + "일 중 " + completed + "일 완료!";
     }
 
     /**
      * Stable JSON shape for the dedup index.
      * {@code userId} is rendered as a string so {@code payload->>'userId'}
-     * matches what callers (and the V8 partial unique index) expect.
+     * matches what callers (and the V9 partial unique index) expect.
+     * {@code date} is "YYYY-MM-DD" KST per actor's group day.
      */
     private static String milestonePayload(
-            User actor, String monthKey, int completed, int required) {
+            User actor, String dateKey, int completed, int required) {
         return String.format(
-                "{\"userId\":\"%d\",\"month\":\"%s\",\"completedDays\":%d,\"requiredDays\":%d}",
-                actor.getId(), monthKey, completed, required);
+                "{\"userId\":\"%d\",\"date\":\"%s\",\"completedDays\":%d,\"requiredDays\":%d}",
+                actor.getId(), dateKey, completed, required);
     }
 
     private static String normalizeBody(String body) {
