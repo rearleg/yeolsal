@@ -138,7 +138,8 @@ public class NotificationService {
         return switch (kind) {
             case GOAL_NUDGE -> pref.isGoalNudgeEnabled();
             case REFLECTION_NUDGE -> pref.isReflectionNudgeEnabled();
-            case FRIEND_GOAL, FRIEND_REFLECTION -> pref.isEventHooksEnabled();
+            case FRIEND_GOAL, FRIEND_REFLECTION,
+                 FRIEND_REQUEST_RECEIVED, FRIEND_REQUEST_ACCEPTED -> pref.isEventHooksEnabled();
         };
     }
 
