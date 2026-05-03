@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import type { ChatMessageDto } from "../../api/chat";
 import { palette, surface } from "../../theme/tokens";
@@ -38,8 +38,24 @@ export function ChatList({
   // prepends to the head of `messages`, which leaves the tail id
   // unchanged — that path stays scroll-stable on purpose.
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  // `pendingNewMessageRef` is set when a new tail id appears and cleared
+  // by `onContentSizeChange` once FlashList has actually laid out the
+  // new row. Without this two-step the previous useEffect fired
+  // scrollToOffset BEFORE FlashList processed the new data, so the user
+  // saw the previous newest pinned to the bottom — exactly the
+  // "send → must drag down to see my message" regression.
+  const pendingNewMessageRef = useRef<boolean>(false);
+  const lastFiredIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (lastMessageId == null) return;
+    if (lastFiredIdRef.current === lastMessageId) return;
+    pendingNewMessageRef.current = true;
+  }, [lastMessageId]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (!pendingNewMessageRef.current) return;
+    pendingNewMessageRef.current = false;
+    lastFiredIdRef.current = lastMessageId;
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, [lastMessageId]);
 
@@ -76,6 +92,7 @@ export function ChatList({
           />
         </View>
       )}
+      onContentSizeChange={handleContentSizeChange}
       onEndReached={() => {
         if (hasOlder && !loadingOlder && onLoadOlder) onLoadOlder();
       }}
