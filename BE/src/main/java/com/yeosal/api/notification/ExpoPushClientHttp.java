@@ -27,15 +27,16 @@ public class ExpoPushClientHttp implements ExpoPushClient {
     private final RestTemplate http = new RestTemplate();
 
     @Override
-    public boolean send(List<String> tokens, String title, String body) {
+    public boolean send(List<String> tokens, String title, String body, Map<String, Object> data) {
         if (tokens == null || tokens.isEmpty()) {
             return false;
         }
-        Map<String, Object> payload = Map.of(
-                "to", tokens,
-                "title", title,
-                "body", body
-        );
+        // Expo forwards `data` verbatim to the device; FE listener routes
+        // off `data.kind`. Empty map is safely omitted from the wire so
+        // we don't bloat every legacy nudge payload.
+        Map<String, Object> payload = (data == null || data.isEmpty())
+                ? Map.of("to", tokens, "title", title, "body", body)
+                : Map.of("to", tokens, "title", title, "body", body, "data", data);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         try {

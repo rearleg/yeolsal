@@ -8,5 +8,9 @@ public enum NotificationKind {
     /** Event hook — friend posted a daily goal. Debounced 30 min per friend. */
     FRIEND_GOAL,
     /** Event hook — friend submitted a reflection. Debounced 30 min per friend. */
-    FRIEND_REFLECTION
+    FRIEND_REFLECTION,
+    /** Event hook — someone sent the user a friend request. Debounced 30 min per requester. */
+    FRIEND_REQUEST_RECEIVED,
+    /** Event hook — the user's outgoing friend request was accepted. Debounced 30 min per addressee. */
+    FRIEND_REQUEST_ACCEPTED
 }
