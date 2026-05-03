@@ -108,10 +108,27 @@ public class DailyService {
     @Transactional
     public DailyController.DailyEntryDto updateToday(User user, DailyController.DailyEntryUpdate request) {
         LocalDate today = currentEntryDate(user);
-        DailyEntry entry = dailyEntries.findByUserAndDate(user, today)
-                .orElseGet(() -> new DailyEntry(user, today, request.goal().trim()));
-        entry.setGoal(request.goal().trim());
-        return toDto(dailyEntries.save(entry));
+        java.util.Optional<DailyEntry> existing = dailyEntries.findByUserAndDate(user, today);
+        // FE sends the goal save through PATCH /daily-entries/today (this
+        // method), not POST /daily-entries (createOrReplace). The same
+        // firstGoalToday semantics live here too — re-saving the same
+        // already-filled goal must not re-broadcast.
+        boolean firstGoalToday = existing
+                .map(e -> e.getGoal() == null || e.getGoal().isBlank())
+                .orElse(true);
+        String trimmed = request.goal() == null ? "" : request.goal().trim();
+        DailyEntry entry = existing
+                .orElseGet(() -> new DailyEntry(user, today, trimmed));
+        entry.setGoal(trimmed);
+        DailyController.DailyEntryDto dto = toDto(dailyEntries.save(entry));
+        if (firstGoalToday && !trimmed.isBlank()) {
+            fanOutEvent(user, NotificationKind.FRIEND_GOAL,
+                    "FRIEND_GOAL:" + user.getId() + ":" + today,
+                    user.getNickname() + "님이 오늘의 목표를 정했어요",
+                    trimmed);
+            publishGoalSystemMessages(user, today, entry.getId());
+        }
+        return dto;
     }
 
     @Transactional
