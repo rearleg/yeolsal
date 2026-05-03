@@ -40,6 +40,19 @@ export interface RoomInvite {
   expiresAt: string | null;
 }
 
+/** Per-member snapshot for the Today screen's group-mode card. Mirrors
+ * BE {@code RoomService.MemberTodayDto}. {@code date} is ISO yyyy-MM-dd. */
+export interface MemberTodayDto {
+  userId: number;
+  nickname: string;
+  date: string;
+  goal: string;
+  goalSet: boolean;
+  completedTodoCount: number;
+  reflectionSubmitted: boolean;
+  currentStreak: number;
+}
+
 export interface CreateRoomInput {
   name: string;
   minDailyGoalDays: MinDays;
@@ -63,6 +76,17 @@ export async function createRoom(input: CreateRoomInput): Promise<Room> {
 
 export async function listMembers(roomId: number): Promise<RoomMember[]> {
   const envelope = await apiRequest<ApiEnvelope<RoomMember[]>>(`/rooms/${roomId}/members`);
+  return envelope.data;
+}
+
+/**
+ * Fetches the day-of snapshot for every member of {@code roomId}. {@code date}
+ * is the entry-date the FE wants to render (typically {@code entryDateOf()}).
+ */
+export async function getRoomToday(roomId: number, date: string): Promise<MemberTodayDto[]> {
+  const envelope = await apiRequest<ApiEnvelope<MemberTodayDto[]>>(
+    `/rooms/${roomId}/today?date=${encodeURIComponent(date)}`,
+  );
   return envelope.data;
 }
 

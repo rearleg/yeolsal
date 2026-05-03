@@ -55,8 +55,9 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Missing or unparseable @RequestParam (e.g. {@code ?cursor=not-a-number}).
-     * Without this mapping these surface as the generic 500 path, which the FE
+     * Missing or unparseable @RequestParam (e.g. {@code ?date=not-a-date}). Without
+     * this mapping these surface as the generic {@link Exception} 500, which the FE
+
      * 5xx branch then reports to Sentry as if it were a server bug.
      */
     @ExceptionHandler({
