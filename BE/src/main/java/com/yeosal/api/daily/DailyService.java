@@ -82,12 +82,20 @@ public class DailyService {
     @Transactional
     public DailyController.DailyEntryDto createOrReplace(User user, DailyController.DailyEntryCreate request) {
         LocalDate today = currentEntryDate(user);
-        boolean isNew = dailyEntries.findByUserAndDate(user, today).isEmpty();
-        DailyEntry entry = dailyEntries.findByUserAndDate(user, today)
+        java.util.Optional<DailyEntry> existing = dailyEntries.findByUserAndDate(user, today);
+        // The hook fires once per (user, day) on the *first* non-blank goal,
+        // not once per entry-row creation. An empty entry left behind by an
+        // earlier today() poll or a failed save would otherwise swallow the
+        // GOAL chat row even on the user's very first goal text.
+        boolean firstGoalToday = existing
+                .map(e -> e.getGoal() == null || e.getGoal().isBlank())
+                .orElse(true);
+        DailyEntry entry = existing
                 .orElseGet(() -> new DailyEntry(user, today, request.goal()));
         entry.replace(request.goal(), request.todos() == null ? List.of() : request.todos());
         DailyController.DailyEntryDto dto = toDto(dailyEntries.save(entry));
-        if (isNew) {
+        boolean newGoalIsNonBlank = request.goal() != null && !request.goal().isBlank();
+        if (firstGoalToday && newGoalIsNonBlank) {
             fanOutEvent(user, NotificationKind.FRIEND_GOAL,
                     "FRIEND_GOAL:" + user.getId() + ":" + today,
                     user.getNickname() + "님이 오늘의 목표를 정했어요",
