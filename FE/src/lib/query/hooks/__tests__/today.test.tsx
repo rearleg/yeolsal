@@ -404,6 +404,38 @@ describe("useSubmitReflection", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: qk.today });
   });
 
+  it("also invalidates room chat caches so the actor sees their own system row", async () => {
+    // Regression net for the production "회고는 보이는데 본인에게는 안보임"
+    // bug. The mutation must reach into qk.roomMessages so an open chat
+    // screen pulls in the freshly-published REFLECTION/MILESTONE row.
+    submitReflectionMock.mockResolvedValue(undefined);
+    // Seed the cache with a roomMessages key so the predicate has a
+    // realistic shape to evaluate against.
+    client.setQueryData(qk.roomMessages(42), { dummy: true });
+    const invalidateSpy = jest.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSubmitReflection(), { wrapper: makeWrapper(client) });
+
+    act(() => {
+      result.current.mutate({ dailyEntryId: SAMPLE.id, body: "회고 본문" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // The hook calls invalidateQueries twice — once with a queryKey
+    // (qk.today) and once with a predicate (chat caches). Find the
+    // predicate call and prove it would match a roomMessages key
+    // while leaving unrelated keys (qk.today) alone.
+    const predicateCall = invalidateSpy.mock.calls.find(
+      (call) => typeof call[0] === "object" && call[0] !== null && "predicate" in call[0],
+    );
+    expect(predicateCall).toBeDefined();
+    const arg = predicateCall![0] as {
+      predicate: (q: { queryKey: readonly unknown[] }) => boolean;
+    };
+    expect(arg.predicate({ queryKey: ["rooms", 42, "messages"] })).toBe(true);
+    expect(arg.predicate({ queryKey: ["today"] })).toBe(false);
+  });
+
   it("toasts and skips haptic on error", async () => {
     const errorSpy = jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
     submitReflectionMock.mockRejectedValue(new Error("reflection failed"));
