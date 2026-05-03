@@ -22,6 +22,11 @@ yeosal:
     # Comma-separated list of allowed origins. Required in prod to avoid
     # falling through to the dev wildcard.
     allowed-origins: ${YEOSAL_CORS_ALLOWED_ORIGINS}
+  rate-limit:
+    # Production normally sits behind a proxy/ALB that strips and re-sets
+    # X-Forwarded-For, so trust the header here. Override to false if the
+    # API gateway terminates TLS but does NOT rewrite the header.
+    trust-forwarded-for: ${YEOSAL_RATE_LIMIT_TRUST_FORWARDED_FOR:true}
 
 # Hide the OpenAPI spec and Swagger UI in production. The schema is still
 # auto-generated at build time, but the runtime endpoints (/v3/api-docs,

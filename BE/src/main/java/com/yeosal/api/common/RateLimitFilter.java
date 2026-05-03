@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
@@ -52,15 +53,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final List<Rule> rules;
     private final Clock clock;
+    private final boolean trustForwardedFor;
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
-    public RateLimitFilter() {
-        this(DEFAULT_RULES, Clock.systemUTC());
+    public RateLimitFilter(
+            @Value("${yeosal.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor) {
+        this(DEFAULT_RULES, Clock.systemUTC(), trustForwardedFor);
     }
 
+    /** Test ctor — keeps the legacy 2-arg shape with X-Forwarded-For trust ON
+     *  so existing tests that pre-date the toggle keep their behaviour. */
     RateLimitFilter(List<Rule> rules, Clock clock) {
+        this(rules, clock, true);
+    }
+
+    RateLimitFilter(List<Rule> rules, Clock clock, boolean trustForwardedFor) {
         this.rules = rules;
         this.clock = clock;
+        this.trustForwardedFor = trustForwardedFor;
     }
 
     @Override
@@ -107,10 +117,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return window.count().incrementAndGet() <= rule.permits();
     }
 
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+    private String clientIp(HttpServletRequest request) {
+        // Trusting X-Forwarded-For only makes sense when the deployment sits
+        // behind a proxy that strips and re-sets the header. A directly-
+        // exposed instance would let anyone spoof their rate-limit identity
+        // by sending a forged header, so we gate it behind the configuration
+        // flag and default to the raw socket address.
+        if (trustForwardedFor) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
         }
         return request.getRemoteAddr();
     }
