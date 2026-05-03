@@ -126,6 +126,39 @@ class DailyServiceGoalHookTest {
                 anyLong(), eq(ChatMessageKind.GOAL), anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("updateToday publishes the GOAL chat row on the first non-blank goal of the day")
+    void updateTodayFiresGoalHookOnFirstGoal() {
+        // The FE sends PATCH /daily-entries/today, which routes to
+        // updateToday — not createOrReplace. updateToday must mirror the
+        // same firstGoalToday gate or the chat row never lands.
+        when(entries.findByUserAndDate(alice, today)).thenReturn(Optional.empty());
+        when(entries.save(any(DailyEntry.class))).thenAnswer(inv -> {
+            DailyEntry e = inv.getArgument(0);
+            setId(e, 555L);
+            return e;
+        });
+
+        service.updateToday(alice, new DailyController.DailyEntryUpdate("오늘 목표"));
+
+        verify(chatService, atLeastOnce()).publishSystem(
+                eq(42L), eq(ChatMessageKind.GOAL), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("updateToday is idempotent — same goal, no re-publish")
+    void updateTodaySecondCallIsIdempotent() {
+        DailyEntry existing = new DailyEntry(alice, today, "기존 목표");
+        setId(existing, 7L);
+        when(entries.findByUserAndDate(alice, today)).thenReturn(Optional.of(existing));
+        when(entries.save(any(DailyEntry.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updateToday(alice, new DailyController.DailyEntryUpdate("새 목표"));
+
+        verify(chatService, never()).publishSystem(
+                anyLong(), eq(ChatMessageKind.GOAL), anyString(), anyString());
+    }
+
     private static User makeUser(long id, String email, String nickname) {
         User u = new User(email, nickname, "hash", AuthProvider.EMAIL);
         setId(u, id);
