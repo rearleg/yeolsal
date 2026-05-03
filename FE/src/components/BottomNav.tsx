@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette, surface, text as textColors } from "../theme/tokens";
 import { space } from "../theme/spacing";
 import { useReducedMotion } from "../theme/motion";
+import { useFriendRequestsQuery } from "../lib/query/hooks/feed";
 
 const ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   today: "today",
@@ -27,6 +28,14 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
   const indicator = useRef(new Animated.Value(state.index)).current;
+  // Pending friend-request count drives the unread dot on the 친구 tab so
+  // the user notices new requests without first opening that tab.
+  // React Query dedups across consumers — the friend screen still owns
+  // the source-of-truth fetch.
+  const friendRequestsQuery = useFriendRequestsQuery();
+  const pendingFriendRequests = (friendRequestsQuery.data ?? []).filter(
+    (r) => r.status === "PENDING",
+  ).length;
 
   useEffect(() => {
     if (reduced) {
@@ -62,12 +71,20 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
         const active = state.index === i;
         const label = LABEL[route.name] ?? route.name;
         const icon = ICON[route.name] ?? "circle";
+        // Show the unread dot on the 친구 tab whenever there's at least
+        // one PENDING friend request the user hasn't acted on. Currently
+        // wired only to that tab; chat / room unread is surfaced inside
+        // the chat tab itself (per-room NEW badge).
+        const showDot = route.name === "feed" && pendingFriendRequests > 0;
+        const a11yLabel = showDot
+          ? `${label} — 새 친구 요청 ${pendingFriendRequests}건`
+          : label;
         return (
           <Pressable
             key={route.key}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
-            accessibilityLabel={label}
+            accessibilityLabel={a11yLabel}
             onPress={() => {
               const event = navigation.emit({
                 type: "tabPress",
@@ -81,11 +98,14 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
             hitSlop={8}
           >
-            <MaterialIcons
-              name={icon}
-              size={22}
-              color={active ? palette.coralDeep : textColors.tertiary}
-            />
+            <View style={styles.iconWrap}>
+              <MaterialIcons
+                name={icon}
+                size={22}
+                color={active ? palette.coralDeep : textColors.tertiary}
+              />
+              {showDot ? <View style={styles.unreadDot} /> : null}
+            </View>
             <Text style={[styles.label, active && styles.activeLabel]}>{label}</Text>
           </Pressable>
         );
@@ -132,6 +152,22 @@ const styles = StyleSheet.create({
   },
   itemPressed: {
     opacity: 0.7,
+  },
+  iconWrap: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadDot: {
+    position: "absolute",
+    top: -2,
+    right: -6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.coralDeep,
+    borderWidth: 2,
+    borderColor: surface.card,
   },
   label: {
     color: textColors.tertiary,
