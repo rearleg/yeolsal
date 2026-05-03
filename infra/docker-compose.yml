@@ -13,6 +13,12 @@ services:
   api:
     build:
       context: ../BE
+      # Forwarded to BE/Dockerfile so the resulting image carries
+      # /app/COMMIT. Set GIT_SHA on the host before
+      # `docker compose up -d --build` (e.g. via the deploy.sh wrapper)
+      # to embed the real revision; otherwise it stays "unknown".
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-yeosal}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-yeosal}
