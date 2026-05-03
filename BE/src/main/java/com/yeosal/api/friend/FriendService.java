@@ -7,10 +7,13 @@ import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.notification.NotificationKind;
+import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -23,23 +26,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class FriendService {
     private static final int STREAK_WINDOW_DAYS = 365;
 
+    /** Same 30-min window the goal/reflection event hooks use, so the dedup
+     * cycle for friend-request notifications agrees with the rest of the
+     * event-hook family. */
+    private static final Duration FRIEND_EVENT_DEBOUNCE = Duration.ofMinutes(30);
+
     private final FriendshipRepository friendships;
     private final UserRepository users;
     private final DailyEntryRepository dailyEntries;
     private final DailyService dailyService;
     private final RoomMemberRepository roomMembers;
+    private final NotificationService notifications;
 
     public FriendService(
             FriendshipRepository friendships,
             UserRepository users,
             DailyEntryRepository dailyEntries,
             @Lazy DailyService dailyService,
-            RoomMemberRepository roomMembers
+            RoomMemberRepository roomMembers,
+            NotificationService notifications
     ) {
         this.friendships = friendships;
         this.users = users;
         this.dailyEntries = dailyEntries;
         this.dailyService = dailyService;
+        this.notifications = notifications;
         this.roomMembers = roomMembers;
     }
 
@@ -60,7 +71,19 @@ public class FriendService {
         friendships.findBetween(user, target).ifPresent(existing -> {
             throw new BadRequestException("이미 친구 요청 또는 친구 관계가 있습니다.");
         });
-        return toRequestDto(friendships.save(new Friendship(user, target)));
+        Friendship saved = friendships.save(new Friendship(user, target));
+        // Fire after the friendship row is persisted so a NotificationService
+        // failure can never roll back the request itself. NotificationService
+        // already swallows push errors and gates the dedup-log write on
+        // successful delivery.
+        notifications.sendEvent(
+                target,
+                NotificationKind.FRIEND_REQUEST_RECEIVED,
+                "FRIEND_REQUEST_RECEIVED:" + user.getId(),
+                "새 친구 요청",
+                user.getNickname() + "님이 친구 요청을 보냈어요.",
+                FRIEND_EVENT_DEBOUNCE);
+        return toRequestDto(saved);
     }
 
     @Transactional
@@ -71,6 +94,18 @@ public class FriendService {
             throw new ForbiddenException("친구 요청 응답 권한이 없습니다.");
         }
         friendship.setStatus(request.accepted() ? FriendshipStatus.ACCEPTED : FriendshipStatus.DECLINED);
+        if (request.accepted()) {
+            // Notify the original requester that their request landed. We
+            // skip on DECLINED to avoid surfacing rejection signals.
+            User requester = friendship.getRequester();
+            notifications.sendEvent(
+                    requester,
+                    NotificationKind.FRIEND_REQUEST_ACCEPTED,
+                    "FRIEND_REQUEST_ACCEPTED:" + user.getId(),
+                    "친구 추가 완료",
+                    user.getNickname() + "님과 친구가 되었어요.",
+                    FRIEND_EVENT_DEBOUNCE);
+        }
         return toRequestDto(friendship);
     }
 

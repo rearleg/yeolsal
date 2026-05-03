@@ -30,6 +30,7 @@ class FriendServiceCanViewTest {
     @Mock private DailyEntryRepository dailyEntries;
     @Mock private DailyService dailyService;
     @Mock private RoomMemberRepository roomMembers;
+    @Mock private com.yeosal.api.notification.NotificationService notifications;
 
     private FriendService service;
     private User alice;
@@ -37,7 +38,7 @@ class FriendServiceCanViewTest {
 
     @BeforeEach
     void setUp() {
-        service = new FriendService(friendships, users, dailyEntries, dailyService, roomMembers);
+        service = new FriendService(friendships, users, dailyEntries, dailyService, roomMembers, notifications);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
     }
