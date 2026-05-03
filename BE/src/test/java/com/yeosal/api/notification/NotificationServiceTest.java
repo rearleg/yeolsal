@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,11 +56,12 @@ class NotificationServiceTest {
         when(pushTokens.findByUser(alice)).thenReturn(List.of(
                 new PushToken(alice, "ExponentPushToken[abc]", "ios")
         ));
-        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(true);
+        when(pushClient.send(anyList(), anyString(), anyString(), anyMap())).thenReturn(true);
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "오늘의 목표", "정해보세요");
 
-        verify(pushClient).send(List.of("ExponentPushToken[abc]"), "오늘의 목표", "정해보세요");
+        verify(pushClient).send(
+                eq(List.of("ExponentPushToken[abc]")), eq("오늘의 목표"), eq("정해보세요"), anyMap());
         verify(logs).save(any(NotificationLog.class));
     }
 
@@ -70,11 +73,12 @@ class NotificationServiceTest {
         when(pushTokens.findByUser(alice)).thenReturn(List.of(
                 new PushToken(alice, "ExponentPushToken[abc]", "ios")
         ));
-        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(false);
+        when(pushClient.send(anyList(), anyString(), anyString(), anyMap())).thenReturn(false);
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient).send(List.of("ExponentPushToken[abc]"), "t", "b");
+        verify(pushClient).send(
+                eq(List.of("ExponentPushToken[abc]")), eq("t"), eq("b"), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -86,7 +90,7 @@ class NotificationServiceTest {
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -99,7 +103,7 @@ class NotificationServiceTest {
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -113,7 +117,7 @@ class NotificationServiceTest {
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
     }
 
     @Test
@@ -125,7 +129,7 @@ class NotificationServiceTest {
 
         service.sendCron(alice, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -139,12 +143,13 @@ class NotificationServiceTest {
         when(pushTokens.findByUser(alice)).thenReturn(List.of(
                 new PushToken(alice, "ExponentPushToken[abc]", "ios")
         ));
-        when(pushClient.send(anyList(), anyString(), anyString())).thenReturn(true);
+        when(pushClient.send(anyList(), anyString(), anyString(), anyMap())).thenReturn(true);
 
         service.sendEvent(alice, NotificationKind.FRIEND_GOAL, "FRIEND_GOAL:42", "친구 알림", "본문",
                 Duration.ofMinutes(30));
 
-        verify(pushClient).send(List.of("ExponentPushToken[abc]"), "친구 알림", "본문");
+        verify(pushClient).send(
+                eq(List.of("ExponentPushToken[abc]")), eq("친구 알림"), eq("본문"), anyMap());
         verify(logs).save(any(NotificationLog.class));
     }
 
@@ -159,7 +164,7 @@ class NotificationServiceTest {
         service.sendEvent(alice, NotificationKind.FRIEND_GOAL, "FRIEND_GOAL:42", "t", "b",
                 Duration.ofMinutes(30));
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -173,7 +178,7 @@ class NotificationServiceTest {
         service.sendEvent(alice, NotificationKind.FRIEND_GOAL, "FRIEND_GOAL:42", "t", "b",
                 Duration.ofMinutes(30));
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
         verify(logs, never()).save(any());
     }
 
@@ -230,7 +235,7 @@ class NotificationServiceTest {
 
         service.sendCron(noTz, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
     }
 
     @Test
@@ -244,7 +249,7 @@ class NotificationServiceTest {
         // No exception bubbles out; quiet-hour check resolves and skip path runs.
         service.sendCron(badTz, NotificationKind.GOAL_NUDGE, "2026-04-30", "t", "b");
 
-        verify(pushClient, never()).send(anyList(), anyString(), anyString());
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
     }
 
     // -- helpers --
