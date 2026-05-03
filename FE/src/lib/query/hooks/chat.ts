@@ -28,6 +28,14 @@ export function useChatMessages(roomId: number) {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     initialPageParam: null as number | null,
     enabled: Number.isFinite(roomId),
+    // Poll the first page while the chat screen is mounted so messages
+    // sent by other members surface within ~8s without forcing the user
+    // to leave and re-enter the room. React Query stops polling
+    // automatically when the query has no observers, so closed rooms
+    // cost zero requests. Background polling stays off so we don't
+    // wake the device just to fetch chat.
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: false,
   });
 }
 
