@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createInvite,
   createRoom,
+  getRoomToday,
   joinRoom,
   leaveRoom,
   listMembers,
@@ -42,6 +43,19 @@ export function useRoomMembersQuery(roomId: number) {
     queryKey: qk.roomMembers(roomId),
     queryFn: () => listMembers(roomId),
     enabled: Number.isFinite(roomId),
+  });
+}
+
+/**
+ * Group-mode Today snapshot. Pass a falsy roomId to keep the query parked
+ * (the query is gated by `enabled`, so React Query never fires the request
+ * until the user actually picks a group).
+ */
+export function useGroupTodayQuery(roomId: number | null, date: string) {
+  return useQuery<MemberTodayDto[]>({
+    queryKey: qk.roomToday(roomId ?? 0, date),
+    queryFn: () => getRoomToday(roomId as number, date),
+    enabled: roomId != null && Number.isFinite(roomId) && date.length > 0,
   });
 }
 

@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
@@ -218,6 +219,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   memberRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  chatRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
   avatar: {
     width: 36,
     height: 36,

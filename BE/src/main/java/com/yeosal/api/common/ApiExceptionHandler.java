@@ -6,8 +6,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Maps domain exceptions to the standardized {@link ApiErrorResponse}
@@ -48,6 +50,21 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> validation(MethodArgumentNotValidException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of("VALIDATION", "잘못된 요청입니다."));
+    }
+
+    /**
+     * Missing or unparseable @RequestParam (e.g. {@code ?date=not-a-date}). Without
+     * this mapping these surface as the generic {@link Exception} 500, which the FE
+
+     * 5xx branch then reports to Sentry as if it were a server bug.
+     */
+    @ExceptionHandler({
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class
+    })
+    ResponseEntity<ApiErrorResponse> requestParamValidation(Exception exception) {
         return ResponseEntity.badRequest()
                 .body(ApiErrorResponse.of("VALIDATION", "잘못된 요청입니다."));
     }

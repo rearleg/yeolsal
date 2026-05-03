@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,8 @@ class RoomServiceTest {
     @Mock private RoomMemberRepository roomMembers;
     @Mock private RoomInviteRepository roomInvites;
     @Mock private GroupMemberMinimumRepository minimums;
+    @Mock private com.yeosal.api.daily.DailyEntryRepository dailyEntries;
+    @Mock private com.yeosal.api.daily.DailyService dailyService;
     @Mock private InviteCodeGenerator codeGenerator;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
@@ -50,7 +53,9 @@ class RoomServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(rooms, roomMembers, roomInvites, minimums, codeGenerator, clock);
+        service = new RoomService(
+                rooms, roomMembers, roomInvites, minimums,
+                dailyEntries, dailyService, codeGenerator, clock);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");

@@ -3,24 +3,37 @@ package com.yeosal.api.room;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.daily.DailyEntry;
+import com.yeosal.api.daily.DailyEntryRepository;
+import com.yeosal.api.daily.DailyService;
+import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.user.User;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RoomService {
 
+    /** Streak window mirrors the friend feed; longer than 365 doesn't add UX value. */
+    private static final int STREAK_WINDOW_DAYS = 365;
+
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final RoomInviteRepository roomInvites;
     private final GroupMemberMinimumRepository minimums;
+    private final DailyEntryRepository dailyEntries;
+    private final DailyService dailyService;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
 
@@ -29,6 +42,8 @@ public class RoomService {
             RoomMemberRepository roomMembers,
             RoomInviteRepository roomInvites,
             GroupMemberMinimumRepository minimums,
+            DailyEntryRepository dailyEntries,
+            DailyService dailyService,
             InviteCodeGenerator codeGenerator,
             Clock clock
     ) {
@@ -36,6 +51,8 @@ public class RoomService {
         this.roomMembers = roomMembers;
         this.roomInvites = roomInvites;
         this.minimums = minimums;
+        this.dailyEntries = dailyEntries;
+        this.dailyService = dailyService;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
     }
@@ -190,6 +207,94 @@ public class RoomService {
         return roomMembers.findByRoomAndUser(room, user)
                 .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
     }
+
+    /**
+     * Per-member snapshot for the Today screen's group-mode card.
+     * Mirrors {@code FriendController.DailyFeedItem} so the FE can switch
+     * between friends and group lists without reshaping data.
+     *
+     * <p>One DB round-trip pulls every member's day-of entry; a second pulls
+     * the streak window (365d) for all members at once and we stitch in
+     * memory. This is the same shape as {@code FriendService.dailyFeed}.
+     */
+    @Transactional(readOnly = true)
+    public List<MemberTodayDto> groupToday(User viewer, long roomId, LocalDate date) {
+        Room room = requireRoom(roomId);
+        requireMembership(room, viewer);
+
+        List<RoomMember> members = roomMembers.findByRoom(room);
+        if (members.isEmpty()) {
+            return List.of();
+        }
+        List<User> users = members.stream().map(RoomMember::getUser).toList();
+        List<DailyEntry> todayEntries = dailyEntries.findByUserInAndDate(users, date);
+        Map<Long, DailyEntry> entryByUserId = todayEntries.stream()
+                .collect(Collectors.toMap(e -> e.getUser().getId(), e -> e));
+
+        LocalDate streakFrom = date.minusDays(STREAK_WINDOW_DAYS - 1L);
+        List<DailyEntry> streakEntries =
+                dailyEntries.findGrassEntriesByUsersBetween(users, streakFrom, date);
+        Map<Long, List<DailyEntry>> streakByUser = streakEntries.stream()
+                .collect(Collectors.groupingBy(e -> e.getUser().getId()));
+
+        return members.stream()
+                // joinedAt is set in @PrePersist; tolerate nulls so unit tests
+                // that build RoomMember in-memory don't blow up the sort. The
+                // user-id tie-breaker keeps ordering stable across requests
+                // when two members joined the same instant (or both are null
+                // in tests).
+                .sorted(Comparator
+                        .comparing(
+                                RoomMember::getJoinedAt,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(rm -> rm.getUser().getId()))
+                .map(rm -> {
+                    User user = rm.getUser();
+                    List<DailyEntry> window = streakByUser.getOrDefault(user.getId(), List.of());
+                    List<GrassDay> grass =
+                            dailyService.grassFromEntries(user, streakFrom, date, window);
+                    int streak = dailyService.streakFromGrass(date, grass);
+                    DailyEntry entry = entryByUserId.get(user.getId());
+                    if (entry == null) {
+                        return new MemberTodayDto(
+                                user.getId(),
+                                user.getNickname(),
+                                date,
+                                "",
+                                false,
+                                0,
+                                false,
+                                streak
+                        );
+                    }
+                    boolean goalSet = entry.getGoal() != null && !entry.getGoal().isBlank();
+                    int completedTodos = (int) entry.getTodos().stream()
+                            .filter(TodoItem::isCompleted)
+                            .count();
+                    return new MemberTodayDto(
+                            user.getId(),
+                            user.getNickname(),
+                            date,
+                            entry.getGoal(),
+                            goalSet,
+                            completedTodos,
+                            entry.getReflection() != null,
+                            streak
+                    );
+                })
+                .toList();
+    }
+
+    public record MemberTodayDto(
+            long userId,
+            String nickname,
+            LocalDate date,
+            String goal,
+            boolean goalSet,
+            int completedTodoCount,
+            boolean reflectionSubmitted,
+            int currentStreak
+    ) {}
 
     public record RoomSummary(long id, String name, long ownerId, int maxMembers, int minDailyGoalDays) {
         public static RoomSummary from(Room room) {
