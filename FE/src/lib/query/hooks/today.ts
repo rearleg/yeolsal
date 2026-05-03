@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   addTodo,
   deleteTodo,
@@ -16,6 +16,22 @@ import type { DailyEntryDto } from "../../../api/types";
 
 const REFLECTION_ALREADY_SUBMITTED = "이미 회고를 제출했습니다.";
 const REFLECTION_GENERIC_ERROR = "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.";
+
+/**
+ * Invalidate every cached room-chat list so a goal/reflection mutation —
+ * which fans a system row out via afterCommit on the BE — flips an
+ * already-open chat screen into a fresh fetch. The actor wouldn't see
+ * their own GOAL/REFLECTION/MILESTONE row otherwise (other members get
+ * it on their next visit, but the actor's cache is still stale).
+ */
+function invalidateChatMessages(qc: QueryClient): void {
+  qc.invalidateQueries({
+    predicate: (q) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey[0] === "rooms" &&
+      q.queryKey[2] === "messages",
+  });
+}
 
 type Snapshot = DailyEntryDto | null | undefined;
 interface RollbackContext {
@@ -95,6 +111,10 @@ export function useUpdateGoal(options: UpdateGoalOptions = {}) {
     },
     onSuccess: (data) => {
       qc.setQueryData(qk.today, data);
+      // The first non-blank goal save fans a GOAL system row out to every
+      // group the actor belongs to — refresh open chat screens so the
+      // actor sees their own row.
+      invalidateChatMessages(qc);
       onSaved?.(data);
     },
   });
@@ -153,6 +173,10 @@ export function useSubmitReflection() {
     onSuccess: () => {
       haptic("success");
       qc.invalidateQueries({ queryKey: qk.today });
+      // The reflection save fans REFLECTION + MILESTONE system rows out
+      // to every group the actor belongs to. Invalidate any open chat
+      // list so the actor sees their own announcements.
+      invalidateChatMessages(qc);
     },
     onError: (error) => {
       // The BE remaps the dup-race on `reflections.daily_entry_id` to a 400
@@ -165,6 +189,7 @@ export function useSubmitReflection() {
           haptic("success");
           toast.info(REFLECTION_ALREADY_SUBMITTED);
           qc.invalidateQueries({ queryKey: qk.today });
+          invalidateChatMessages(qc);
           return;
         }
         if (error.status >= 500 || error.code === "INTERNAL_ERROR") {
