@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
+import { setupReactQueryFocus } from "../src/lib/query/focus";
 import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
 import { QueryProvider } from "../src/providers/QueryProvider";
 import { ToastProvider } from "../src/components/feedback/ToastProvider";
@@ -12,6 +13,13 @@ import { ErrorBoundary } from "../src/components/feedback/ErrorBoundary";
 bootstrapSentry();
 
 export default function RootLayout() {
+  // Wire RN AppState into React Query's focus manager exactly once for the
+  // app's lifetime. Without this any "background → active" transition (the
+  // user re-opens the app) is invisible to React Query and stale tabs
+  // refuse to refetch — the bug surfaced as "친구 요청을 보려면 앱 재시작".
+  useEffect(() => {
+    return setupReactQueryFocus();
+  }, []);
   const fonts = useWantedSans();
   if (!fonts.loaded && !fonts.error) {
     return null;
