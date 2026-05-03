@@ -227,10 +227,10 @@ public class DailyService {
         }
         publishAfterCommit(() -> {
             try {
-                chatService.publishMilestonesForActor(user, month, completed);
+                chatService.publishMilestonesForActor(user, month, date, completed);
             } catch (RuntimeException ex) {
-                log.warn("[chat] milestone fan-out failed actor={} month={}: {}",
-                        user.getId(), month, ex.toString());
+                log.warn("[chat] milestone fan-out failed actor={} date={}: {}",
+                        user.getId(), date, ex.toString());
             }
         });
     }

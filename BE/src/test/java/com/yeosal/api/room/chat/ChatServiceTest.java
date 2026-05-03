@@ -224,7 +224,7 @@ class ChatServiceTest {
     }
 
     @Test
-    @DisplayName("publishMilestonesForActor: writes one MILESTONE row per qualifying room via atomic upsert")
+    @DisplayName("publishMilestonesForActor: writes 'X일 중 Y일 완료' progress per room via atomic upsert")
     void publishMilestoneFanOut() {
         Room r1 = makeRoom(42L, "방1", alice);
         Room r2 = makeRoom(43L, "방2", alice);
@@ -240,19 +240,22 @@ class ChatServiceTest {
         when(messages.insertMilestoneIfAbsent(eq(43L), any(String.class), any(String.class)))
                 .thenReturn(1);
 
-        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 16);
+        int published = service.publishMilestonesForActor(
+                bob, YearMonth.of(2026, 4), java.time.LocalDate.of(2026, 4, 7), 7);
 
         assertThat(published).isEqualTo(2);
-        assertThat(bodyCaptor.getValue()).contains("Bob").contains("2026-04").contains("15일");
+        assertThat(bodyCaptor.getValue())
+                .contains("Bob")
+                .contains("15일 중 7일 완료");
         assertThat(payloadCaptor.getValue())
                 .contains("\"userId\":\"2\"")
-                .contains("\"month\":\"2026-04\"")
-                .contains("\"completedDays\":16")
+                .contains("\"date\":\"2026-04-07\"")
+                .contains("\"completedDays\":7")
                 .contains("\"requiredDays\":15");
     }
 
     @Test
-    @DisplayName("publishMilestonesForActor: insertMilestoneIfAbsent returning 0 means already announced")
+    @DisplayName("publishMilestonesForActor: insertMilestoneIfAbsent returning 0 means already announced today")
     void publishMilestoneSkipsAlreadyAnnounced() {
         Room r1 = makeRoom(42L, "방1", alice);
         when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
@@ -261,24 +264,23 @@ class ChatServiceTest {
         when(messages.insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class)))
                 .thenReturn(0);
 
-        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 20);
+        int published = service.publishMilestonesForActor(
+                bob, YearMonth.of(2026, 4), java.time.LocalDate.of(2026, 4, 7), 7);
 
         assertThat(published).isZero();
     }
 
     @Test
-    @DisplayName("publishMilestonesForActor: skips rooms where completed < required without touching the DB")
-    void publishMilestoneSkipsBelowThreshold() {
-        Room r1 = makeRoom(42L, "방1", alice);
-        when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
-        when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
-                Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 20)));
-
-        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 15);
+    @DisplayName("publishMilestonesForActor: completed=0 short-circuits without hitting the DB")
+    void publishMilestoneSkipsZero() {
+        // No findRoomsByUser stub — the early-return on completed<=0 should
+        // fire before any room lookup happens.
+        int published = service.publishMilestonesForActor(
+                bob, YearMonth.of(2026, 4), java.time.LocalDate.of(2026, 4, 7), 0);
 
         assertThat(published).isZero();
         verify(messages, never())
-                .insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class));
+                .insertMilestoneIfAbsent(any(Long.class), any(String.class), any(String.class));
     }
 
     @Test
@@ -288,13 +290,16 @@ class ChatServiceTest {
         when(roomMembers.findRoomsByUser(bob)).thenReturn(List.of(r1));
         when(minimums.findByRoomIdAndUserId(42L, bob.getId())).thenReturn(
                 Optional.of(new GroupMemberMinimum(42L, bob.getId(), (short) 31)));
-        when(messages.insertMilestoneIfAbsent(eq(42L), any(String.class), any(String.class)))
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        when(messages.insertMilestoneIfAbsent(eq(42L), bodyCaptor.capture(), any(String.class)))
                 .thenReturn(1);
 
-        // April 2026 has 30 days. completed=30 satisfies the capped requirement.
-        int published = service.publishMilestonesForActor(bob, YearMonth.of(2026, 4), 30);
+        // April 2026 has 30 days. The 31-day minimum caps to 30 in the body.
+        int published = service.publishMilestonesForActor(
+                bob, YearMonth.of(2026, 4), java.time.LocalDate.of(2026, 4, 30), 30);
 
         assertThat(published).isEqualTo(1);
+        assertThat(bodyCaptor.getValue()).contains("30일 중 30일 완료");
     }
 
     private static User makeUser(long id, String nickname) {
