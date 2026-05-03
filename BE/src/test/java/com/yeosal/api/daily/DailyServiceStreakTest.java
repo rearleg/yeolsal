@@ -28,7 +28,8 @@ class DailyServiceStreakTest {
                 new GateRule(),
                 Clock.systemUTC(),
                 mock(RoomMemberRepository.class),
-                mock(NotificationService.class)
+                mock(NotificationService.class),
+                mock(com.yeosal.api.room.chat.ChatService.class)
         );
     }
 

@@ -4,6 +4,7 @@ export const qk = {
   rooms: ["rooms"] as const,
   roomMembers: (id: number) => ["rooms", id, "members"] as const,
   roomToday: (id: number, date: string) => ["rooms", id, "today", date] as const,
+  roomMessages: (id: number) => ["rooms", id, "messages"] as const,
   profile: ["profile"] as const,
   grass: (from: string, to: string) => ["grass", from, to] as const,
   monthlyStats: (month: string) => ["monthly", month] as const,

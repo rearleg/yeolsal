@@ -3,6 +3,8 @@ package com.yeosal.api.common;
 import org.hibernate.LazyInitializationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedExceptionUtils;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -55,9 +57,8 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Missing or unparseable @RequestParam (e.g. {@code ?date=not-a-date}). Without
-     * this mapping these surface as the generic {@link Exception} 500, which the FE
-
+     * Missing or unparseable @RequestParam (e.g. {@code ?cursor=not-a-number}).
+     * Without this mapping these surface as the generic 500 path, which the FE
      * 5xx branch then reports to Sentry as if it were a server bug.
      */
     @ExceptionHandler({
@@ -75,6 +76,38 @@ public class ApiExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiErrorResponse.of("INTERNAL_ERROR", INTERNAL_ERROR_MESSAGE));
+    }
+
+    /**
+     * DB-side integrity violation (unique key, FK, CHECK, jsonb cast). The
+     * generic {@link #unhandled} handler used to swallow these as a faceless
+     * 500, which made production diagnosis painful — Bug #2 in plan PR I
+     * ("내부 오류가 발생했습니다") was a representative example. Now we log
+     * the root cause class + message at WARN so ops can see *which*
+     * constraint blew up, while keeping the response envelope sanitized.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> dataIntegrity(DataIntegrityViolationException exception) {
+        Throwable root = NestedExceptionUtils.getMostSpecificCause(exception);
+        log.warn("[db] data integrity violation root={} message={}",
+                root.getClass().getSimpleName(), root.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of("INTERNAL_ERROR", INTERNAL_ERROR_MESSAGE));
+    }
+
+    /**
+     * Internal callers (e.g. {@code ChatService.parsePayload}) throw
+     * {@link IllegalArgumentException} for malformed inputs that the
+     * controller layer should already have rejected. Mapping these to 400
+     * VALIDATION keeps them out of the FE 5xx branch / Sentry server-bug
+     * channel where they don't belong.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> illegalArgument(IllegalArgumentException exception) {
+        log.warn("[validation] caller-supplied IllegalArgumentException: {}", exception.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of("VALIDATION", "잘못된 요청입니다."));
     }
 
     @ExceptionHandler(Exception.class)

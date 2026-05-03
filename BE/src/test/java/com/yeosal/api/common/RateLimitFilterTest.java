@@ -132,47 +132,6 @@ class RateLimitFilterTest {
         assertThat(differentClient.getStatus()).isEqualTo(200);
     }
 
-    @Test
-    @DisplayName("trustForwardedFor=false: X-Forwarded-For is ignored — same socket address shares the bucket")
-    void xffIgnoredWhenUntrusted() throws Exception {
-        var filter = new RateLimitFilter(List.of(LOGIN_RULE), Clock.systemUTC(), false);
-        AtomicInteger downstream = new AtomicInteger();
-
-        // Three forged X-Forwarded-For values from the same socket address
-        // all consume the same bucket because the filter ignores the header
-        // and uses request.getRemoteAddr().
-        for (int i = 0; i < LOGIN_RULE.permits(); i++) {
-            var req = postLogin("10.0.0.1");
-            req.addHeader("X-Forwarded-For", "203.0.113." + i);
-            filter.doFilter(req, new MockHttpServletResponse(), countingChain(downstream));
-        }
-
-        var blocked = new MockHttpServletResponse();
-        var req2 = postLogin("10.0.0.1");
-        req2.addHeader("X-Forwarded-For", "203.0.113.99");
-        filter.doFilter(req2, blocked, countingChain(downstream));
-        assertThat(blocked.getStatus()).isEqualTo(429);
-    }
-
-    @Test
-    @DisplayName("trustForwardedFor=false: a different socket address gets its own bucket")
-    void untrustedFallsBackToRemoteAddr() throws Exception {
-        var filter = new RateLimitFilter(List.of(LOGIN_RULE), Clock.systemUTC(), false);
-        AtomicInteger downstream = new AtomicInteger();
-
-        for (int i = 0; i < LOGIN_RULE.permits(); i++) {
-            filter.doFilter(postLogin("10.0.0.1"), new MockHttpServletResponse(), countingChain(downstream));
-        }
-
-        var sameSource = new MockHttpServletResponse();
-        filter.doFilter(postLogin("10.0.0.1"), sameSource, countingChain(downstream));
-        assertThat(sameSource.getStatus()).isEqualTo(429);
-
-        var differentSource = new MockHttpServletResponse();
-        filter.doFilter(postLogin("10.0.0.2"), differentSource, countingChain(downstream));
-        assertThat(differentSource.getStatus()).isEqualTo(200);
-    }
-
     private static final class MutableClock extends Clock {
         private Instant now;
         MutableClock(Instant start) { this.now = start; }

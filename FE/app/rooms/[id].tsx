@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 import {
   MIN_DAYS_LABELS,
@@ -10,7 +10,7 @@ import {
 import { useAuth } from "../../src/auth/AuthContext";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
-import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
+import { InviteCodeSheet } from "../../src/components/rooms/InviteCodeSheet";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { Skeleton } from "../../src/components/ui/Skeleton";
@@ -20,10 +20,9 @@ import {
   useLeaveRoom,
   useRoomMembersQuery,
   useRoomsQuery,
-  useUpdateMyMinimum,
 } from "../../src/lib/query/hooks/rooms";
 import { space } from "../../src/theme/spacing";
-import { palette, pickRoomAccent, roomHues, semantic, surface } from "../../src/theme/tokens";
+import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -34,26 +33,14 @@ export default function RoomDetailScreen() {
   const roomsQuery = useRoomsQuery();
   const inviteMut = useCreateInvite();
   const leaveMut = useLeaveRoom();
-  const updateMinMut = useUpdateMyMinimum();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
+  const [inviteSheetVisible, setInviteSheetVisible] = useState<boolean>(false);
 
   const members = membersQuery.data ?? [];
   const loading = membersQuery.isLoading;
   const me = members.find((m) => user != null && m.userId === user.id) ?? null;
   const room = (roomsQuery.data ?? []).find((r) => r.id === roomId) ?? null;
   const roomFloor: MinDays = room?.minDailyGoalDays ?? 10;
-  const [pendingMin, setPendingMin] = useState<MinDays>(
-    me?.currentMinimum ?? roomFloor,
-  );
-
-  // Re-sync the picker whenever the membership row arrives or changes from
-  // another tab — without this, the segmented control would lock to the
-  // first-seen value.
-  useEffect(() => {
-    if (me?.currentMinimum != null) {
-      setPendingMin(me.currentMinimum);
-    }
-  }, [me?.currentMinimum]);
 
   function handleCreateInvite() {
     inviteMut.mutate(roomId, {
@@ -89,70 +76,83 @@ export default function RoomDetailScreen() {
   const hue = roomHues[accent];
 
   return (
-    <Screen title="그룹">
+    <Screen title="">
+      <View style={styles.headerRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로 가기"
+          hitSlop={12}
+          onPress={() => router.back()}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="arrow-back" size={22} color={palette.ink} />
+        </Pressable>
+        <Text variant="h2" numberOfLines={1} style={styles.headerTitle}>
+          {room?.name ?? "그룹"}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="멤버 추가"
+          hitSlop={12}
+          onPress={() => setInviteSheetVisible(true)}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="person-add-alt" size={22} color={palette.ink} />
+        </Pressable>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card tone="raised" size="lg" style={{ borderColor: hue.base, borderWidth: 1 }}>
-          <Text variant="label" color={hue.deep}>그룹 상세</Text>
-          <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
-            아래 코드를 친구에게 공유하면 같은 그룹에서 서로의 회고를 볼 수 있어요.
-          </Text>
-
-          {invite ? (
-            <View style={styles.inviteBox}>
-              <Text variant="display" weight="800">{invite.code}</Text>
-              {invite.expiresAt ? (
-                <Text variant="caption" color={palette.inkMute}>
-                  유효기간: {new Date(invite.expiresAt).toLocaleDateString("ko-KR")}
-                </Text>
-              ) : null}
-              <Button label="공유하기" tone="primary" size="md" fullWidth onPress={shareInvite} />
-            </View>
-          ) : (
-            <View style={{ marginTop: space[3] }}>
-              <Button label="초대 코드 만들기" tone="primary" size="md" fullWidth onPress={handleCreateInvite} />
-            </View>
-          )}
-        </Card>
-
-        {me ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="그룹 채팅 열기"
+          onPress={() => router.push(`/rooms/${roomId}/chat`)}
+        >
           <Card tone="raised" size="md">
-            <Text variant="title">내 최소 목표일수</Text>
-            <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
-              그룹 기준({MIN_DAYS_LABELS[roomFloor] ?? `${roomFloor}일`}) 이상으로만 올릴 수 있어요.
-            </Text>
-            {me.warningCount > 0 ? (
-              <View
-                style={styles.warningBadge}
-                accessibilityRole="alert"
-                accessibilityLabel={`경고 ${me.warningCount}회 누적되었습니다. 2회 누적 시 그룹에서 제외될 수 있습니다.`}
-              >
-                <Text variant="caption" color={semantic.danger.fg}>
-                  ⚠️ 경고 {me.warningCount}/2 누적 중
+            <View style={styles.chatRow}>
+              <MaterialIcons name="chat-bubble-outline" size={20} color={palette.coralDeep} />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyStrong">그룹 채팅</Text>
+                <Text variant="caption" color={palette.inkMute}>
+                  멤버들과 메시지를 주고받아요.
                 </Text>
               </View>
-            ) : null}
-            <View style={{ marginTop: space[2] }}>
-              <MinDaysSegmented
-                value={pendingMin}
-                onChange={setPendingMin}
-                minAllowed={roomFloor}
-                disabled={updateMinMut.isPending}
-              />
-            </View>
-            <View style={{ marginTop: space[2] }}>
-              <Button
-                label={updateMinMut.isPending ? "저장 중…" : "변경 저장"}
-                tone="primary"
-                size="md"
-                fullWidth
-                disabled={
-                  updateMinMut.isPending ||
-                  pendingMin === me.currentMinimum
-                }
-                onPress={() => updateMinMut.mutate({ roomId, minDailyGoalDays: pendingMin })}
-              />
+              <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
             </View>
           </Card>
+        </Pressable>
+
+        {me ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="그룹 설정 열기"
+            onPress={() => router.push(`/rooms/${roomId}/settings`)}
+          >
+            <Card tone="raised" size="md">
+              <View style={styles.chatRow}>
+                <MaterialIcons name="tune" size={20} color={palette.coralDeep} />
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyStrong">
+                    내 최소 목표일수 · {MIN_DAYS_LABELS[me.currentMinimum] ?? `${me.currentMinimum}일`}
+                  </Text>
+                  <Text variant="caption" color={palette.inkMute}>
+                    그룹 기준({MIN_DAYS_LABELS[roomFloor] ?? `${roomFloor}일`}) 이상으로 변경할 수 있어요.
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
+              </View>
+              {me.warningCount > 0 ? (
+                <View
+                  style={styles.warningBadge}
+                  accessibilityRole="alert"
+                  accessibilityLabel={`경고 ${me.warningCount}회 누적되었습니다. 2회 누적 시 그룹에서 제외될 수 있습니다.`}
+                >
+                  <Text variant="caption" color={semantic.danger.fg}>
+                    ⚠️ 경고 {me.warningCount}/2 누적 중
+                  </Text>
+                </View>
+              ) : null}
+            </Card>
+          </Pressable>
         ) : null}
 
         <View>
@@ -194,19 +194,34 @@ export default function RoomDetailScreen() {
 
         <Button label="그룹 나가기" tone="ghost" size="md" fullWidth onPress={handleLeave} />
       </ScrollView>
+
+      <InviteCodeSheet
+        visible={inviteSheetVisible}
+        invite={invite}
+        isCreating={inviteMut.isPending}
+        onCreate={handleCreateInvite}
+        onShare={shareInvite}
+        onClose={() => setInviteSheetVisible(false)}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { gap: space[3], paddingBottom: space[8] },
-  inviteBox: {
-    marginTop: space[3],
-    padding: space[3],
-    borderRadius: 16,
-    backgroundColor: surface.sunken,
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: space[3],
+    paddingTop: space[1],
+    paddingBottom: space[2],
     gap: space[2],
+  },
+  headerIcon: {
+    padding: space[1],
+  },
+  headerTitle: {
+    flex: 1,
   },
   skeletonList: { gap: space[2] },
   memberList: { gap: space[2] },

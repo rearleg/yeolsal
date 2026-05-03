@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,8 +13,11 @@ import static org.mockito.Mockito.when;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.daily.DailyService;
+import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
+import com.yeosal.api.user.UserRepository;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Duration;
@@ -39,8 +41,10 @@ class RoomServiceTest {
     @Mock private RoomMemberRepository roomMembers;
     @Mock private RoomInviteRepository roomInvites;
     @Mock private GroupMemberMinimumRepository minimums;
-    @Mock private com.yeosal.api.daily.DailyEntryRepository dailyEntries;
-    @Mock private com.yeosal.api.daily.DailyService dailyService;
+    @Mock private GroupWarningRepository warnings;
+    @Mock private UserRepository users;
+    @Mock private DailyService dailyService;
+    @Mock private ChatService chatService;
     @Mock private InviteCodeGenerator codeGenerator;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
@@ -54,8 +58,16 @@ class RoomServiceTest {
     @BeforeEach
     void setUp() {
         service = new RoomService(
-                rooms, roomMembers, roomInvites, minimums,
-                dailyEntries, dailyService, codeGenerator, clock);
+                rooms,
+                roomMembers,
+                roomInvites,
+                minimums,
+                warnings,
+                users,
+                dailyService,
+                chatService,
+                codeGenerator,
+                clock);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
