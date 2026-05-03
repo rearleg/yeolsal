@@ -10,6 +10,7 @@ import {
 import { useAuth } from "../../src/auth/AuthContext";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
+import { InviteCodeSheet } from "../../src/components/rooms/InviteCodeSheet";
 import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
@@ -23,7 +24,7 @@ import {
   useUpdateMyMinimum,
 } from "../../src/lib/query/hooks/rooms";
 import { space } from "../../src/theme/spacing";
-import { palette, pickRoomAccent, roomHues, semantic, surface } from "../../src/theme/tokens";
+import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -36,6 +37,7 @@ export default function RoomDetailScreen() {
   const leaveMut = useLeaveRoom();
   const updateMinMut = useUpdateMyMinimum();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
+  const [inviteSheetVisible, setInviteSheetVisible] = useState<boolean>(false);
 
   const members = membersQuery.data ?? [];
   const loading = membersQuery.isLoading;
@@ -89,31 +91,32 @@ export default function RoomDetailScreen() {
   const hue = roomHues[accent];
 
   return (
-    <Screen title="그룹">
+    <Screen title="">
+      <View style={styles.headerRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로 가기"
+          hitSlop={12}
+          onPress={() => router.back()}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="arrow-back" size={22} color={palette.ink} />
+        </Pressable>
+        <Text variant="h2" numberOfLines={1} style={styles.headerTitle}>
+          {room?.name ?? "그룹"}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="멤버 추가"
+          hitSlop={12}
+          onPress={() => setInviteSheetVisible(true)}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="person-add-alt" size={22} color={palette.ink} />
+        </Pressable>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card tone="raised" size="lg" style={{ borderColor: hue.base, borderWidth: 1 }}>
-          <Text variant="label" color={hue.deep}>그룹 상세</Text>
-          <Text variant="bodySmall" color={palette.inkMute} style={{ marginTop: space[1] }}>
-            아래 코드를 친구에게 공유하면 같은 그룹에서 서로의 회고를 볼 수 있어요.
-          </Text>
-
-          {invite ? (
-            <View style={styles.inviteBox}>
-              <Text variant="display" weight="800">{invite.code}</Text>
-              {invite.expiresAt ? (
-                <Text variant="caption" color={palette.inkMute}>
-                  유효기간: {new Date(invite.expiresAt).toLocaleDateString("ko-KR")}
-                </Text>
-              ) : null}
-              <Button label="공유하기" tone="primary" size="md" fullWidth onPress={shareInvite} />
-            </View>
-          ) : (
-            <View style={{ marginTop: space[3] }}>
-              <Button label="초대 코드 만들기" tone="primary" size="md" fullWidth onPress={handleCreateInvite} />
-            </View>
-          )}
-        </Card>
-
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="그룹 채팅 열기"
@@ -213,19 +216,34 @@ export default function RoomDetailScreen() {
 
         <Button label="그룹 나가기" tone="ghost" size="md" fullWidth onPress={handleLeave} />
       </ScrollView>
+
+      <InviteCodeSheet
+        visible={inviteSheetVisible}
+        invite={invite}
+        isCreating={inviteMut.isPending}
+        onCreate={handleCreateInvite}
+        onShare={shareInvite}
+        onClose={() => setInviteSheetVisible(false)}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { gap: space[3], paddingBottom: space[8] },
-  inviteBox: {
-    marginTop: space[3],
-    padding: space[3],
-    borderRadius: 16,
-    backgroundColor: surface.sunken,
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: space[3],
+    paddingTop: space[1],
+    paddingBottom: space[2],
     gap: space[2],
+  },
+  headerIcon: {
+    padding: space[1],
+  },
+  headerTitle: {
+    flex: 1,
   },
   skeletonList: { gap: space[2] },
   memberList: { gap: space[2] },
