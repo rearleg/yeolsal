@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
+import { useNotificationInvalidation } from "../src/lib/notifications";
 import { setupReactQueryFocus } from "../src/lib/query/focus";
 import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
 import { QueryProvider } from "../src/providers/QueryProvider";
@@ -30,6 +31,7 @@ export default function RootLayout() {
         <ToastProvider>
           <ErrorBoundary>
             <PushTokenBootstrap />
+            <NotificationInvalidationBootstrap />
             <SentryUserBinding />
             <Stack screenOptions={{ headerShown: false }} />
             <StatusBar style="dark" />
@@ -38,6 +40,17 @@ export default function RootLayout() {
       </QueryProvider>
     </AuthProvider>
   );
+}
+
+/**
+ * Sits inside <QueryProvider> so the hook's useQueryClient() resolves.
+ * Subscribes to incoming Expo push notifications and invalidates the
+ * relevant query caches so the user sees fresh feed / friend / chat
+ * data the moment a push lands instead of waiting for the next visit.
+ */
+function NotificationInvalidationBootstrap() {
+  useNotificationInvalidation();
+  return null;
 }
 
 function PushTokenBootstrap() {
