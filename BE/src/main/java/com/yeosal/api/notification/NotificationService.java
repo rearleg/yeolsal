@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,7 +117,16 @@ public class NotificationService {
         if (tokens.isEmpty()) {
             return;
         }
-        boolean sent = pushClient.send(tokens.stream().map(PushToken::getToken).toList(), title, body);
+        // `data` is forwarded verbatim by Expo to the device. The FE listener
+        // (useNotificationInvalidation) reads `data.kind` to invalidate just
+        // the right query caches instead of broad-invalidating every cache
+        // on every push.
+        Map<String, Object> data = Map.of(
+                "kind", kind.name(),
+                "key", key
+        );
+        boolean sent = pushClient.send(
+                tokens.stream().map(PushToken::getToken).toList(), title, body, data);
         if (sent) {
             // Only record the dedup row when delivery actually went through;
             // otherwise the next cron / event cycle should be allowed to retry.
