@@ -3,7 +3,11 @@ package com.yeosal.api.room;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.daily.DailyEntry;
+import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
+import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.User;
@@ -17,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,9 +41,15 @@ public class RoomService {
     private final GroupWarningRepository warnings;
     private final UserRepository users;
     private final DailyService dailyService;
+    private final DailyEntryRepository dailyEntries;
     private final ChatService chatService;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
+
+    /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
+     * displayed in the group dashboard agrees with what each member sees on
+     * their own profile screen. */
+    private static final int STREAK_WINDOW_DAYS = 365;
 
     public RoomService(
             RoomRepository rooms,
@@ -48,6 +59,7 @@ public class RoomService {
             GroupWarningRepository warnings,
             UserRepository users,
             DailyService dailyService,
+            DailyEntryRepository dailyEntries,
             ChatService chatService,
             InviteCodeGenerator codeGenerator,
             Clock clock
@@ -59,6 +71,7 @@ public class RoomService {
         this.warnings = warnings;
         this.users = users;
         this.dailyService = dailyService;
+        this.dailyEntries = dailyEntries;
         this.chatService = chatService;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
@@ -107,6 +120,73 @@ public class RoomService {
         }
         return roomMembers.findByRoom(room).stream()
                 .map(rm -> MemberSummary.from(rm, byUserId.get(rm.getUser().getId())))
+                .toList();
+    }
+
+    /**
+     * Per-member daily snapshot for the group detail dashboard. Mirrors the
+     * batched-IO pattern in {@code FriendService.dailyFeed}: one query for
+     * everyone's today entry, one for the streak window, then we group in
+     * memory — never N+1 across members.
+     *
+     * <p>Returns one row per member of {@code roomId}; if a member hasn't
+     * created today's entry yet the row reports empty progress (no goal /
+     * 0 todos / no reflection) but still carries the member's identity so
+     * the FE can render a "오늘 시작 안 함" placeholder.
+     */
+    @Transactional(readOnly = true)
+    public List<MemberTodayDto> todayForRoom(User viewer, long roomId, LocalDate date) {
+        if (date == null) {
+            throw new BadRequestException("date 파라미터가 필요합니다.");
+        }
+        Room room = requireRoom(roomId);
+        requireMembership(room, viewer);
+
+        List<RoomMember> members = roomMembers.findByRoom(room);
+        if (members.isEmpty()) {
+            return List.of();
+        }
+        List<User> memberUsers = members.stream().map(RoomMember::getUser).toList();
+
+        // Batch: one query for everyone's entry on `date`, one for the
+        // streak window. The streak window mirrors the friend-feed window so
+        // a member's group-page streak agrees with their friend-feed streak.
+        List<DailyEntry> todayEntries = dailyEntries.findByUserInAndDate(memberUsers, date);
+        Map<Long, DailyEntry> todayByUserId = todayEntries.stream()
+                .collect(Collectors.toMap(e -> e.getUser().getId(), e -> e, (a, b) -> a));
+
+        LocalDate streakFrom = date.minusDays(STREAK_WINDOW_DAYS - 1L);
+        List<DailyEntry> streakEntries = dailyEntries.findGrassEntriesByUsersBetween(
+                memberUsers, streakFrom, date);
+        Map<Long, List<DailyEntry>> streakByUserId = streakEntries.stream()
+                .collect(Collectors.groupingBy(e -> e.getUser().getId()));
+
+        return members.stream()
+                .map(rm -> {
+                    User u = rm.getUser();
+                    DailyEntry entry = todayByUserId.get(u.getId());
+                    List<DailyEntry> streakRows = streakByUserId.getOrDefault(u.getId(), List.of());
+                    List<GrassDay> window = dailyService.grassFromEntries(
+                            u, streakFrom, date, streakRows);
+                    int streak = dailyService.streakFromGrass(date, window);
+                    if (entry == null) {
+                        return new MemberTodayDto(
+                                u.getId(), u.getNickname(), date,
+                                "", false, 0, false, streak);
+                    }
+                    String goal = entry.getGoal() == null ? "" : entry.getGoal();
+                    boolean goalSet = !goal.isBlank();
+                    int completed = (int) entry.getTodos().stream()
+                            .filter(TodoItem::isCompleted)
+                            .count();
+                    // A reflection row only exists once the user submits it
+                    // (see DailyService.createReflection); submitted_at is
+                    // NOT NULL by schema, so existence == submitted.
+                    boolean reflected = entry.getReflection() != null;
+                    return new MemberTodayDto(
+                            u.getId(), u.getNickname(), date,
+                            goal, goalSet, completed, reflected, streak);
+                })
                 .toList();
     }
 
@@ -248,6 +328,23 @@ public class RoomService {
             );
         }
     }
+
+    /**
+     * Per-member daily snapshot returned by {@link #todayForRoom(User, long, LocalDate)}.
+     * Field names mirror the FE {@code MemberTodayDto} contract in
+     * {@code FE/src/api/rooms.ts}; Jackson serializes {@code date} as ISO
+     * {@code yyyy-MM-dd} via the default date module.
+     */
+    public record MemberTodayDto(
+            long userId,
+            String nickname,
+            LocalDate date,
+            String goal,
+            boolean goalSet,
+            int completedTodoCount,
+            boolean reflectionSubmitted,
+            int currentStreak
+    ) {}
 
     public record InviteSummary(long id, long roomId, String code, Instant expiresAt) {
         public static InviteSummary from(RoomInvite invite) {
