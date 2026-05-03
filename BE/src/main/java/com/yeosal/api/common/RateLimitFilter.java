@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final boolean trustForwardedFor;
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
+    /**
+     * Production-time autowiring entry point. Spring's resolution falls
+     * back to the no-arg constructor when several constructors exist and
+     * none is annotated, so we anchor the prod ctor explicitly to keep
+     * the bean factory from rejecting the filter at boot time.
+     */
+    @Autowired
     public RateLimitFilter(
             @Value("${yeosal.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this(DEFAULT_RULES, Clock.systemUTC(), trustForwardedFor);
