@@ -408,63 +408,86 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("groupToday: stitches per-member entry + streak; missing entry maps to empty goal/0 todos")
-    void groupTodayStitchesEntriesAndStreaks() {
+    @DisplayName("updateMyMinimum: persists raised minimum on the existing member row")
+    void updateMyMinimumRaisesExistingRow() {
         Room room = makeRoom(42L, "기본 방", alice);
+        room.setMinDailyGoalDays((short) 10);
         when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
-                Optional.of(new RoomMember(room, alice, RoomRole.OWNER))
-        );
-        com.yeosal.api.daily.DailyEntry aliceEntry = mock(com.yeosal.api.daily.DailyEntry.class);
-        when(aliceEntry.getUser()).thenReturn(alice);
-        when(aliceEntry.getGoal()).thenReturn("오늘 목표");
-        when(aliceEntry.getTodos()).thenReturn(java.util.Collections.emptyList());
-        when(aliceEntry.getReflection()).thenReturn(null);
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER)));
+        GroupMemberMinimum existing = new GroupMemberMinimum(42L, 1L, (short) 10);
+        when(minimums.findByRoomIdAndUserId(42L, 1L)).thenReturn(Optional.of(existing));
 
-        RoomMember aliceMember = new RoomMember(room, alice, RoomRole.OWNER);
-        RoomMember bobMember = new RoomMember(room, bob, RoomRole.MEMBER);
-        when(roomMembers.findByRoom(room)).thenReturn(List.of(aliceMember, bobMember));
+        RoomService.MemberSummary result = service.updateMyMinimum(alice, 42L, 20);
 
-        java.time.LocalDate today = java.time.LocalDate.parse("2026-04-30");
-        when(dailyEntries.findByUserInAndDate(any(), eqDate(today)))
-                .thenReturn(List.of(aliceEntry));
-        when(dailyEntries.findGrassEntriesByUsersBetween(any(), any(java.time.LocalDate.class), any(java.time.LocalDate.class)))
-                .thenReturn(List.of());
-        when(dailyService.grassFromEntries(any(), any(), any(), any())).thenReturn(List.of());
-        when(dailyService.streakFromGrass(any(), any())).thenReturn(7).thenReturn(0);
-
-        List<RoomService.MemberTodayDto> result = service.groupToday(alice, 42L, today);
-
-        assertThat(result).hasSize(2);
-        RoomService.MemberTodayDto aliceDto = result.stream().filter(d -> d.userId() == 1L).findFirst().orElseThrow();
-        assertThat(aliceDto.goal()).isEqualTo("오늘 목표");
-        assertThat(aliceDto.goalSet()).isTrue();
-        assertThat(aliceDto.completedTodoCount()).isEqualTo(0);
-        assertThat(aliceDto.reflectionSubmitted()).isFalse();
-        assertThat(aliceDto.currentStreak()).isEqualTo(7);
-
-        RoomService.MemberTodayDto bobDto = result.stream().filter(d -> d.userId() == 2L).findFirst().orElseThrow();
-        assertThat(bobDto.goal()).isEmpty();
-        assertThat(bobDto.goalSet()).isFalse();
-        assertThat(bobDto.completedTodoCount()).isEqualTo(0);
-        assertThat(bobDto.reflectionSubmitted()).isFalse();
-        assertThat(bobDto.currentStreak()).isEqualTo(0);
+        assertThat(existing.getMinDailyGoalDays()).isEqualTo((short) 20);
+        assertThat(result.currentMinimum()).isEqualTo(20);
+        // No explicit save — JPA dirty-check on commit handles persistence.
+        verify(minimums, never()).save(any());
     }
 
     @Test
-    @DisplayName("groupToday: forbids non-members")
-    void groupTodayForbidsNonMembers() {
+    @DisplayName("updateMyMinimum: lazily creates a member row via race-safe upsert when none exists")
+    void updateMyMinimumLazilyCreatesRow() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        room.setMinDailyGoalDays((short) 10);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER)));
+        // First findById is empty (legacy/missing row), insertIfAbsent succeeds,
+        // and the second findById then sees the just-inserted row.
+        GroupMemberMinimum freshlyCreated = new GroupMemberMinimum(42L, 1L, (short) 10);
+        when(minimums.findByRoomIdAndUserId(42L, 1L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(freshlyCreated));
+        when(minimums.insertIfAbsent(42L, 1L, (short) 10)).thenReturn(1);
+
+        RoomService.MemberSummary result = service.updateMyMinimum(alice, 42L, 15);
+
+        verify(minimums).insertIfAbsent(42L, 1L, (short) 10);
+        // Service raises the fresh row in-place; JPA dirty-check would persist.
+        assertThat(freshlyCreated.getMinDailyGoalDays()).isEqualTo((short) 15);
+        assertThat(result.currentMinimum()).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("updateMyMinimum: rejects values below the room floor")
+    void updateMyMinimumRejectsBelowRoomFloor() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        room.setMinDailyGoalDays((short) 20);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER)));
+
+        assertThatThrownBy(() -> service.updateMyMinimum(alice, 42L, 15))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("그룹 최소 기준");
+        verify(minimums, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateMyMinimum: rejects non-whitelist values")
+    void updateMyMinimumRejectsBadValue() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        room.setMinDailyGoalDays((short) 10);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER)));
+
+        assertThatThrownBy(() -> service.updateMyMinimum(alice, 42L, 7))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("10/15/20");
+    }
+
+    @Test
+    @DisplayName("updateMyMinimum: forbids non-members")
+    void updateMyMinimumForbidsNonMembers() {
         Room room = makeRoom(42L, "기본 방", alice);
         when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.groupToday(bob, 42L, java.time.LocalDate.parse("2026-04-30")))
+        assertThatThrownBy(() -> service.updateMyMinimum(bob, 42L, 20))
                 .isInstanceOf(ForbiddenException.class);
-        verify(dailyEntries, never()).findByUserInAndDate(any(), any());
-    }
-
-    private static java.time.LocalDate eqDate(java.time.LocalDate d) {
-        return org.mockito.ArgumentMatchers.eq(d);
     }
 
     // -- helpers --

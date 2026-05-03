@@ -141,6 +141,41 @@ public class RoomService {
         return MemberSummary.from(saved, minimum);
     }
 
+    /**
+     * Member-driven raise of their per-(room, user) minimum. The new value
+     * must be in the global whitelist {@link GoalMinimumDays#ALLOWED} *and*
+     * at least the room's current minimum — members can never set themselves
+     * below the room-wide floor. Lowering one's own minimum below the floor
+     * would defeat the room's social contract; raising is fine and intended.
+     */
+    @Transactional
+    public MemberSummary updateMyMinimum(User user, long roomId, int minDailyGoalDays) {
+        Room room = requireRoom(roomId);
+        RoomMember membership = requireMembership(room, user);
+        if (!GoalMinimumDays.isAllowed(minDailyGoalDays)) {
+            throw new BadRequestException("최소 목표일수는 10/15/20/매일 중 하나여야 합니다.");
+        }
+        if (minDailyGoalDays < room.getMinDailyGoalDays()) {
+            throw new BadRequestException(
+                    "그룹 최소 기준(" + room.getMinDailyGoalDays() + "일) 이상으로만 설정할 수 있습니다.");
+        }
+        GroupMemberMinimum minimum = minimums
+                .findByRoomIdAndUserId(room.getId(), user.getId())
+                .orElseGet(() -> {
+                    // Race-safe lazy create — concurrent PATCHes for a missing
+                    // row would otherwise collide on the UNIQUE constraint.
+                    minimums.insertIfAbsent(
+                            room.getId(), user.getId(), room.getMinDailyGoalDays());
+                    return minimums.findByRoomIdAndUserId(room.getId(), user.getId())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "group_member_minimums row missing after upsert"));
+                });
+        minimum.setMinDailyGoalDays((short) minDailyGoalDays);
+        // No explicit save — JPA dirty-check on the @Transactional commit. The
+        // entity's @PreUpdate touches updated_at.
+        return MemberSummary.from(membership, minimum);
+    }
+
     @Transactional
     public void leave(User user, long roomId) {
         Room room = requireRoom(roomId);

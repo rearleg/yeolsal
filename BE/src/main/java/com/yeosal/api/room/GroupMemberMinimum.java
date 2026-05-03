@@ -67,7 +67,13 @@ public class GroupMemberMinimum {
     public short getWarningCount() { return warningCount; }
     public Instant getUpdatedAt() { return updatedAt; }
 
-    public void setMinDailyGoalDays(short v) { this.minDailyGoalDays = v; }
+    public void setMinDailyGoalDays(short v) {
+        if (!GoalMinimumDays.isAllowed(v)) {
+            throw new IllegalArgumentException(
+                    "minDailyGoalDays must be one of " + GoalMinimumDays.ALLOWED);
+        }
+        this.minDailyGoalDays = v;
+    }
 
     public void setWarningCount(short v) {
         if (v < 0 || v > 2) {

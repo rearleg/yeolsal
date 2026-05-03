@@ -7,8 +7,9 @@ import {
   leaveRoom,
   listMembers,
   listRooms,
+  updateMyMinimum,
   type CreateRoomInput,
-  type MemberTodayDto,
+  type MinDays,
   type Room,
   type RoomInvite,
   type RoomMember,
@@ -78,6 +79,24 @@ export function useLeaveRoom() {
     onSuccess: () => {
       haptic("light");
       qc.invalidateQueries({ queryKey: qk.rooms });
+    },
+  });
+}
+
+interface UpdateMinVars {
+  roomId: number;
+  minDailyGoalDays: MinDays;
+}
+
+export function useUpdateMyMinimum() {
+  const qc = useQueryClient();
+  const haptic = useHaptic();
+  return useMutation<RoomMember, Error, UpdateMinVars>({
+    mutationFn: ({ roomId, minDailyGoalDays }) => updateMyMinimum(roomId, minDailyGoalDays),
+    onError: (e) => toast.error(e.message),
+    onSuccess: (_member, vars) => {
+      haptic("success");
+      qc.invalidateQueries({ queryKey: qk.roomMembers(vars.roomId) });
     },
   });
 }
