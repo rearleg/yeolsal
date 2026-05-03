@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette, surface, text as textColors } from "../theme/tokens";
 import { space } from "../theme/spacing";
 import { useReducedMotion } from "../theme/motion";
@@ -10,7 +11,7 @@ const ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   today: "today",
   feed: "people",
   rooms: "groups",
-  monthly: "bar-chart",
+  chat: "chat-bubble-outline",
   profile: "account-circle",
 };
 
@@ -18,12 +19,13 @@ const LABEL: Record<string, string> = {
   today: "오늘",
   feed: "친구",
   rooms: "그룹",
-  monthly: "기록",
+  chat: "채팅",
   profile: "마이",
 };
 
 export function BottomNav({ state, navigation }: BottomTabBarProps) {
   const reduced = useReducedMotion();
+  const insets = useSafeAreaInsets();
   const indicator = useRef(new Animated.Value(state.index)).current;
 
   useEffect(() => {
@@ -46,7 +48,10 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
   });
 
   return (
-    <View accessibilityRole="tablist" style={styles.footer}>
+    <View
+      accessibilityRole="tablist"
+      style={[styles.footer, { paddingBottom: insets.bottom + space[1] }]}
+    >
       <Animated.View
         pointerEvents="none"
         style={[styles.indicatorWrap, { left, width: `${tabWidthPct}%` }]}

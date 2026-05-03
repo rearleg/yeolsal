@@ -5,6 +5,8 @@ export const qk = {
   roomMembers: (id: number) => ["rooms", id, "members"] as const,
   roomToday: (id: number, date: string) => ["rooms", id, "today", date] as const,
   roomMessages: (id: number) => ["rooms", id, "messages"] as const,
+  roomLastMessage: (id: number) => ["rooms", id, "lastMessage"] as const,
+  chatLastRead: (id: number) => ["chat", "lastRead", id] as const,
   profile: ["profile"] as const,
   grass: (from: string, to: string) => ["grass", from, to] as const,
   monthlyStats: (month: string) => ["monthly", month] as const,
