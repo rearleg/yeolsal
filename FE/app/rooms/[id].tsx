@@ -1,22 +1,30 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import { useQueries } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import { apiRequest, type ApiEnvelope } from "../../src/api/client";
 import {
   MIN_DAYS_LABELS,
+  type MemberTodayDto,
   type MinDays,
   type RoomInvite,
 } from "../../src/api/rooms";
+import type { GrassDayDto } from "../../src/api/types";
 import { useAuth } from "../../src/auth/AuthContext";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
 import { InviteCodeSheet } from "../../src/components/rooms/InviteCodeSheet";
+import { RoomMemberCard } from "../../src/components/rooms/RoomMemberCard";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { Skeleton } from "../../src/components/ui/Skeleton";
 import { Text } from "../../src/components/ui/Text";
+import { bucketFor } from "../../src/lib/bucket";
+import { entryDateOf } from "../../src/lib/calendar";
 import {
   useCreateInvite,
+  useGroupTodayQuery,
   useLeaveRoom,
   useRoomMembersQuery,
   useRoomsQuery,
@@ -41,6 +49,55 @@ export default function RoomDetailScreen() {
   const me = members.find((m) => user != null && m.userId === user.id) ?? null;
   const room = (roomsQuery.data ?? []).find((r) => r.id === roomId) ?? null;
   const roomFloor: MinDays = room?.minDailyGoalDays ?? 10;
+
+  // Today's per-member snapshot (goal/todos/reflection). Falls into the same
+  // cache as the home tab's GroupTodayCard so cross-tab navigation reuses
+  // whichever query was warmed first.
+  const today = useMemo(() => entryDateOf(), []);
+  const groupTodayQuery = useGroupTodayQuery(roomId, today);
+  const todayByUser = useMemo(() => {
+    const map = new Map<number, MemberTodayDto>();
+    for (const m of groupTodayQuery.data ?? []) {
+      map.set(m.userId, m);
+    }
+    return map;
+  }, [groupTodayQuery.data]);
+
+  // Current-month window for the per-member achievement bar. Caps the
+  // denominator at the actual length of the month so February doesn't show
+  // an impossible "31일 목표".
+  const { monthFirst, monthLast, monthDayCount } = useMemo(() => {
+    const year = Number(today.slice(0, 4));
+    const m = Number(today.slice(5, 7));
+    const last = new Date(year, m, 0);
+    return {
+      monthFirst: `${today.slice(0, 7)}-01`,
+      monthLast: last.toISOString().slice(0, 10),
+      monthDayCount: last.getDate(),
+    };
+  }, [today]);
+
+  // Fan out per-member grass for the current month. The query key matches
+  // the existing useFriendGrassQuery shape so an open friend-profile screen
+  // and this card share a single cache entry.
+  const memberGrassQueries = useQueries({
+    queries: members.map((m) => ({
+      queryKey: ["friendGrass", m.userId, monthFirst, monthLast] as const,
+      queryFn: () =>
+        apiRequest<ApiEnvelope<GrassDayDto[]>>(
+          `/profiles/${m.userId}/grass?from=${monthFirst}&to=${monthLast}`,
+        ).then((r) => r.data),
+      enabled:
+        Number.isFinite(m.userId) && m.userId > 0 && Boolean(monthFirst && monthLast),
+    })),
+  });
+  const monthSuccessByIndex = useMemo(
+    () =>
+      memberGrassQueries.map((q) =>
+        q.data == null ? null : q.data.filter((d) => bucketFor(d) > 0).length,
+      ),
+    [memberGrassQueries],
+  );
 
   function handleCreateInvite() {
     inviteMut.mutate(roomId, {
@@ -164,30 +221,22 @@ export default function RoomDetailScreen() {
             </View>
           ) : (
             <View style={styles.memberList}>
-              {members.map((member) => (
-                <Pressable
-                  key={`${member.roomId}-${member.userId}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${member.nickname} 프로필 열기`}
-                  onPress={() => router.push(`/friend-profile?userId=${member.userId}`)}
-                >
-                  <Card tone="default" size="md">
-                    <View style={styles.memberRow}>
-                      <View style={[styles.avatar, { backgroundColor: hue.soft }]}>
-                        <Text variant="bodyStrong" color={hue.deep}>
-                          {member.nickname.slice(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="bodyStrong">{member.nickname}</Text>
-                        <Text variant="caption" color={palette.inkMute}>
-                          {member.role === "OWNER" ? "그룹장" : "멤버"}
-                        </Text>
-                      </View>
-                    </View>
-                  </Card>
-                </Pressable>
-              ))}
+              {members.map((member, idx) => {
+                const denominator = Math.min(member.currentMinimum, monthDayCount);
+                return (
+                  <RoomMemberCard
+                    key={`${member.roomId}-${member.userId}`}
+                    member={member}
+                    hue={hue}
+                    today={todayByUser.get(member.userId) ?? null}
+                    monthSuccess={monthSuccessByIndex[idx] ?? null}
+                    monthDenominator={denominator}
+                    onPress={() =>
+                      router.push(`/friend-profile?userId=${member.userId}`)
+                    }
+                  />
+                );
+              })}
             </View>
           )}
         </View>
@@ -233,13 +282,5 @@ const styles = StyleSheet.create({
     backgroundColor: semantic.danger.bg,
     alignSelf: "flex-start",
   },
-  memberRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
   chatRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

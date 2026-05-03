@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../src/auth/AuthContext";
 import { useRequireAuth } from "../../../src/auth/useRequireAuth";
 import { ChatList } from "../../../src/components/chat/ChatList";
@@ -16,6 +16,7 @@ import { Text } from "../../../src/components/ui/Text";
 import { useRoomMembersQuery } from "../../../src/lib/query/hooks/rooms";
 import {
   useChatMessages,
+  useMarkChatRead,
   useSendChatMessage,
 } from "../../../src/lib/query/hooks/chat";
 import { space } from "../../../src/theme/spacing";
@@ -27,9 +28,11 @@ export default function RoomChatScreen() {
   const roomId = Number(params.id);
   const { user } = useAuth();
 
+  const insets = useSafeAreaInsets();
   const messagesQuery = useChatMessages(roomId);
   const membersQuery = useRoomMembersQuery(roomId);
   const sendMut = useSendChatMessage(roomId);
+  const markRead = useMarkChatRead(roomId);
 
   // Flatten the InfiniteQuery pages into a single ascending list. Each page
   // is itself ascending; older pages come *after* newer pages in the cache,
@@ -40,6 +43,18 @@ export default function RoomChatScreen() {
     return ordered.flatMap((page) => page.messages);
   }, [messagesQuery.data]);
 
+  // While the chat screen is open, treat the freshest message as read. The
+  // mutation no-ops when the watermark already covers `latestId` (handled
+  // inside `useMarkChatRead`), so this fires at most once per new message.
+  const latestId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  useEffect(() => {
+    if (latestId == null) return;
+    markRead.mutate(latestId);
+    // mutation handle is stable across renders — exclude to avoid re-firing
+    // when the mutation state object identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestId]);
+
   const nicknameByUserId = useMemo(() => {
     const map: Record<number, string> = {};
     for (const m of membersQuery.data ?? []) {
@@ -49,13 +64,19 @@ export default function RoomChatScreen() {
   }, [membersQuery.data]);
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
         <Text variant="h2" numberOfLines={1}>채팅</Text>
       </View>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // SafeAreaView reserves `insets.bottom` for the home indicator /
+        // gesture bar; without this offset, KAV's padding-bottom would
+        // double-count that area on iOS and leave a visible gap between
+        // the keyboard and the input. Android (behavior=height) uses
+        // adjustResize so no offset is needed.
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
       >
         <View style={styles.flex}>
           {messagesQuery.isLoading ? (

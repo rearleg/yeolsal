@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { palette, surface } from "../../theme/tokens";
@@ -12,6 +12,7 @@ interface Props {
 
 export function MessageInput({ onSubmit, pending }: Props) {
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<TextInput>(null);
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && !pending;
 
@@ -19,16 +20,27 @@ export function MessageInput({ onSubmit, pending }: Props) {
     if (!canSend) return;
     onSubmit(trimmed);
     setDraft("");
+    // Keep the keyboard up so the user can fire off rapid follow-ups
+    // without retapping the input. Some Android skins drop focus when
+    // a multiline TextInput's value flips to empty — re-focusing here
+    // is the canonical fix.
+    inputRef.current?.focus();
   }
 
   return (
     <View style={styles.container}>
       <TextInput
+        ref={inputRef}
         value={draft}
         onChangeText={setDraft}
         placeholder="메시지 입력"
         placeholderTextColor={palette.inkFaint}
         multiline
+        // Multiline TextInputs default `blurOnSubmit` to true, which
+        // collapses the keyboard when the soft-return is pressed. We
+        // never want that for chat — the only blur path should be the
+        // user explicitly tapping outside.
+        blurOnSubmit={false}
         editable={!pending}
         maxLength={2000}
         accessibilityLabel="메시지 입력"

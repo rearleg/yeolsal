@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.AuthProvider;
@@ -44,6 +45,7 @@ class RoomServiceTest {
     @Mock private GroupWarningRepository warnings;
     @Mock private UserRepository users;
     @Mock private DailyService dailyService;
+    @Mock private DailyEntryRepository dailyEntries;
     @Mock private ChatService chatService;
     @Mock private InviteCodeGenerator codeGenerator;
 
@@ -65,6 +67,7 @@ class RoomServiceTest {
                 warnings,
                 users,
                 dailyService,
+                dailyEntries,
                 chatService,
                 codeGenerator,
                 clock);

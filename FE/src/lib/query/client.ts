@@ -21,7 +21,12 @@ export const queryClient = new QueryClient({
         return failureCount < 1;
       },
       refetchOnReconnect: "always",
-      refetchOnWindowFocus: false,
+      // Paired with setupReactQueryFocus() in app/_layout.tsx — RN has no
+      // window focus event natively, so this only takes effect once the
+      // AppState bridge calls focusManager.setFocused(true). Prior to PR-A
+      // this was hard-coded false, which is why returning to the app
+      // never triggered a refetch.
+      refetchOnWindowFocus: true,
     },
     mutations: {
       retry: 0,

@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -18,7 +20,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.yeosal.api.common.BadRequestException;
 
 @RestController
 @RequestMapping("/api/v1/rooms")
@@ -59,6 +63,28 @@ public class RoomController {
     public ApiResponse<List<RoomService.MemberSummary>> members(Authentication auth, @PathVariable long id) {
         User me = currentUser.require(auth);
         return ApiResponse.of(roomService.members(me, id));
+    }
+
+    /**
+     * Per-member daily snapshot for the group dashboard. {@code date} is the
+     * FE's entry-date in ISO {@code yyyy-MM-dd}; we parse it manually here
+     * (rather than via Spring's converter) so a malformed value yields a
+     * 400 with a localized message instead of a 500 binding error.
+     */
+    @GetMapping("/{id}/today")
+    public ApiResponse<List<RoomService.MemberTodayDto>> today(
+            Authentication auth,
+            @PathVariable long id,
+            @RequestParam("date") String date
+    ) {
+        User me = currentUser.require(auth);
+        LocalDate parsed;
+        try {
+            parsed = LocalDate.parse(date);
+        } catch (DateTimeParseException ex) {
+            throw new BadRequestException("date 형식이 올바르지 않습니다. (yyyy-MM-dd)");
+        }
+        return ApiResponse.of(roomService.todayForRoom(me, id, parsed));
     }
 
     @PostMapping("/{id}/invites")

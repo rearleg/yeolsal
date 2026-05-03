@@ -11,7 +11,11 @@ import { ContributionGrid } from "../../src/components/grid/ContributionGrid";
 import { DayDetailCard } from "../../src/components/grid/DayDetailCard";
 import { bucketFor } from "../../src/lib/bucket";
 import { entryDateOf, rollingRange } from "../../src/lib/calendar";
-import { useGrassQuery, useProfileQuery } from "../../src/lib/query/hooks/profile";
+import {
+  useGrassQuery,
+  useMonthlyStatsQuery,
+  useProfileQuery,
+} from "../../src/lib/query/hooks/profile";
 import { palette, surface } from "../../src/theme/tokens";
 import { space } from "../../src/theme/spacing";
 
@@ -27,8 +31,21 @@ export default function ProfileScreen() {
     return { from: range[0], to: range[range.length - 1], today: t };
   }, []);
 
+  const month = useMemo(() => today.slice(0, 7), [today]);
+  const { monthFirst, monthLast, monthDayCount } = useMemo(() => {
+    const year = Number(month.slice(0, 4));
+    const m = Number(month.slice(5, 7));
+    const last = new Date(year, m, 0);
+    return {
+      monthFirst: `${month}-01`,
+      monthLast: last.toISOString().slice(0, 10),
+      monthDayCount: last.getDate(),
+    };
+  }, [month]);
+
   const profileQuery = useProfileQuery();
   const grassQuery = useGrassQuery(from, to);
+  const monthlyStatsQuery = useMonthlyStatsQuery(month);
   const profile = profileQuery.data ?? null;
   const grass = useMemo(() => grassQuery.data ?? [], [grassQuery.data]);
   const loading = profileQuery.isLoading || grassQuery.isLoading;
@@ -65,10 +82,36 @@ export default function ProfileScreen() {
     return { success, totalTodos, streak };
   }, [grass]);
 
+  // Slice this-month days off the rolling window so the monthly summary stays
+  // consistent with the (already-loaded) /grass response — no extra request.
+  const monthGrass = useMemo(
+    () => grass.filter((d) => d.date >= monthFirst && d.date <= monthLast),
+    [grass, monthFirst, monthLast],
+  );
+  const monthSuccess = useMemo(
+    () => monthGrass.filter((d) => bucketFor(d) > 0).length,
+    [monthGrass],
+  );
+  const monthReflectionCount = useMemo(
+    () => monthGrass.filter((d) => d.reflectionSubmitted).length,
+    [monthGrass],
+  );
+  const monthTodoTotal = useMemo(
+    () => monthGrass.reduce((sum, d) => sum + d.completedTodoCount, 0),
+    [monthGrass],
+  );
+  // Prefer BE-computed monthly stat when present (it counts entries that
+  // satisfied the daily mission rule); otherwise fall back to the local
+  // success bucket count so the card still renders during a slow stats fetch.
+  const monthCompleted = monthlyStatsQuery.data?.completedDailyCount ?? monthSuccess;
+  const monthRate = monthDayCount === 0
+    ? 0
+    : Math.min(100, Math.round((monthCompleted / monthDayCount) * 100));
+
   const initial = (profile?.nickname ?? "나").slice(0, 1);
 
   return (
-    <Screen title="프로필">
+    <Screen title="마이">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loading && grass.length === 0 ? <ActivityIndicator color={palette.coralDeep} /> : null}
 
@@ -88,6 +131,44 @@ export default function ProfileScreen() {
             <Metric label="성공한 날" value={`${stats.success}일`} />
             <View style={styles.metricDivider} />
             <Metric label="완료한 할 일" value={`${stats.totalTodos}개`} />
+          </View>
+        </Card>
+
+        <Card tone="raised" size="lg">
+          <View style={styles.cardHeader}>
+            <View>
+              <Text variant="title">{Number(month.slice(5, 7))}월 요약</Text>
+              <Text variant="caption" color={palette.inkMute}>
+                이번 달의 흐름을 한눈에 확인하세요.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.overviewRow}>
+            <View style={styles.overviewLeft}>
+              <Text variant="caption" color={palette.inkMute}>이번 달 잔디</Text>
+              <View style={styles.overviewCount}>
+                <Text variant="numericDisplay" color={palette.coralDeep}>{monthCompleted}</Text>
+                <Text variant="bodySmall" color={palette.inkMute}>/ {monthDayCount}일</Text>
+              </View>
+            </View>
+            <View style={styles.rateBadge}>
+              <Text variant="caption" color={palette.inkSoft}>달성률</Text>
+              <Text variant="title" color={palette.ink}>{monthRate}%</Text>
+            </View>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${monthRate}%` }]} />
+          </View>
+          <View style={styles.metricRow}>
+            <View style={styles.miniMetric}>
+              <Text variant="caption" color={palette.inkMute}>작성한 회고</Text>
+              <Text variant="numericTabular" color={palette.ink}>{monthReflectionCount}</Text>
+            </View>
+            <View style={styles.miniMetricDivider} />
+            <View style={styles.miniMetric}>
+              <Text variant="caption" color={palette.inkMute}>완료한 할 일</Text>
+              <Text variant="numericTabular" color={palette.ink}>{monthTodoTotal}</Text>
+            </View>
           </View>
         </Card>
 
@@ -161,5 +242,38 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: space[3]
-  }
+  },
+  overviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[3],
+  },
+  overviewLeft: { gap: space[1], flex: 1 },
+  overviewCount: { flexDirection: "row", alignItems: "baseline", gap: space[1] },
+  rateBadge: {
+    alignItems: "center",
+    paddingVertical: space[2],
+    paddingHorizontal: space[3],
+    borderRadius: 12,
+    backgroundColor: surface.sunken,
+  },
+  progressTrack: {
+    marginTop: space[3],
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: surface.sunken,
+    overflow: "hidden",
+  },
+  progressFill: { height: "100%", borderRadius: 5, backgroundColor: palette.coralDeep },
+  metricRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: space[3],
+    paddingTop: space[3],
+    borderTopWidth: 1,
+    borderTopColor: surface.border,
+  },
+  miniMetric: { flex: 1, gap: 2, alignItems: "center" },
+  miniMetricDivider: { width: 1, height: 28, backgroundColor: surface.border, marginHorizontal: space[1] },
 });
