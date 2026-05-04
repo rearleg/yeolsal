@@ -44,6 +44,11 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh"
                         ).permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // WebSocket upgrade endpoint: HTTP layer is open;
+                        // auth happens at the STOMP CONNECT frame inside
+                        // JwtChannelInterceptor. Without this entry the
+                        // handshake never reaches the broker.
+                        .requestMatchers("/ws", "/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // Both custom filters anchor against UsernamePasswordAuthenticationFilter

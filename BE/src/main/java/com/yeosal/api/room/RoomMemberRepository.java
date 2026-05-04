@@ -29,6 +29,15 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
 
     Optional<RoomMember> findByRoomAndUser(Room room, User user);
 
+    /**
+     * Lightweight existence check used by the STOMP {@code SUBSCRIBE}
+     * authoriser ({@link com.yeosal.api.realtime.JwtChannelInterceptor}).
+     * Avoids loading full Room/User entities just to decide whether the
+     * connecting principal may listen on a {@code /topic/rooms.{id}.*}
+     * destination.
+     */
+    boolean existsByRoomIdAndUserId(Long roomId, Long userId);
+
     void deleteByRoomAndUser(Room room, User user);
 
     @Query("""
