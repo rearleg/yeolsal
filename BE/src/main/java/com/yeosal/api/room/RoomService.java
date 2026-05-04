@@ -45,6 +45,7 @@ public class RoomService {
     private final ChatService chatService;
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
+    private final com.yeosal.api.realtime.RealtimePublisher realtime;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -62,7 +63,8 @@ public class RoomService {
             DailyEntryRepository dailyEntries,
             ChatService chatService,
             InviteCodeGenerator codeGenerator,
-            Clock clock
+            Clock clock,
+            com.yeosal.api.realtime.RealtimePublisher realtime
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -75,6 +77,7 @@ public class RoomService {
         this.chatService = chatService;
         this.codeGenerator = codeGenerator;
         this.clock = clock;
+        this.realtime = realtime;
     }
 
     /** Backwards-compatible overload that creates a room with the default minimum. */
@@ -225,7 +228,13 @@ public class RoomService {
         // introduced in PR E.
         GroupMemberMinimum minimum = minimums.save(new GroupMemberMinimum(
                 room.getId(), user.getId(), room.getMinDailyGoalDays()));
-        return MemberSummary.from(saved, minimum);
+        MemberSummary summary = MemberSummary.from(saved, minimum);
+        // Realtime fan-out — every existing member subscribed to
+        // /topic/rooms.{id}.members sees the new member without waiting
+        // for a manual refresh. Publisher swallows broker errors so a
+        // WS hiccup never rolls back the join itself.
+        realtime.publishMemberAdded(room.getId(), summary);
+        return summary;
     }
 
     /**

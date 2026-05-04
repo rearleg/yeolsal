@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.realtime.RealtimePublisher;
 import com.yeosal.api.room.GoalMinimumDays;
 import com.yeosal.api.room.GroupMemberMinimum;
 import com.yeosal.api.room.GroupMemberMinimumRepository;
@@ -45,17 +46,20 @@ public class ChatService {
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final GroupMemberMinimumRepository minimums;
+    private final RealtimePublisher realtime;
 
     public ChatService(
             ChatMessageRepository messages,
             RoomRepository rooms,
             RoomMemberRepository roomMembers,
-            GroupMemberMinimumRepository minimums
+            GroupMemberMinimumRepository minimums,
+            RealtimePublisher realtime
     ) {
         this.messages = messages;
         this.rooms = rooms;
         this.roomMembers = roomMembers;
         this.minimums = minimums;
+        this.realtime = realtime;
     }
 
     /**
@@ -89,7 +93,12 @@ public class ChatService {
         String trimmed = normalizeBody(body);
         ChatMessage saved = messages.save(
                 new ChatMessage(room.getId(), viewer.getId(), ChatMessageKind.USER, trimmed));
-        return MessageDto.from(saved);
+        MessageDto dto = MessageDto.from(saved);
+        // Realtime fan-out — every connected member subscribed to
+        // /topic/rooms.{id}.chat receives the row immediately. The publisher
+        // swallows broker errors so a WS hiccup never rolls back the save.
+        realtime.publishChatMessage(room.getId(), dto);
+        return dto;
     }
 
     /**
@@ -113,8 +122,13 @@ public class ChatService {
             throw new IllegalArgumentException("publishSystem must not write USER kind");
         }
         requireRoom(roomId);
-        return messages.save(new ChatMessage(
+        ChatMessage saved = messages.save(new ChatMessage(
                 roomId, null, kind, normalizeBody(body), parsePayload(payload)));
+        // System rows (GOAL, REFLECTION, AUTO_LEAVE, …) ride the same
+        // realtime channel as user chat so an open chat screen sees them
+        // without waiting for the next polling refresh.
+        realtime.publishChatMessage(roomId, MessageDto.from(saved));
+        return saved;
     }
 
     /**

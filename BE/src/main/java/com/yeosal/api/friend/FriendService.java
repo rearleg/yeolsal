@@ -10,6 +10,8 @@ import com.yeosal.api.daily.TodoItem;
 import com.yeosal.api.notification.NotificationKind;
 import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.profile.GrassDay;
+import com.yeosal.api.realtime.RealtimeEvent;
+import com.yeosal.api.realtime.RealtimePublisher;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
@@ -37,6 +39,7 @@ public class FriendService {
     private final DailyService dailyService;
     private final RoomMemberRepository roomMembers;
     private final NotificationService notifications;
+    private final RealtimePublisher realtime;
 
     public FriendService(
             FriendshipRepository friendships,
@@ -44,7 +47,8 @@ public class FriendService {
             DailyEntryRepository dailyEntries,
             @Lazy DailyService dailyService,
             RoomMemberRepository roomMembers,
-            NotificationService notifications
+            NotificationService notifications,
+            RealtimePublisher realtime
     ) {
         this.friendships = friendships;
         this.users = users;
@@ -52,6 +56,7 @@ public class FriendService {
         this.dailyService = dailyService;
         this.notifications = notifications;
         this.roomMembers = roomMembers;
+        this.realtime = realtime;
     }
 
     @Transactional(readOnly = true)
@@ -83,6 +88,17 @@ public class FriendService {
                 "새 친구 요청",
                 user.getNickname() + "님이 친구 요청을 보냈어요.",
                 FRIEND_EVENT_DEBOUNCE);
+        // Realtime fan-out alongside the push notification path. Foregrounded
+        // recipients see the friend dot light up immediately; backgrounded
+        // recipients still get the push. The publisher swallows broker errors
+        // so a WS hiccup never rolls back the friendship insert.
+        realtime.publishUserEvent(
+                target.getId(),
+                new RealtimeEvent(
+                        NotificationKind.FRIEND_REQUEST_RECEIVED.name(),
+                        java.util.Map.of(
+                                "requesterId", user.getId(),
+                                "requesterNickname", user.getNickname())));
         return toRequestDto(saved);
     }
 
@@ -105,6 +121,13 @@ public class FriendService {
                     "친구 추가 완료",
                     user.getNickname() + "님과 친구가 되었어요.",
                     FRIEND_EVENT_DEBOUNCE);
+            realtime.publishUserEvent(
+                    requester.getId(),
+                    new RealtimeEvent(
+                            NotificationKind.FRIEND_REQUEST_ACCEPTED.name(),
+                            java.util.Map.of(
+                                    "accepterId", user.getId(),
+                                    "accepterNickname", user.getNickname())));
         }
         return toRequestDto(friendship);
     }

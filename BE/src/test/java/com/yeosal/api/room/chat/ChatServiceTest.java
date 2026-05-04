@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.realtime.RealtimePublisher;
 import com.yeosal.api.room.GroupMemberMinimum;
 import com.yeosal.api.room.GroupMemberMinimumRepository;
 import com.yeosal.api.room.Room;
@@ -40,6 +41,7 @@ class ChatServiceTest {
     @Mock private RoomRepository rooms;
     @Mock private RoomMemberRepository roomMembers;
     @Mock private GroupMemberMinimumRepository minimums;
+    @Mock private RealtimePublisher realtime;
 
     private ChatService service;
     private User alice;
@@ -48,7 +50,7 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ChatService(messages, rooms, roomMembers, minimums);
+        service = new ChatService(messages, rooms, roomMembers, minimums, realtime);
         alice = makeUser(1L, "Alice");
         bob = makeUser(2L, "Bob");
         room = makeRoom(42L, "기본 방", alice);
@@ -180,7 +182,14 @@ class ChatServiceTest {
     void publishSystemWritesNullSender() {
         when(rooms.findById(42L)).thenReturn(Optional.of(room));
         ArgumentCaptor<ChatMessage> captor = ArgumentCaptor.forClass(ChatMessage.class);
-        when(messages.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
+        // Mirror real JPA behaviour: assign an id on save so the realtime
+        // publish call (which requires a non-null id for MessageDto.from)
+        // doesn't trip an NPE in the test fixture.
+        when(messages.save(captor.capture())).thenAnswer(inv -> {
+            ChatMessage m = inv.getArgument(0);
+            setId(m, 13L);
+            return m;
+        });
 
         service.publishSystem(42L, ChatMessageKind.GOAL,
                 "Bob님이 오늘의 목표를 작성했어요.",

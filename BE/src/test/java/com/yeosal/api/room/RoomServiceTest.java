@@ -48,6 +48,7 @@ class RoomServiceTest {
     @Mock private DailyEntryRepository dailyEntries;
     @Mock private ChatService chatService;
     @Mock private InviteCodeGenerator codeGenerator;
+    @Mock private com.yeosal.api.realtime.RealtimePublisher realtime;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -70,7 +71,8 @@ class RoomServiceTest {
                 dailyEntries,
                 chatService,
                 codeGenerator,
-                clock);
+                clock,
+                realtime);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
