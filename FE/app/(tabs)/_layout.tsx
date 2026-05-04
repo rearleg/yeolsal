@@ -1,10 +1,17 @@
 import { Tabs } from "expo-router";
 import { BottomNav } from "../../src/components/BottomNav";
+import { surface } from "../../src/theme/tokens";
 
 export default function TabsLayout() {
   return (
     <Tabs
-      screenOptions={{ headerShown: false, animation: "fade" }}
+      screenOptions={{
+        headerShown: false,
+        // "shift" avoids the cross-fade window where both screens go
+        // translucent and the dark RN window background bleeds through.
+        animation: "shift",
+        sceneStyle: { backgroundColor: surface.page },
+      }}
       tabBar={(props) => <BottomNav {...props} />}
     >
       <Tabs.Screen name="today" options={{ title: "오늘" }} />
