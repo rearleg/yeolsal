@@ -29,6 +29,9 @@ import {
   useRoomMembersQuery,
   useRoomsQuery,
 } from "../../src/lib/query/hooks/rooms";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "../../src/lib/query/keys";
+import { useRealtimeSubscription } from "../../src/lib/realtime/client";
 import { space } from "../../src/theme/spacing";
 import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
 
@@ -43,6 +46,20 @@ export default function RoomDetailScreen() {
   const leaveMut = useLeaveRoom();
   const [invite, setInvite] = useState<RoomInvite | null>(null);
   const [inviteSheetVisible, setInviteSheetVisible] = useState<boolean>(false);
+
+  // Realtime member-add events: when someone joins via invite code, the BE
+  // publishes a frame on /topic/rooms.{id}.members. Invalidate the members
+  // and rooms caches so the new member appears immediately without a manual
+  // refresh. Subscription scoped to the room screen — closing it stops
+  // listening, mirroring the chat subscription's lifetime.
+  const qcMembers = useQueryClient();
+  const memberDestination = Number.isFinite(roomId) && roomId > 0
+    ? `/topic/rooms.${roomId}.members`
+    : null;
+  useRealtimeSubscription<unknown>(memberDestination, () => {
+    qcMembers.invalidateQueries({ queryKey: qk.roomMembers(roomId) });
+    qcMembers.invalidateQueries({ queryKey: qk.rooms });
+  });
 
   const members = membersQuery.data ?? [];
   const loading = membersQuery.isLoading;
