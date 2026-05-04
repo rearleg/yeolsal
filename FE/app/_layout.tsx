@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { registerForPushAsync } from "../src/lib/push";
@@ -10,6 +11,7 @@ import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
 import { QueryProvider } from "../src/providers/QueryProvider";
 import { ToastProvider } from "../src/components/feedback/ToastProvider";
 import { ErrorBoundary } from "../src/components/feedback/ErrorBoundary";
+import { surface } from "../src/theme/tokens";
 
 bootstrapSentry();
 
@@ -23,7 +25,10 @@ export default function RootLayout() {
   }, []);
   const fonts = useWantedSans();
   if (!fonts.loaded && !fonts.error) {
-    return null;
+    // Paint the page color while fonts load so the first frame isn't the
+    // RN window default (dark on Android), which manifested as a black
+    // flash before any UI mounted.
+    return <View style={{ flex: 1, backgroundColor: surface.page }} />;
   }
   return (
     <AuthProvider>
@@ -33,7 +38,14 @@ export default function RootLayout() {
             <PushTokenBootstrap />
             <NotificationInvalidationBootstrap />
             <SentryUserBinding />
-            <Stack screenOptions={{ headerShown: false }} />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                // Page-coloured stack background prevents the dark RN
+                // window from bleeding through during route transitions.
+                contentStyle: { backgroundColor: surface.page },
+              }}
+            />
             <StatusBar style="dark" />
           </ErrorBoundary>
         </ToastProvider>
