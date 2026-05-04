@@ -9,6 +9,11 @@ export type ReflectionDto = {
   dailyEntryId: number;
   body: string;
   submitted: boolean;
+  // ISO-8601 instant. Day-complete marker — never advances on edit.
+  submittedAt: string;
+  // ISO-8601 instant. Equal to submittedAt for un-edited reflections; the
+  // "수정됨" caption fires when this is later than submittedAt.
+  updatedAt: string;
 };
 
 export type DailyEntryDto = {

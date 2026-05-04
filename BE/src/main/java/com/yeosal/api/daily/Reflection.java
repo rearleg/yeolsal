@@ -29,6 +29,9 @@ public class Reflection {
     @Column(name = "submitted_at", nullable = false)
     private Instant submittedAt;
 
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
     protected Reflection() {}
 
     public Reflection(DailyEntry dailyEntry, String body) {
@@ -41,10 +44,21 @@ public class Reflection {
         if (submittedAt == null) {
             submittedAt = Instant.now();
         }
+        if (updatedAt == null) {
+            // For freshly-submitted rows updatedAt mirrors submittedAt; the FE
+            // suppresses the "수정됨" caption when the two are equal.
+            updatedAt = submittedAt;
+        }
+    }
+
+    public void updateBody(String newBody) {
+        this.body = newBody;
+        this.updatedAt = Instant.now();
     }
 
     public Long getId() { return id; }
     public DailyEntry getDailyEntry() { return dailyEntry; }
     public String getBody() { return body; }
     public Instant getSubmittedAt() { return submittedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

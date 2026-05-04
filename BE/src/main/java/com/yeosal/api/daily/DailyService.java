@@ -168,6 +168,29 @@ public class DailyService {
         todoItems.delete(todo);
     }
 
+    /**
+     * Edit an existing reflection's body. Intentionally does NOT re-trigger
+     * the chat fan-out, milestone broadcast, or push notification path —
+     * those fired on first submit and re-firing on every typo fix would
+     * spam the actor's roommates. submittedAt stays untouched so streak,
+     * mission completion, and "day-complete" semantics are preserved.
+     */
+    @Transactional
+    public DailyController.ReflectionDto updateReflection(
+            User user, long reflectionId, DailyController.ReflectionUpdate request) {
+        Reflection reflection = reflections.findById(reflectionId)
+                .orElseThrow(() -> new NotFoundException("회고를 찾을 수 없습니다."));
+        if (!reflection.getDailyEntry().getUser().getId().equals(user.getId())) {
+            throw new ForbiddenException("회고 수정 권한이 없습니다.");
+        }
+        String trimmed = request.body() == null ? "" : request.body().trim();
+        if (trimmed.isBlank()) {
+            throw new BadRequestException("회고 본문을 입력하세요.");
+        }
+        reflection.updateBody(trimmed);
+        return toDto(reflection);
+    }
+
     @Transactional
     public DailyController.ReflectionDto createReflection(User user, DailyController.ReflectionCreate request) {
         DailyEntry entry = dailyEntries.findById(request.dailyEntryId())
@@ -421,6 +444,12 @@ public class DailyService {
     }
 
     private DailyController.ReflectionDto toDto(Reflection reflection) {
-        return new DailyController.ReflectionDto(reflection.getId(), reflection.getDailyEntry().getId(), reflection.getBody(), true);
+        return new DailyController.ReflectionDto(
+                reflection.getId(),
+                reflection.getDailyEntry().getId(),
+                reflection.getBody(),
+                true,
+                reflection.getSubmittedAt(),
+                reflection.getUpdatedAt());
     }
 }

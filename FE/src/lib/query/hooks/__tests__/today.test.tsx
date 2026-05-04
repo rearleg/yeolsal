@@ -8,6 +8,7 @@ import {
   useTodayQuery,
   useToggleTodo,
   useUpdateGoal,
+  useUpdateReflection,
 } from "../today";
 import * as api from "../../api";
 import { qk } from "../../keys";
@@ -24,6 +25,7 @@ jest.mock("../../api", () => ({
   patchTodo: jest.fn(),
   deleteTodo: jest.fn(),
   submitReflection: jest.fn(),
+  updateReflection: jest.fn(),
 }));
 
 jest.mock("../../../sentry", () => ({
@@ -37,6 +39,9 @@ const patchTodoMock = api.patchTodo as jest.MockedFunction<typeof api.patchTodo>
 const deleteTodoMock = api.deleteTodo as jest.MockedFunction<typeof api.deleteTodo>;
 const submitReflectionMock = api.submitReflection as jest.MockedFunction<
   typeof api.submitReflection
+>;
+const updateReflectionMock = api.updateReflection as jest.MockedFunction<
+  typeof api.updateReflection
 >;
 
 const SAMPLE: DailyEntryDto = {
@@ -503,5 +508,174 @@ describe("useSubmitReflection", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(errorSpy).toHaveBeenCalledWith("권한이 없습니다.");
+  });
+});
+
+describe("useUpdateReflection", () => {
+  // Cache shape used by every edit case: today already has a submitted
+  // reflection. updatedAt == submittedAt mirrors the BE invariant for
+  // un-edited rows, so the "수정됨" caption stays suppressed in the FE.
+  const WITH_REFLECTION: DailyEntryDto = {
+    ...SAMPLE,
+    reflection: {
+      id: 99,
+      dailyEntryId: SAMPLE.id,
+      body: "원본 회고",
+      submitted: true,
+      submittedAt: "2026-04-30T10:00:00.000Z",
+      updatedAt: "2026-04-30T10:00:00.000Z",
+    },
+  };
+
+  let client: QueryClient;
+  let hapticTrigger: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    client = makeClient();
+    client.setQueryData(qk.today, WITH_REFLECTION);
+    hapticTrigger = jest.fn();
+    jest.spyOn(hapticsMod, "useHaptic").mockReturnValue(hapticTrigger);
+  });
+
+  afterEach(() => {
+    client.clear();
+  });
+
+  it("calls updateReflection with reflectionId and body", async () => {
+    updateReflectionMock.mockImplementation(() => new Promise(() => undefined));
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "수정된 회고" });
+    });
+
+    await waitFor(() =>
+      expect(updateReflectionMock).toHaveBeenCalledWith(99, "수정된 회고"),
+    );
+  });
+
+  it("optimistically updates the cached reflection.body on mutate", async () => {
+    updateReflectionMock.mockImplementation(() => new Promise(() => undefined));
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "수정된 회고" });
+    });
+
+    await waitFor(() => {
+      const cached = client.getQueryData<DailyEntryDto | null>(qk.today);
+      expect(cached?.reflection?.body).toBe("수정된 회고");
+    });
+  });
+
+  it("writes server response (with new updatedAt) to cache on success", async () => {
+    const serverDto = {
+      id: 99,
+      dailyEntryId: SAMPLE.id,
+      body: "서버 확정 회고",
+      submitted: true,
+      submittedAt: "2026-04-30T10:00:00.000Z",
+      updatedAt: "2026-04-30T11:30:00.000Z",
+    };
+    updateReflectionMock.mockResolvedValue(serverDto);
+
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "서버 확정 회고" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const cached = client.getQueryData<DailyEntryDto | null>(qk.today);
+    expect(cached?.reflection).toEqual(serverDto);
+  });
+
+  it("rolls back optimistic update when updateReflection rejects", async () => {
+    jest.spyOn(toastMod.toast, "error").mockImplementation(() => undefined);
+    updateReflectionMock.mockRejectedValue(new Error("수정 실패"));
+
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "낙관적 본문" });
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    const cached = client.getQueryData<DailyEntryDto | null>(qk.today);
+    expect(cached?.reflection?.body).toBe("원본 회고");
+  });
+
+  it("DOES NOT invalidate room chat caches — edit must not re-fan-out", async () => {
+    // The hardest invariant on the edit path. Re-firing the chat fan-out
+    // would spam every roommate's chat with a duplicate REFLECTION /
+    // MILESTONE row every time the actor fixes a typo. The BE refuses to
+    // re-broadcast (verified in DailyServiceUpdateReflectionTest), and
+    // the FE must mirror that contract by not invalidating qk.roomMessages
+    // on the edit path. The submit (create) path's behaviour is locked by
+    // the "also invalidates room chat caches…" test above; this is the
+    // counter-test that pins the inverse for the update path.
+    updateReflectionMock.mockResolvedValue({
+      id: 99,
+      dailyEntryId: SAMPLE.id,
+      body: "수정",
+      submitted: true,
+      submittedAt: "2026-04-30T10:00:00.000Z",
+      updatedAt: "2026-04-30T11:30:00.000Z",
+    });
+    client.setQueryData(qk.roomMessages(42), { dummy: true });
+    const invalidateSpy = jest.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "수정" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Any predicate-based invalidation that would *match* a roomMessages
+    // key is a contract violation. Walk every invalidate call and verify
+    // none of them would touch qk.roomMessages(42).
+    for (const call of invalidateSpy.mock.calls) {
+      const arg = call[0] as
+        | { predicate?: (q: { queryKey: readonly unknown[] }) => boolean }
+        | undefined;
+      if (arg && typeof arg.predicate === "function") {
+        expect(arg.predicate({ queryKey: ["rooms", 42, "messages"] })).toBe(false);
+      }
+    }
+  });
+
+  it("triggers success haptic on success", async () => {
+    updateReflectionMock.mockResolvedValue({
+      id: 99,
+      dailyEntryId: SAMPLE.id,
+      body: "수정",
+      submitted: true,
+      submittedAt: "2026-04-30T10:00:00.000Z",
+      updatedAt: "2026-04-30T11:30:00.000Z",
+    });
+
+    const { result } = renderHook(() => useUpdateReflection(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      result.current.mutate({ reflectionId: 99, body: "수정" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(hapticTrigger).toHaveBeenCalledWith("success");
   });
 });
