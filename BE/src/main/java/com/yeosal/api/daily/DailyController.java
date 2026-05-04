@@ -5,6 +5,7 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.user.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -65,6 +66,14 @@ public class DailyController {
         return ApiResponse.of(dailyService.createReflection(currentUser.require(authentication), request));
     }
 
+    @PatchMapping("/reflections/{id}")
+    public ApiResponse<ReflectionDto> updateReflection(
+            Authentication authentication,
+            @PathVariable long id,
+            @Valid @RequestBody ReflectionUpdate request) {
+        return ApiResponse.of(dailyService.updateReflection(currentUser.require(authentication), id, request));
+    }
+
     public record DailyEntryCreate(@NotBlank String goal, List<@NotBlank String> todos) {}
     public record DailyEntryUpdate(@NotBlank String goal) {}
     public record DailyEntryDto(long id, LocalDate date, String goal, List<TodoDto> todos, ReflectionDto reflection) {}
@@ -72,5 +81,12 @@ public class DailyController {
     public record TodoCreate(@NotBlank String title) {}
     public record TodoUpdate(String title, Boolean completed) {}
     public record ReflectionCreate(long dailyEntryId, @NotBlank String body) {}
-    public record ReflectionDto(long id, long dailyEntryId, String body, boolean submitted) {}
+    public record ReflectionUpdate(@NotBlank String body) {}
+    public record ReflectionDto(
+            long id,
+            long dailyEntryId,
+            String body,
+            boolean submitted,
+            Instant submittedAt,
+            Instant updatedAt) {}
 }

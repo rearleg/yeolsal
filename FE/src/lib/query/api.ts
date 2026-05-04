@@ -1,5 +1,5 @@
 import { apiRequest, type ApiEnvelope } from "../../api/client";
-import type { DailyEntryDto } from "../../api/types";
+import type { DailyEntryDto, ReflectionDto } from "../../api/types";
 
 export const fetchToday = (): Promise<DailyEntryDto | null> =>
   apiRequest<ApiEnvelope<DailyEntryDto | null>>("/daily-entries/today").then((r) => r.data);
@@ -33,3 +33,12 @@ export const submitReflection = (dailyEntryId: number, body: string): Promise<vo
     method: "POST",
     body: JSON.stringify({ dailyEntryId, body }),
   });
+
+export const updateReflection = (
+  reflectionId: number,
+  body: string,
+): Promise<ReflectionDto> =>
+  apiRequest<ApiEnvelope<ReflectionDto>>(`/reflections/${reflectionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body }),
+  }).then((r) => r.data);

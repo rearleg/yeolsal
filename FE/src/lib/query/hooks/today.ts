@@ -6,13 +6,14 @@ import {
   patchTodo,
   submitReflection,
   updateGoal,
+  updateReflection,
 } from "../api";
 import { qk } from "../keys";
 import { toast } from "../../toast";
 import { captureQueryError } from "../../sentry";
 import { useHaptic } from "../../../hooks/useHaptics";
 import { ApiError } from "../../../api/client";
-import type { DailyEntryDto } from "../../../api/types";
+import type { DailyEntryDto, ReflectionDto } from "../../../api/types";
 
 const REFLECTION_ALREADY_SUBMITTED = "이미 회고를 제출했습니다.";
 const REFLECTION_GENERIC_ERROR = "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.";
@@ -199,6 +200,49 @@ export function useSubmitReflection() {
         }
       }
       toast.error(error.message || REFLECTION_GENERIC_ERROR);
+    },
+  });
+}
+
+interface UpdateReflectionVars {
+  reflectionId: number;
+  body: string;
+}
+
+/**
+ * Edit an already-submitted reflection. Mirrors the BE invariant: edits
+ * must NOT re-fan-out the REFLECTION/MILESTONE chat rows. Where
+ * useSubmitReflection invalidates room chat caches so the actor sees their
+ * own announcement, this hook deliberately does not — pinning the
+ * counter-contract via the "DOES NOT invalidate room chat caches" test.
+ */
+export function useUpdateReflection() {
+  const qc = useQueryClient();
+  const haptic = useHaptic();
+
+  return useMutation<ReflectionDto, Error, UpdateReflectionVars, RollbackContext>({
+    mutationFn: ({ reflectionId, body }) => updateReflection(reflectionId, body),
+    onMutate: async ({ body }) => {
+      await qc.cancelQueries({ queryKey: qk.today });
+      const prev = qc.getQueryData<DailyEntryDto | null>(qk.today);
+      qc.setQueryData<DailyEntryDto | null>(qk.today, (old) =>
+        old && old.reflection
+          ? { ...old, reflection: { ...old.reflection, body } }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (error, _vars, context) => {
+      if (context && context.prev !== undefined) {
+        qc.setQueryData(qk.today, context.prev);
+      }
+      toast.error(error.message);
+    },
+    onSuccess: (data) => {
+      qc.setQueryData<DailyEntryDto | null>(qk.today, (old) =>
+        old ? { ...old, reflection: data } : old,
+      );
+      haptic("success");
     },
   });
 }
