@@ -16,6 +16,7 @@ import { Text } from "../../../src/components/ui/Text";
 import { useRoomMembersQuery } from "../../../src/lib/query/hooks/rooms";
 import {
   useChatMessages,
+  useChatRealtime,
   useMarkChatRead,
   useSendChatMessage,
 } from "../../../src/lib/query/hooks/chat";
@@ -33,6 +34,10 @@ export default function RoomChatScreen() {
   const membersQuery = useRoomMembersQuery(roomId);
   const sendMut = useSendChatMessage(roomId);
   const markRead = useMarkChatRead(roomId);
+  // Subscribes to /topic/rooms.{id}.chat for the lifetime of the screen.
+  // Incoming frames merge into the InfiniteQuery cache (deduped by id) so
+  // peer messages appear without waiting for the polling fallback.
+  useChatRealtime(roomId);
 
   // Flatten the InfiniteQuery pages into a single ascending list. Each page
   // is itself ascending; older pages come *after* newer pages in the cache,

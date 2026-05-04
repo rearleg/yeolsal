@@ -1,4 +1,5 @@
 import { Client, type IMessage, type StompSubscription } from "@stomp/stompjs";
+import { useEffect, useState } from "react";
 import { AppState, type AppStateStatus, type NativeEventSubscription } from "react-native";
 import { API_BASE_URL } from "../../api/config";
 import { getAccessToken } from "../../api/client";
@@ -238,4 +239,47 @@ export function _resetRealtimeClientForTests(): void {
     singleton.disconnect();
   }
   singleton = null;
+}
+
+/**
+ * React-friendly view of the singleton's connection status. Components
+ * can use this to e.g. throttle their REST polling fallback when WS is
+ * delivering updates in real-time.
+ */
+export function useRealtimeStatus(): RealtimeStatus {
+  const client = getRealtimeClient();
+  const [status, setStatus] = useState<RealtimeStatus>(client.getStatus());
+  useEffect(() => {
+    setStatus(client.getStatus());
+    return client.onStatusChange(setStatus);
+  }, [client]);
+  return status;
+}
+
+/**
+ * Subscribe a component to a STOMP destination. Auto-tears-down on unmount
+ * or destination change. The handler is wrapped to JSON-decode the frame
+ * body and is invoked with the decoded payload (or {@code null} if the
+ * frame body is malformed).
+ */
+export function useRealtimeSubscription<T>(
+  destination: string | null,
+  handler: (payload: T) => void,
+): void {
+  useEffect(() => {
+    if (!destination) return;
+    const sub = getRealtimeClient().subscribe(destination, (frame) => {
+      let parsed: T | null = null;
+      try {
+        parsed = JSON.parse(frame.body) as T;
+      } catch {
+        return;
+      }
+      handler(parsed);
+    });
+    return () => {
+      sub.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handler captured by ref intentionally; destination changes drive re-subscription
+  }, [destination]);
 }
