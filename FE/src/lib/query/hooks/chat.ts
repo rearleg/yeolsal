@@ -14,6 +14,10 @@ import { qk } from "../keys";
 import { toast } from "../../toast";
 import { useHaptic } from "../../../hooks/useHaptics";
 import { getLastReadId, setLastReadId } from "../../chatRead";
+import {
+  useRealtimeStatus,
+  useRealtimeSubscription,
+} from "../../realtime/client";
 
 /**
  * Cursor-paged chat history. The first page (no cursor) returns the most
@@ -22,19 +26,21 @@ import { getLastReadId, setLastReadId } from "../../chatRead";
  * into a single ascending list.
  */
 export function useChatMessages(roomId: number) {
+  const realtimeStatus = useRealtimeStatus();
+  // When realtime is delivering frames in milliseconds, the 8s poll is just
+  // wasted requests; slow it to 30s as a safety net for missed frames /
+  // broker hiccups. When WS is down, fall back to the original 8s cadence.
+  const refetchInterval = realtimeStatus === "connected" ? 30_000 : 8_000;
   return useInfiniteQuery<ChatMessagePage, Error>({
     queryKey: qk.roomMessages(roomId),
     queryFn: ({ pageParam }) => getRoomMessages(roomId, pageParam as number | null),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     initialPageParam: null as number | null,
     enabled: Number.isFinite(roomId),
-    // Poll the first page while the chat screen is mounted so messages
-    // sent by other members surface within ~8s without forcing the user
-    // to leave and re-enter the room. React Query stops polling
-    // automatically when the query has no observers, so closed rooms
-    // cost zero requests. Background polling stays off so we don't
-    // wake the device just to fetch chat.
-    refetchInterval: 8_000,
+    // Background polling stays off so we don't wake the device just to
+    // fetch chat. React Query stops polling automatically when the
+    // query has no observers, so closed rooms cost zero requests.
+    refetchInterval,
     refetchIntervalInBackground: false,
   });
 }
@@ -135,5 +141,53 @@ export function useMarkChatRead(roomId: number) {
         return messageId;
       });
     },
+  });
+}
+
+/**
+ * Subscribes to /topic/rooms.{id}.chat for the lifetime of the chat
+ * screen. Each incoming frame is appended to the first (newest) page of
+ * the cached InfiniteQuery, deduplicated by message id so a REST
+ * optimistic write followed by the WS echo never doubles up.
+ *
+ * The dedupe is the load-bearing invariant — without it, every message
+ * the actor sends would render twice (once from sendRoomMessage's
+ * onSuccess, once from the WS frame).
+ */
+export function useChatRealtime(roomId: number): void {
+  const qc = useQueryClient();
+  const destination = Number.isFinite(roomId) && roomId > 0
+    ? `/topic/rooms.${roomId}.chat`
+    : null;
+  useRealtimeSubscription<ChatMessageDto>(destination, (incoming) => {
+    if (!incoming || typeof incoming.id !== "number") return;
+    qc.setQueryData<{ pages: ChatMessagePage[]; pageParams: unknown[] } | undefined>(
+      qk.roomMessages(roomId),
+      (prev) => {
+        if (!prev || prev.pages.length === 0) {
+          return {
+            pages: [{ messages: [incoming], nextCursor: null }],
+            pageParams: [null],
+          };
+        }
+        // Walk every page — a duplicate could live in any of them since
+        // the user may have already scrolled past the optimistic insert
+        // by the time the WS echo lands.
+        for (const page of prev.pages) {
+          if (page.messages.some((m) => m.id === incoming.id)) {
+            return prev;
+          }
+        }
+        const [first, ...rest] = prev.pages;
+        const updatedFirst: ChatMessagePage = {
+          ...first,
+          messages: [...first.messages, incoming],
+        };
+        return { ...prev, pages: [updatedFirst, ...rest] };
+      },
+    );
+    // Refresh the lightweight "last message" peek so the chat tab list
+    // updates without waiting for a window-focus refetch.
+    qc.invalidateQueries({ queryKey: qk.roomLastMessage(roomId) });
   });
 }
