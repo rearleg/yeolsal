@@ -1,0 +1,78 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-05-09T00:00:00Z",
+    "last_updated": "2026-05-09T00:00:00Z",
+    "completed": "2026-05-09T00:00:00Z"
+  },
+  "mode": "initial_scan",
+  "scan_level": "quick",
+  "project_root": "/Users/rearleg/dev/codex-test/yeosal",
+  "project_knowledge": "/Users/rearleg/dev/codex-test/yeosal/docs",
+  "repository_type": "multi-part",
+  "completed_steps": [
+    {"step": "step_1", "status": "completed", "summary": "Classified as multi-part with 2 parts (fe=mobile, be=backend)"},
+    {"step": "step_2", "status": "completed", "summary": "Cataloged 5 existing pre-BMad docs in docs/ + AGENTS/CONTRIBUTING/RUNBOOK at root"},
+    {"step": "step_3", "status": "completed", "summary": "Tech stacks captured (FE: Expo 54 / RN 0.81 / React 19.1 / TS 5.9; BE: Spring Boot 3.3.5 / Java 21 / Postgres)"},
+    {"step": "step_4", "status": "completed", "summary": "Conditional analysis: api-contracts-be.md and data-models-be.md generated; component-inventory-fe.md deferred (marked TBG)"},
+    {"step": "step_5", "status": "completed", "summary": "source-tree-analysis.md written"},
+    {"step": "step_6", "status": "completed", "summary": "Dev/deployment info distilled into deployment-guide.md; per-part dev guides deferred (RUNBOOK is canonical)"},
+    {"step": "step_7", "status": "completed", "summary": "integration-architecture.md written (REST + STOMP + push + config boundary)"},
+    {"step": "step_8", "status": "completed", "summary": "architecture-fe.md and architecture-be.md written"},
+    {"step": "step_9", "status": "completed", "summary": "project-overview.md, deployment-guide.md, project-parts.json written"},
+    {"step": "step_10", "status": "completed", "summary": "Master index.md generated with 'To be generated' markers for deferred docs"},
+    {"step": "step_11", "status": "completed", "summary": "Validation: 3 incomplete markers tracked (component-inventory-fe, development-guide-fe, development-guide-be)"},
+    {"step": "step_12", "status": "completed", "summary": "Workflow complete"}
+  ],
+  "current_step": "completed",
+  "project_parts": [
+    {
+      "part_id": "fe",
+      "display_name": "Yeosal Mobile App",
+      "root_path": "FE/",
+      "project_type_id": "mobile",
+      "primary_tech": "Expo SDK 54 / React Native 0.81 / TypeScript 5.9"
+    },
+    {
+      "part_id": "be",
+      "display_name": "Yeosal API",
+      "root_path": "BE/",
+      "project_type_id": "backend",
+      "primary_tech": "Spring Boot 3.3.5 / Java 21 / PostgreSQL"
+    }
+  ],
+  "project_types": [
+    { "part_id": "fe", "project_type_id": "mobile", "display_name": "Yeosal Mobile App" },
+    { "part_id": "be", "project_type_id": "backend", "display_name": "Yeosal API" }
+  ],
+  "findings": {
+    "project_classification": "multi-part repo: Expo RN mobile (FE) + Spring Boot 3.3 API (BE), Postgres + Flyway, STOMP realtime, Docker Compose deploy",
+    "technology_stack": {
+      "fe": "Expo 54, RN 0.81, React 19.1, TS 5.9, expo-router 6, TanStack Query 5, @stomp/stompjs 7, expo-secure-store, jest-expo",
+      "be": "Spring Boot 3.3.5, Java 21, Spring Web/WebSocket/Security/Validation/Data JPA, Flyway V1-V10, JJWT 0.12.6, springdoc 2.6.0, Testcontainers"
+    },
+    "existing_docs_count": 5,
+    "api_count": "30+ endpoints across 8 controllers",
+    "table_count": "~20 tables (V1-V10 migrations)",
+    "component_count": "~25 components across ui/today/chat/rooms/feedback/grid"
+  },
+  "outputs_generated": [
+    "project-scan-report.json",
+    "source-tree-analysis.md",
+    "project-overview.md",
+    "architecture-fe.md",
+    "architecture-be.md",
+    "api-contracts-be.md",
+    "data-models-be.md",
+    "deployment-guide.md",
+    "integration-architecture.md",
+    "project-parts.json",
+    "index.md"
+  ],
+  "incomplete_docs": [
+    {"title": "Component Inventory — FE", "file_path": "./component-inventory-fe.md", "doc_type": "component-inventory", "part_id": "fe"},
+    {"title": "Development Guide — FE", "file_path": "./development-guide-fe.md", "doc_type": "development-guide", "part_id": "fe"},
+    {"title": "Development Guide — BE", "file_path": "./development-guide-be.md", "doc_type": "development-guide", "part_id": "be"}
+  ],
+  "resume_instructions": "Workflow complete. Re-run /bmad-document-project and choose option 1 (re-scan) to generate the deferred docs, or option 2 (deep-dive) to drill into a specific area."
+}
