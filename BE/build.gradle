@@ -36,4 +36,10 @@ dependencies {
 
 tasks.named("test") {
     useJUnitPlatform()
+    // Forward the opt-in IT system property (RoomControllerIT,
+    // SurvivalStateEvaluatorIT, SurvivalStateRosterIT, V11MigrationIT).
+    // Gradle's `test` task does not inherit -D properties from the build
+    // JVM; without this, @EnabledIfSystemProperty(named="yeosal.boot-smoke")
+    // silently no-ops. Story 1.3 review finding #3.
+    systemProperty "yeosal.boot-smoke", System.getProperty("yeosal.boot-smoke", "false")
 }
