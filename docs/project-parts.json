@@ -1,0 +1,100 @@
+{
+  "repository_type": "multi-part",
+  "parts": [
+    {
+      "part_id": "fe",
+      "display_name": "Yeosal Mobile App",
+      "root_path": "FE/",
+      "project_type_id": "mobile",
+      "primary_tech": "Expo SDK 54 / React Native 0.81 / TypeScript 5.9 (strict)",
+      "key_frameworks": [
+        "expo-router 6",
+        "TanStack Query 5",
+        "@stomp/stompjs 7",
+        "expo-secure-store",
+        "expo-notifications",
+        "@sentry/react-native"
+      ],
+      "entry_points": [
+        "FE/app/_layout.tsx",
+        "FE/src/api/client.ts",
+        "FE/src/providers/RealtimeProvider.tsx"
+      ],
+      "doc_links": {
+        "architecture": "./architecture-fe.md",
+        "component_inventory": "./component-inventory-fe.md",
+        "development_guide": "./development-guide-fe.md"
+      }
+    },
+    {
+      "part_id": "be",
+      "display_name": "Yeosal API",
+      "root_path": "BE/",
+      "project_type_id": "backend",
+      "primary_tech": "Spring Boot 3.3.5 / Java 21 / PostgreSQL",
+      "key_frameworks": [
+        "Spring Web",
+        "Spring WebSocket (STOMP)",
+        "Spring Security",
+        "Spring Data JPA (validate)",
+        "Flyway",
+        "JJWT 0.12.6",
+        "springdoc-openapi 2.6.0"
+      ],
+      "entry_points": [
+        "BE/src/main/java/com/yeosal/api/YeosalApiApplication.java",
+        "BE/src/main/java/com/yeosal/api/common/SecurityConfig.java",
+        "BE/src/main/java/com/yeosal/api/realtime/WebSocketConfig.java",
+        "BE/src/main/java/com/yeosal/api/common/ApiExceptionHandler.java",
+        "BE/src/main/java/com/yeosal/api/realtime/RealtimePublisher.java"
+      ],
+      "doc_links": {
+        "architecture": "./architecture-be.md",
+        "api_contracts": "./api-contracts-be.md",
+        "data_models": "./data-models-be.md",
+        "development_guide": "./development-guide-be.md"
+      }
+    }
+  ],
+  "integration_points": [
+    {
+      "from": "fe",
+      "to": "be",
+      "type": "REST",
+      "transport": "HTTPS",
+      "endpoint": "/yeolsal/api/v1/*",
+      "auth": "Bearer JWT (refresh on 401)",
+      "envelope_success": "{ \"data\": <T> }",
+      "envelope_error": "{ \"error\": { \"code\": \"<ENUM>\", \"message\": \"<text>\" } }"
+    },
+    {
+      "from": "fe",
+      "to": "be",
+      "type": "STOMP",
+      "transport": "WSS",
+      "endpoint": "/ws",
+      "auth": "JWT validated at STOMP CONNECT frame (JwtChannelInterceptor)",
+      "topic_prefixes": ["/topic/*", "/queue/*", "/user/*"]
+    },
+    {
+      "from": "fe",
+      "to": "be",
+      "type": "REST",
+      "endpoint": "/api/v1/me/push-tokens",
+      "purpose": "expo-notifications token registration; BE is source of truth"
+    },
+    {
+      "from": "fe",
+      "to": "be",
+      "type": "REST + redirect",
+      "endpoint": "/api/v1/auth/kakao/{authorize,callback,exchange}",
+      "purpose": "Kakao OAuth — REST API key remains BE-only"
+    }
+  ],
+  "infra": {
+    "compose_file": "infra/docker-compose.yml",
+    "services": ["api", "postgres", "nginx"],
+    "external_port": 8088,
+    "production_api_base": "https://api.rearleg.com/yeolsal/api/v1"
+  }
+}

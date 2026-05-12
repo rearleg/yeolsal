@@ -1,6 +1,8 @@
 package com.yeosal.api.survival;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.yeosal.api.common.ForbiddenException;
+import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.notification.NotificationKind;
@@ -19,8 +21,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -299,6 +304,94 @@ public class SurvivalStateService {
 
         return new EvaluationResult(
                 roomId, priorEntryDate, evaluated, compliant, frozen, toYellow, toRed, skipped);
+    }
+
+    /**
+     * Cold-load companion to the STOMP fan-out (Story 1.3, Architecture
+     * §4.7 + §4.14). Returns one DTO per room member with the privacy
+     * filter from AC3 applied server-side — a RED row inside its 24h
+     * cooldown is reported as {@link SurvivalStatus#ACTIVE} with all
+     * three timestamps nulled unless the viewer is the leader or the
+     * affected user.
+     *
+     * <p>Query budget (AC10): four SQL statements regardless of member
+     * count — {@code rooms.findById}, {@code roomMembers.existsByRoomIdAndUserId},
+     * {@code roomMembers.findByRoom}, {@code survivalStates.findByRoomId}.
+     * The owner association is touched inside this transaction so the
+     * lazy load happens before serialization (project-context
+     * {@code open-in-view: false}).
+     *
+     * @throws NotFoundException  when the room does not exist.
+     * @throws ForbiddenException when the viewer is not a member.
+     */
+    @Transactional(readOnly = true)
+    public List<SurvivalStateDto> roster(long roomId, long viewerUserId) {
+        Instant now = clock.instant();
+
+        Room room = rooms.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+        // Force the lazy owner load inside the @Transactional boundary
+        // (project-context open-in-view: false). The leader bypass below
+        // depends on this id, but even if it didn't, deferring the load
+        // would risk LazyInitializationException at Jackson time.
+        long ownerUserId = room.getOwner().getId();
+
+        if (!roomMembers.existsByRoomIdAndUserId(roomId, viewerUserId)) {
+            throw new ForbiddenException("방 멤버만 접근할 수 있습니다.");
+        }
+
+        boolean viewerIsLeader = ownerUserId == viewerUserId;
+        List<RoomMember> members = roomMembers.findByRoom(room);
+        Map<Long, SurvivalState> byUserId = new HashMap<>();
+        for (SurvivalState s : repository.findByRoomId(roomId)) {
+            byUserId.put(s.getUser().getId(), s);
+        }
+
+        List<SurvivalStateDto> rows = new ArrayList<>(members.size());
+        for (RoomMember rm : members) {
+            User u = rm.getUser();
+            SurvivalState state = byUserId.get(u.getId());
+            rows.add(toDto(u, state, viewerUserId, viewerIsLeader, now));
+        }
+        return rows;
+    }
+
+    /**
+     * Build one {@link SurvivalStateDto} for {@code user}, applying the
+     * AC3 privacy mask when all five conjuncts hold.
+     */
+    private SurvivalStateDto toDto(
+            User user,
+            SurvivalState state,
+            long viewerUserId,
+            boolean viewerIsLeader,
+            Instant now) {
+        if (state == null) {
+            // Defensive — V11 backfill should have created every row, but
+            // a missing one surfaces as ACTIVE-by-default rather than NPE.
+            return new SurvivalStateDto(
+                    user.getId(), user.getNickname(), SurvivalStatus.ACTIVE,
+                    null, null, null);
+        }
+
+        boolean masked = state.getStatus() == SurvivalStatus.RED
+                && state.getBroadVisibilityAt() != null
+                && state.getBroadVisibilityAt().isAfter(now)
+                && viewerUserId != state.getUser().getId()
+                && !viewerIsLeader;
+
+        if (masked) {
+            return new SurvivalStateDto(
+                    user.getId(), user.getNickname(), SurvivalStatus.ACTIVE,
+                    null, null, null);
+        }
+        return new SurvivalStateDto(
+                user.getId(),
+                user.getNickname(),
+                state.getStatus(),
+                state.getLastStateChangeAt(),
+                state.getEliminatedAt(),
+                state.getBroadVisibilityAt());
     }
 
     /**

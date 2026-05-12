@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>yeolsal v1 — UX Design Directions Showcase</title>
+  <style>
+    :root {
+      --ink: #090909;
+      --paper: #F8F3E7;
+      --pink: #FF2FA3;
+      --green: #39FF4A;
+      --acid: #DFFF00;
+      --muted: #9C988C;
+      --border: 4px solid var(--ink);
+      --shadow: 6px 6px 0 var(--ink);
+      --shadow-sm: 4px 4px 0 var(--ink);
+      --radius: 0;
+      --paper-warmth: #F6EBE0;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #E8E2D2;
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+        "Noto Sans KR", sans-serif;
+      color: var(--ink);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    header.global {
+      padding: 32px 24px 16px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    header.global h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    header.global p {
+      margin: 8px 0 0;
+      max-width: 720px;
+      color: var(--ink);
+      opacity: 0.75;
+    }
+    .palette {
+      max-width: 1280px;
+      margin: 16px auto;
+      padding: 16px 24px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .swatch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: var(--paper);
+      border: 2px solid var(--ink);
+      box-shadow: var(--shadow-sm);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .swatch .dot {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--ink);
+    }
+    .grid {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 32px;
+    }
+    .surface-card {
+      background: var(--paper);
+      border: var(--border);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .surface-card h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .surface-card .submode {
+      display: inline-block;
+      padding: 3px 8px;
+      background: var(--acid);
+      border: 2px solid var(--ink);
+      box-shadow: 2px 2px 0 var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      align-self: flex-start;
+    }
+    .surface-card .desc {
+      font-size: 13px;
+      color: var(--ink);
+      opacity: 0.8;
+    }
+    /* Phone frame */
+    .phone {
+      width: 320px;
+      max-width: 100%;
+      height: 568px;
+      margin: 0 auto;
+      background: var(--paper);
+      border: var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      font-size: 13px;
+    }
+    .phone .topbar {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--ink);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .phone .body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .phone .tabbar {
+      border-top: 2px solid var(--ink);
+      padding: 10px 0;
+      display: flex;
+      justify-content: space-around;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tabbar .tab {
+      flex: 1;
+      text-align: center;
+    }
+    .tabbar .tab.active { color: var(--pink); }
+
+    /* Sub-mode utilities */
+    .card {
+      background: var(--paper);
+      border: 3px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      padding: 12px;
+    }
+    .card.green { background: var(--green); }
+    .card.pink  { background: var(--pink); color: var(--ink); }
+    .card.acid  { background: var(--acid); }
+    .card.muted { background: var(--muted); color: var(--ink); }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 2px solid var(--ink);
+      background: var(--paper);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pill.green { background: var(--green); }
+    .pill.acid  { background: var(--acid); }
+    .pill.pink  { background: var(--pink); }
+    .pill.muted { background: var(--muted); }
+
+    .cta {
+      width: 100%;
+      padding: 12px;
+      background: var(--green);
+      border: 3px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: default;
+      text-align: center;
+    }
+    .cta.pink { background: var(--pink); color: var(--ink); }
+    .cta.muted { background: var(--paper); }
+    .cta.compact { padding: 8px; font-size: 12px; box-shadow: 3px 3px 0 var(--ink); }
+
+    /* Risograph noise overlay (faint) */
+    .noise::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(9,9,9,0.05) 0, transparent 1px),
+        radial-gradient(circle at 70% 60%, rgba(9,9,9,0.04) 0, transparent 1px),
+        radial-gradient(circle at 40% 80%, rgba(9,9,9,0.05) 0, transparent 1px);
+      background-size: 8px 8px, 6px 6px, 10px 10px;
+      mix-blend-mode: multiply;
+      opacity: 0.35;
+    }
+
+    /* === D3 Today (Single-Column Quiet) === */
+    .d3-today h3 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 0 0 4px;
+    }
+    .d3-today .date {
+      font-size: 12px;
+      color: var(--ink);
+      opacity: 0.6;
+    }
+    .d3-today .ritual {
+      margin-top: 8px;
+      padding: 14px 12px;
+      background: var(--paper-warmth);
+      border: 2px dashed var(--ink);
+      font-size: 12px;
+    }
+    .d3-today .field {
+      margin-top: 8px;
+      padding: 12px;
+      border: 3px solid var(--ink);
+      background: var(--paper);
+      min-height: 64px;
+    }
+    .d3-today .footnote {
+      margin-top: auto;
+      padding-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      border-top: 1px solid var(--muted);
+    }
+
+    /* === D2 Wallet (Bento Card Density) === */
+    .d2-wallet .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 0;
+      max-width: none;
+    }
+    .d2-wallet .grid > * {
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: 10px;
+      font-size: 12px;
+    }
+    .d2-wallet .grid .span2 { grid-column: span 2; }
+    .d2-wallet .num {
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+      margin-top: 4px;
+    }
+    .d2-wallet .pool .num { color: var(--pink); }
+    .d2-wallet .label {
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 700;
+      opacity: 0.7;
+    }
+    .d2-wallet .ledger-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: ui-monospace, "IBM Plex Mono", monospace;
+      font-size: 11px;
+      padding: 4px 0;
+      border-bottom: 1px dashed var(--muted);
+    }
+
+    /* === D3 Spectator === */
+    .d3-spectator {
+      filter: saturate(0.5) brightness(0.94);
+    }
+    .d3-spectator .banner {
+      padding: 10px 12px;
+      background: var(--muted);
+      border: 2px solid var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .d3-spectator .roster {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .d3-spectator .roster .person {
+      width: 38px;
+      height: 38px;
+      border: 2px solid var(--ink);
+      background: var(--paper);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .d3-spectator .roster .person.you {
+      background: var(--muted);
+      color: var(--ink);
+    }
+    .d3-spectator .grass {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+    .d3-spectator .grass span {
+      aspect-ratio: 1;
+      background: var(--green);
+      opacity: 0.5;
+      border: 1px solid var(--ink);
+    }
+    .d3-spectator .grass span.empty { background: var(--paper); opacity: 1; }
+    .d3-spectator .input {
+      padding: 10px;
+      background: var(--paper);
+      border: 2px solid var(--muted);
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    /* === D4 Friend Gift Modal === */
+    .d4-modal {
+      align-items: stretch;
+      justify-content: flex-end;
+    }
+    .d4-modal .scrim {
+      flex: 1;
+      background: rgba(9,9,9,0.4);
+    }
+    .d4-modal .sheet {
+      background: var(--paper-warmth);
+      border-top: 4px solid var(--ink);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .d4-modal h4 {
+      margin: 0;
+      font-family: "Gowun Dodum", "Pretendard", cursive;
+      font-size: 18px;
+    }
+    .d4-modal .friend-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      background: var(--paper);
+      border: 2px solid var(--ink);
+    }
+    .d4-modal .avatar {
+      width: 40px; height: 40px;
+      background: var(--pink);
+      border: 2px solid var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+    .d4-modal .reassure {
+      font-size: 11px;
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* === D4 M3 Revival Sequence === */
+    .d4-revival {
+      background: var(--ink);
+      color: var(--paper);
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 32px;
+      gap: 16px;
+    }
+    .d4-revival .donor {
+      font-family: "Gowun Dodum", cursive;
+      font-size: 28px;
+      font-weight: 600;
+      opacity: 0.92;
+    }
+    .d4-revival .line {
+      font-family: "Gowun Dodum", cursive;
+      font-size: 20px;
+      opacity: 0.8;
+    }
+    .d4-revival .card-out {
+      margin-top: 24px;
+      padding: 16px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 3px solid var(--paper);
+      box-shadow: 6px 6px 0 var(--pink);
+    }
+
+    /* === D1 Final-3 Poster === */
+    .d1-poster {
+      padding: 18px;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .d1-poster .pub-meta {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .d1-poster .room-title {
+      font-size: 38px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-top: 4px;
+    }
+    .d1-poster .month {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .d1-poster .top3 {
+      margin-top: 16px;
+      padding: 14px;
+      background: var(--pink);
+      border: 3px solid var(--ink);
+      box-shadow: 6px 6px 0 var(--ink);
+    }
+    .d1-poster .top3 .heading {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+    }
+    .d1-poster .top3 ol {
+      margin: 8px 0 0;
+      padding-left: 20px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .d1-poster .others {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .d1-poster .others b { font-weight: 700; }
+    .d1-poster .stat {
+      margin-top: auto;
+      font-size: 11px;
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .d1-poster .share {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--green);
+      border: 3px solid var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    /* === D5 Rule Change Banner === */
+    .d5-rule {
+      gap: 10px;
+    }
+    .d5-rule .banner {
+      padding: 12px;
+      background: var(--acid);
+      border: 4px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .d5-rule .banner .heading {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .d5-rule .preview {
+      padding: 12px;
+      background: var(--paper);
+      border: 3px solid var(--ink);
+      font-family: ui-monospace, "IBM Plex Mono", monospace;
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .d5-rule .system-msg {
+      padding: 8px 10px;
+      background: var(--paper-warmth);
+      border-left: 4px solid var(--ink);
+      font-size: 12px;
+      color: var(--ink);
+      opacity: 0.85;
+    }
+
+    /* Eval list */
+    .eval {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+      font-size: 12px;
+    }
+    .eval li {
+      display: flex;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .eval li::before {
+      content: "■";
+      color: var(--ink);
+      font-size: 10px;
+      line-height: 1.6;
+    }
+    .eval li.pro::before { color: var(--green); }
+    .eval li.con::before { color: var(--pink); }
+
+    footer {
+      max-width: 1280px;
+      margin: 32px auto 64px;
+      padding: 24px;
+      background: var(--paper);
+      border: var(--border);
+      box-shadow: var(--shadow);
+    }
+    footer h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+    footer .recos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    footer .reco {
+      padding: 10px;
+      background: var(--paper-warmth);
+      border: 2px solid var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+      font-size: 12px;
+    }
+    footer .reco b { display: block; font-size: 13px; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <header class="global">
+    <h1>yeolsal v1 — Design Direction Showcase</h1>
+    <p>
+      6개 Risograph sub-mode를 실제 surface에 매핑한 *Hybrid* 전략 시각화.
+      각 카드는 surface별로 잠긴 sub-mode를 적용한 mockup. (D6 Punk Zine은 dignity 충돌로 cut.)
+    </p>
+  </header>
+
+  <div class="palette">
+    <span class="swatch"><span class="dot" style="background: var(--ink)"></span> ink</span>
+    <span class="swatch"><span class="dot" style="background: var(--paper)"></span> paper</span>
+    <span class="swatch"><span class="dot" style="background: var(--pink)"></span> pink</span>
+    <span class="swatch"><span class="dot" style="background: var(--green)"></span> green</span>
+    <span class="swatch"><span class="dot" style="background: var(--acid)"></span> acid</span>
+    <span class="swatch"><span class="dot" style="background: var(--muted)"></span> muted</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- 1. Today / Daily Entry — D3 -->
+    <article class="surface-card">
+      <span class="submode">D3 · Single-Column Quiet</span>
+      <h2>Today / Daily Entry</h2>
+      <p class="desc">하루 한 의도. ritual 톤. 06:00 KST 마감 압박을 carry하지 않는 dignity.</p>
+      <div class="phone noise">
+        <div class="topbar">
+          <span>Today</span>
+          <span>05:42 KST</span>
+        </div>
+        <div class="body d3-today">
+          <div>
+            <h3>오늘도 함께</h3>
+            <div class="date">2026.05.10 · 운동방</div>
+          </div>
+          <div class="ritual">
+            방원 12명 중 9명이 오늘 인증 완료. 곧 06:00, 마지막 호흡으로.
+          </div>
+          <div>
+            <span class="pill">오늘의 약속</span>
+            <div class="field">
+              <em style="opacity:0.5">달리기 30분 — 인증 사진/메모를 남겨주세요</em>
+            </div>
+          </div>
+          <div class="cta">오늘 기록하기</div>
+          <div class="footnote">정민이 너를 살린 지 4일째</div>
+        </div>
+        <div class="tabbar">
+          <span class="tab active">Today</span>
+          <span class="tab">Feed</span>
+          <span class="tab">Wallet</span>
+          <span class="tab">방</span>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">Daily, dignified — 압박 카피 zero</li>
+        <li class="pro">Echo footnote — M3 잔향 7일</li>
+        <li class="con">정보 밀도 ↓ — Feed/Wallet엔 부적합</li>
+      </ul>
+    </article>
+
+    <!-- 2. Wallet — D2 -->
+    <article class="surface-card">
+      <span class="submode">D2 · Bento Card Density</span>
+      <h2>Wallet (4-track)</h2>
+      <p class="desc">Free ticket / Personal points / Pool / Received history. 정보 밀도 필수, 카드 단위 분리.</p>
+      <div class="phone noise">
+        <div class="topbar">
+          <span>Wallet</span>
+          <span class="pill pink">친구 회생 대기 1</span>
+        </div>
+        <div class="body d2-wallet">
+          <div class="grid">
+            <div class="card pink">
+              <div class="label">무료 회생권</div>
+              <div class="num">1매</div>
+              <div style="font-size:10px;margin-top:4px;opacity:0.85">언제든 사용 가능</div>
+            </div>
+            <div class="card green">
+              <div class="label">내 포인트</div>
+              <div class="num">12점</div>
+              <div style="font-size:10px;margin-top:4px;opacity:0.85">+2점 / 6일 생존</div>
+            </div>
+            <div class="card pool span2">
+              <div class="label">우리 방 점수</div>
+              <div class="num">37점</div>
+              <div style="font-size:10px;margin-top:4px;opacity:0.85">다음 시즌, 함께 마실 커피로 교환됩니다.</div>
+            </div>
+            <div class="card span2" style="background:var(--paper-warmth)">
+              <div class="label">받은 회생권 기록</div>
+              <div class="ledger-row"><span>2026.05.06 · 정민 →</span><span>+1매</span></div>
+              <div class="ledger-row"><span>2025.12.30 · 가입 보너스</span><span>+1매</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <span class="tab">Today</span>
+          <span class="tab">Feed</span>
+          <span class="tab active">Wallet</span>
+          <span class="tab">방</span>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">Bento — 4 track 동시 visible</li>
+        <li class="pro">Pool 항상 강조 — co-presence 신호</li>
+        <li class="con">감정 surface 아님 — Friend Gift Modal엔 D4가 맞음</li>
+      </ul>
+    </article>
+
+    <!-- 3. Spectator — D3 gray-shifted -->
+    <article class="surface-card">
+      <span class="submode">D3 · Single-Column Quiet (Gray-shifted)</span>
+      <h2>Spectator Mode</h2>
+      <p class="desc">박탈은 visible하되 stigma ❌. 명도 80%. 채팅 read-only. 잔디는 *보존*.</p>
+      <div class="phone noise d3-spectator">
+        <div class="topbar">
+          <span>운동방 · 관전 중</span>
+          <span class="pill muted">관전</span>
+        </div>
+        <div class="body" style="gap:10px">
+          <div class="banner">
+            잠시 쉬어 가는 중. 곧 다시 함께 갈 수 있어요.
+          </div>
+          <div>
+            <div class="label" style="font-size:10px;font-weight:700;opacity:0.7">방원 12명 중 9명 활동</div>
+            <div class="roster" style="margin-top:6px">
+              <span class="person">진수</span>
+              <span class="person">민지</span>
+              <span class="person">수진</span>
+              <span class="person you">나</span>
+              <span class="person">도현</span>
+              <span class="person">보경</span>
+              <span class="person">+6</span>
+            </div>
+          </div>
+          <div>
+            <div class="label" style="font-size:10px;font-weight:700;opacity:0.7;margin-bottom:6px">내 잔디 (보존됨)</div>
+            <div class="grass">
+              <span></span><span></span><span></span><span></span><span class="empty"></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span class="empty"></span><span></span>
+              <span></span><span></span><span></span><span class="empty"></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="input">메시지 입력은 잠시 멈춰 있어요</div>
+        </div>
+        <div class="tabbar">
+          <span class="tab">Today</span>
+          <span class="tab">Feed</span>
+          <span class="tab active">Wallet</span>
+          <span class="tab">방</span>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">Loss paused 톤 — 죽음 아이콘 ❌</li>
+        <li class="pro">잔디 보존 + 명도 80%만 — dignity 유지</li>
+        <li class="pro">채팅 read-only — 부드러운 비활성</li>
+      </ul>
+    </article>
+
+    <!-- 4. Friend Gift Modal — D4 -->
+    <article class="surface-card">
+      <span class="submode">D4 · Postcard / Letter (감정 정점)</span>
+      <h2>Friend Gift Modal</h2>
+      <p class="desc">Substitutionary sacrifice 모먼트. 손글씨 톤 + 3 CTA 동등 + 거절 invisible 안심.</p>
+      <div class="phone noise d4-modal">
+        <div class="scrim"></div>
+        <div class="sheet">
+          <h4>친구를 살릴 수 있어요</h4>
+          <div class="friend-row">
+            <div class="avatar"></div>
+            <div>
+              <div style="font-weight:800">수진 · 관전 중</div>
+              <div style="font-size:11px;opacity:0.7">어제 OUT — 회생 대기 12시간째</div>
+            </div>
+          </div>
+          <div style="font-size:12px">
+            내 잔액 <b>12점</b> → 선물 시 <b>7점</b>이 남아요.
+          </div>
+          <div class="cta pink">💗 회생권 선물 (5점)</div>
+          <div class="cta">💚 응원만 보내기 (0점, 메시지)</div>
+          <div class="cta muted">닫기</div>
+          <div class="reassure">선물해도 안 해도 친구는 모릅니다.</div>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">3 CTA 동등 weight — 압박 zero</li>
+        <li class="pro">거절 invisible 안심 — agency 톤</li>
+        <li class="pro">Pink CTA 1개 강조 — invitation, not demand</li>
+      </ul>
+    </article>
+
+    <!-- 5. M3 Revival Sequence — D4 -->
+    <article class="surface-card">
+      <span class="submode">D4 · Postcard / Letter (Ink 톤)</span>
+      <h2>M3 부활 시퀀스 (Receiver)</h2>
+      <p class="desc">화면 어두워짐 → donor 이름 손글씨 fade-in → 밝아짐 → 카드. 3-5초 *기적 톤*.</p>
+      <div class="phone d4-revival">
+        <div class="donor">정민이</div>
+        <div class="line">너를 위해 자기 것을 썼어</div>
+        <div class="card-out">
+          <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:800">받은 회생권</div>
+          <div style="font-size:24px;font-weight:900;margin:6px 0">정민으로부터 1매</div>
+          <div style="font-size:12px">방으로 돌아가기</div>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">즉시 부활 ❌ — 의도된 지연으로 신화 톤</li>
+        <li class="pro">손글씨 폰트 — 카드결제 ❌, 기적</li>
+        <li class="pro">Donor name receiver-only 비대칭</li>
+      </ul>
+    </article>
+
+    <!-- 6. Final-3 Poster — D1 -->
+    <article class="surface-card">
+      <span class="submode">D1 · Editorial Risograph (잡지 메타포)</span>
+      <h2>Final-3 Monthly Poster</h2>
+      <p class="desc">월간 ceremony. "운동방 / 5월호 / Final-3" 간행물 메타포. 카카오 share 인덱싱.</p>
+      <div class="phone noise d1-poster">
+        <div class="pub-meta">월간 운동방 · vol. 03</div>
+        <div class="room-title">운동방</div>
+        <div class="month">2026 · MAY</div>
+        <div class="top3">
+          <div class="heading">FINAL · 3</div>
+          <ol>
+            <li>진수</li>
+            <li>민지</li>
+            <li>수진</li>
+          </ol>
+        </div>
+        <div class="others">
+          <b>9 함께</b><br />
+          도현 · 보경 · 영호 · 다은 · 정민 · 그리고 너
+        </div>
+        <div class="stat">9명 생존 · 출석 평균 92% · 회생 4회 · 풀 37점</div>
+        <div class="share">🥥 카카오로 공유 — 우리의 14일</div>
+      </div>
+      <ul class="eval">
+        <li class="pro">Editorial 톤 — 시각적 share-worthy</li>
+        <li class="pro">"우리의 14일" 1인칭 복수 — KR 겸양 ✅</li>
+        <li class="pro">간행물 메타포 — ASO 인덱싱·재공유</li>
+      </ul>
+    </article>
+
+    <!-- 7. Rule Change Banner — D5 -->
+    <article class="surface-card">
+      <span class="submode">D5 · Neobrutalist Solid (Administrative)</span>
+      <h2>Rule Change Banner / 시스템 메시지</h2>
+      <p class="desc">administrative 톤. 두꺼운 보더 + hard offset. 단톡방 시스템 메시지 컨벤션.</p>
+      <div class="phone noise">
+        <div class="topbar">
+          <span>운동방 채팅</span>
+          <span class="pill acid">알림 1</span>
+        </div>
+        <div class="body d5-rule">
+          <div class="banner">
+            <div class="heading">RULE · UPDATE</div>
+            <div style="margin-top:4px">다음 달부터 새 규칙이 적용됩니다.</div>
+          </div>
+          <div class="preview">
+            preset      : DAILY_UPDATE<br />
+            weekend     : exclude<br />
+            effective   : 2026-06-01<br />
+            current     : 이번 달은 변경 없음
+          </div>
+          <div class="system-msg">
+            진수님이 다음 달 규칙을 변경했어요. 이번 달은 그대로 갑니다.
+          </div>
+          <div class="card pink" style="font-size:12px;text-align:center;font-weight:800">
+            수진이 다시 함께합니다.
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">
+            <em>※ 누가 살렸는지는 본인에게만 보여요.</em>
+          </div>
+        </div>
+        <div class="tabbar">
+          <span class="tab">Today</span>
+          <span class="tab">Feed</span>
+          <span class="tab">Wallet</span>
+          <span class="tab active">방</span>
+        </div>
+      </div>
+      <ul class="eval">
+        <li class="pro">Administrative 톤 — 단단한 시스템 컨벤션</li>
+        <li class="pro">Donor name room-anon — Maya 4축 텐션 차단</li>
+        <li class="con">감정 톤 ❌ — friend gift modal에 적용 금지</li>
+      </ul>
+    </article>
+
+  </div>
+
+  <footer>
+    <h2>Recommended — Surface-Hybrid Direction</h2>
+    <p style="margin:0;font-size:13px">
+      단일 sub-mode 대신 surface별로 sub-mode를 매핑. 각 surface가 가장 잘 맞는 톤으로
+      운용되어 v1 7가지 design principle을 동시에 살린다.
+    </p>
+    <div class="recos">
+      <div class="reco"><b>Today / Daily / Onboarding</b>D3 Single-Column Quiet — daily, dignified · ritual sacred</div>
+      <div class="reco"><b>Wallet / Pool</b>D2 Bento Card Density — co-presence · pride private</div>
+      <div class="reco"><b>Spectator</b>D3 gray-shifted — loss paused · show don't shame</div>
+      <div class="reco"><b>Friend Gift Modal</b>D4 Postcard / Letter — invitation one-time · agency</div>
+      <div class="reco"><b>M3 부활 / M3.5</b>D4 Postcard 손글씨 — substitutionary sacrifice 미학</div>
+      <div class="reco"><b>Final-3 Poster</b>D1 Editorial — joy shared · "우리의 14일"</div>
+      <div class="reco"><b>Room Chat / 시스템</b>D5 Neobrutalist Solid — administrative</div>
+      <div class="reco"><b>Rule-Change Banner</b>D5 Neobrutalist Solid — sacred ritual ❌, administrative ✅</div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -6,6 +6,17 @@ muscle memory survives.
 
 ---
 
+## Migration Cutover Runbooks
+
+Per-migration cutover playbooks live under `infra/`:
+
+- **V11 (v1 cutover):** [`infra/RUNBOOK-V11.md`](../infra/RUNBOOK-V11.md)
+  — survival_state + revival economy schema + backfill. Use this
+  before any deploy that takes a Postgres from V10 → V11. Run
+  `infra/verify-v11.sh` as the post-deploy gate.
+
+---
+
 ## Outage Diagnosis Priority
 
 (See `_bmad-output/project-context.md` for the canonical short-form

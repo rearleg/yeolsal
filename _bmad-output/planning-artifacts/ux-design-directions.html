@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>yeolsal v2 — Oxblood Editorial · 5 Sub-Mode Mockups</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-canvas:   oklch(14% 0.006 30);
+    --bg-surface:  oklch(18% 0.008 30);
+    --bg-elevated: oklch(22% 0.010 30);
+    --bg-overlay:  oklch(8%  0.004 30 / 0.78);
+    --bg-inverse:  oklch(96% 0.005 60);
+
+    --text-primary:   oklch(96% 0.005 60);
+    --text-secondary: oklch(72% 0.008 60);
+    --text-tertiary:  oklch(52% 0.008 60);
+    --text-disabled:  oklch(35% 0.005 60);
+    --text-inverse:   oklch(18% 0.008 30);
+
+    --key-default: oklch(42% 0.135 25);
+    --key-glow:    oklch(50% 0.155 25);
+    --key-deep:    oklch(32% 0.110 22);
+    --key-muted:   oklch(38% 0.045 25);
+    --key-line:    oklch(58% 0.140 25);
+
+    --ember-default: oklch(72% 0.130 65);
+    --ember-subtle:  oklch(60% 0.075 65);
+
+    --surv-active:    oklch(58% 0.090 145);
+    --surv-yellow:    oklch(70% 0.110 90);
+    --surv-red:       oklch(48% 0.085 25);
+    --surv-spectator: oklch(48% 0.020 240);
+
+    --stroke-subtle:  oklch(28% 0.006 30);
+    --stroke-default: oklch(40% 0.008 30);
+    --stroke-strong:  oklch(60% 0.010 30);
+    --stroke-key:     oklch(58% 0.140 25);
+
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+    --space-12: 48px; --space-16: 64px; --space-24: 96px;
+
+    --radius-subtle: 6px; --radius-default: 10px; --radius-pronounced: 14px; --radius-pill: 9999px;
+
+    --elev-1: 0 1px 2px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+    --elev-2: 0 4px 12px rgba(0,0,0,0.5);
+    --elev-3: 0 8px 24px rgba(0,0,0,0.6);
+
+    --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --font-serif: 'Nanum Myeongjo', 'AppleMyungjo', 'Apple SD Gothic Neo', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg-canvas); }
+  body {
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    background: var(--bg-canvas);
+    font-size: 16px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    min-height: 100vh;
+    padding: var(--space-12) var(--space-6);
+  }
+
+  .page-hero { max-width: 1200px; margin: 0 auto var(--space-24); padding-bottom: var(--space-12); border-bottom: 1px solid var(--stroke-subtle); }
+  .page-hero .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--key-line); margin-bottom: var(--space-4); }
+  .page-hero h1 { font-family: var(--font-sans); font-size: 64px; line-height: 1.1; font-weight: 900; letter-spacing: -0.03em; margin-bottom: var(--space-5); }
+  .page-hero h1 em { font-family: var(--font-serif); font-style: italic; font-weight: 700; color: var(--key-glow); }
+  .page-hero p.lede { font-size: 18px; color: var(--text-secondary); max-width: 64ch; line-height: 1.7; }
+  .page-hero .meta { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px dashed var(--stroke-subtle); font-size: 13px; color: var(--text-tertiary); }
+  .page-hero .meta span strong { color: var(--text-secondary); font-weight: 600; margin-right: 6px; }
+
+  .mode-section { max-width: 1200px; margin: 0 auto var(--space-24); }
+  .mode-header { display: grid; grid-template-columns: auto 1fr; gap: var(--space-6); align-items: end; margin-bottom: var(--space-8); padding-bottom: var(--space-5); border-bottom: 1px solid var(--stroke-subtle); }
+  .mode-id { font-family: var(--font-serif); font-size: 72px; font-weight: 800; line-height: 0.9; color: var(--key-glow); letter-spacing: -0.05em; }
+  .mode-title h2 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: var(--space-2); }
+  .mode-title .character { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+  .mode-surfaces { font-size: 12px; color: var(--text-tertiary); margin-top: var(--space-3); letter-spacing: 0.02em; }
+  .mode-surfaces span { display: inline-block; padding: 3px 10px; margin: 0 6px 4px 0; border: 1px solid var(--stroke-subtle); border-radius: var(--radius-pill); color: var(--text-secondary); }
+
+  .mockup-grid { display: grid; grid-template-columns: 360px 1fr; gap: var(--space-10); align-items: start; }
+  @media (max-width: 900px) { .mockup-grid { grid-template-columns: 1fr; } }
+  .phone { width: 360px; height: 760px; background: var(--bg-canvas); border-radius: 36px; border: 1px solid var(--stroke-default); box-shadow: var(--elev-3); overflow: hidden; position: relative; flex-shrink: 0; }
+  .phone::before { content: ''; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: 110px; height: 24px; background: oklch(6% 0 0); border-radius: 12px; z-index: 5; }
+  .screen { width: 100%; height: 100%; padding: 50px 0 30px; overflow: hidden; position: relative; }
+  .screen-inner { height: 100%; overflow-y: auto; padding: 0 20px 20px; }
+  .screen-inner::-webkit-scrollbar { display: none; }
+  .screen-inner { scrollbar-width: none; }
+
+  .mode-notes { padding: var(--space-2) 0; }
+  .mode-notes h3 { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--key-line); margin: var(--space-5) 0 var(--space-3); }
+  .mode-notes h3:first-child { margin-top: 0; }
+  .mode-notes p { font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-bottom: var(--space-3); }
+  .override-grid { display: grid; gap: 6px; background: var(--bg-surface); border: 1px solid var(--stroke-subtle); border-radius: var(--radius-default); padding: var(--space-4) var(--space-5); font-family: 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 12px; }
+  .override-grid .row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-4); padding: 4px 0; border-bottom: 1px dashed var(--stroke-subtle); }
+  .override-grid .row:last-child { border-bottom: none; }
+  .override-grid .row .k { color: var(--text-secondary); }
+  .override-grid .row .v { color: var(--ember-default); text-align: right; }
+
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 16px; }
+  .top-bar .room-name { font-size: 15px; font-weight: 700; }
+  .surv-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; background: var(--bg-elevated); border: 1px solid var(--stroke-subtle); }
+  .surv-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .surv-chip.active .dot { background: var(--surv-active); }
+  .surv-chip.yellow .dot { background: var(--surv-yellow); }
+  .surv-chip.red .dot { background: var(--surv-red); }
+  .surv-chip.spectator .dot { background: var(--surv-spectator); }
+
+  /* D1 Editorial Spread */
+  .mock-d1 .screen-inner { padding-left: 24px; padding-right: 24px; padding-top: 32px; }
+  .d1-issue-meta { display: flex; justify-content: space-between; font-family: var(--font-serif); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-tertiary); border-bottom: 1px solid var(--stroke-default); padding-bottom: 8px; margin-bottom: 28px; }
+  .d1-issue-meta .k { color: var(--key-line); }
+  .d1-cover-title { font-family: var(--font-serif); font-size: 56px; line-height: 0.95; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 4px; }
+  .d1-cover-title em { font-style: italic; color: var(--key-glow); }
+  .d1-cover-subtitle { font-size: 13px; color: var(--text-tertiary); margin-bottom: 36px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .d1-final3 { background: var(--bg-surface); border: 1px solid var(--stroke-subtle); padding: 28px 22px; margin-bottom: 24px; }
+  .d1-final3 .label { font-size: 11px; color: var(--key-line); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 14px; }
+  .d1-final3 .names { font-family: var(--font-serif); font-size: 32px; line-height: 1.25; font-weight: 800; letter-spacing: -0.02em; }
+  .d1-final3 .names span { text-decoration: underline; text-decoration-color: var(--key-default); text-underline-offset: 6px; text-decoration-thickness: 2px; }
+  .d1-survivors { font-size: 13px; color: var(--text-secondary); line-height: 1.9; margin-bottom: 28px; }
+  .d1-survivors .name { display: inline-block; margin-right: 10px; }
+  .d1-credits { border-top: 1px solid var(--stroke-subtle); padding-top: 16px; font-family: var(--font-serif); font-size: 11px; letter-spacing: 0.1em; color: var(--text-tertiary); text-align: center; }
+  .d1-credits strong { font-weight: 700; color: var(--text-secondary); }
+  .d1-share { margin-top: 22px; padding: 14px 18px; background: var(--key-default); color: var(--text-primary); border-radius: var(--radius-subtle); text-align: center; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+
+  /* D2 Bento Density */
+  .mock-d2 .screen-inner { padding-left: 16px; padding-right: 16px; padding-top: 16px; }
+  .d2-greeting { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+  .d2-balance { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .d2-balance .pt { font-size: 16px; color: var(--text-tertiary); font-weight: 400; margin-left: 4px; }
+  .d2-balance-delta { font-size: 12px; color: var(--ember-default); margin-top: 6px; }
+  .d2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+  .d2-card { background: oklch(20% 0.010 30); border: 1px solid var(--stroke-subtle); border-radius: 12px; padding: 14px 14px 16px; box-shadow: var(--elev-1); }
+  .d2-card.span-2 { grid-column: span 2; }
+  .d2-card .label { font-size: 10px; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .d2-card .figure { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .d2-card .figure .unit { font-size: 12px; color: var(--text-tertiary); font-weight: 400; margin-left: 3px; }
+  .d2-card .caption { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+  .d2-card.key-tinted { background: linear-gradient(180deg, oklch(22% 0.020 25) 0%, oklch(20% 0.010 30) 100%); border-color: var(--key-muted); }
+  .d2-card.key-tinted .figure { color: var(--key-glow); }
+  .d2-pool-stack { display: flex; align-items: flex-end; gap: 3px; height: 36px; margin-top: 10px; }
+  .d2-pool-stack span { flex: 1; background: var(--key-muted); border-radius: 2px; }
+  .d2-pool-stack span.fill { background: var(--key-default); }
+  .d2-pool-stack span:nth-child(1) { height: 50%; }
+  .d2-pool-stack span:nth-child(2) { height: 75%; }
+  .d2-pool-stack span:nth-child(3) { height: 95%; }
+  .d2-pool-stack span:nth-child(4) { height: 60%; }
+  .d2-pool-stack span:nth-child(5) { height: 80%; }
+  .d2-friend-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .d2-friend-row .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-elevated); border: 1px solid var(--stroke-subtle); display: inline-block; }
+  .d2-friend-row .avatar.active { border-color: var(--surv-active); }
+  .d2-friend-row .avatar.yellow { border-color: var(--surv-yellow); }
+  .d2-friend-row .avatar.spec { opacity: 0.4; }
+
+  /* D3 Quiet Dark */
+  .mock-d3 .phone { background: oklch(11% 0.005 30); }
+  .mock-d3 .screen-inner { color: oklch(86% 0.005 60); padding-top: 32px; }
+  .d3-spectator-banner { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--surv-spectator); text-align: center; margin-bottom: 28px; padding-bottom: 14px; border-bottom: 1px solid var(--stroke-subtle); }
+  .d3-quiet-heading { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.45; color: oklch(86% 0.005 60); margin-bottom: 8px; }
+  .d3-quiet-meta { font-size: 12px; color: oklch(60% 0.006 60); margin-bottom: 28px; }
+  .d3-chat-list { border-top: 1px solid var(--stroke-subtle); padding-top: 20px; }
+  .d3-chat-msg { padding: 12px 0; border-bottom: 1px dashed var(--stroke-subtle); }
+  .d3-chat-msg .who { font-size: 11px; color: oklch(60% 0.006 60); letter-spacing: 0.04em; margin-bottom: 4px; }
+  .d3-chat-msg .body { font-size: 14px; color: oklch(86% 0.005 60); line-height: 1.6; font-weight: 300; }
+  .d3-chat-msg.system { border-bottom-style: solid; border-bottom-color: var(--stroke-default); }
+  .d3-chat-msg.system .body { color: oklch(60% 0.006 60); font-style: italic; font-size: 13px; }
+  .d3-grass-strip { display: flex; gap: 3px; margin-top: 20px; padding: 16px 0; }
+  .d3-grass-strip span { flex: 1; height: 16px; background: oklch(28% 0.008 30); border-radius: 2px; }
+  .d3-grass-strip span.active { background: oklch(45% 0.006 60); }
+  .d3-readonly-note { font-size: 11px; color: oklch(60% 0.006 60); text-align: center; padding: 16px 0; border-top: 1px solid var(--stroke-subtle); margin-top: 20px; letter-spacing: 0.04em; }
+  .d3-readonly-note::before { content: '○ '; color: var(--surv-spectator); }
+
+  /* D4 Postcard Mythic */
+  .mock-d4 .phone { background: oklch(10% 0.008 30); }
+  .mock-d4 .screen { background: radial-gradient(ellipse 80% 60% at 50% 40%, oklch(20% 0.040 25 / 0.5) 0%, oklch(10% 0.008 30) 70%); }
+  .mock-d4 .screen-inner { padding-top: 60px; display: flex; flex-direction: column; justify-content: center; min-height: 100%; }
+  .d4-eyebrow { font-family: var(--font-serif); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ember-default); text-align: center; margin-bottom: 18px; }
+  .d4-card { background: oklch(20% 0.012 30); border-radius: 16px; padding: 32px 24px 24px; box-shadow: 0 6px 16px rgba(0,0,0,0.5), 0 2px 4px rgba(126,44,42,0.18); border: 1px solid oklch(30% 0.025 25); margin: 0 0 24px; }
+  .d4-card .from { font-family: var(--font-serif); font-size: 18px; color: var(--ember-default); font-style: italic; margin-bottom: 8px; }
+  .d4-card .message { font-family: var(--font-serif); font-size: 22px; line-height: 1.4; font-weight: 700; color: var(--text-primary); margin-bottom: 24px; letter-spacing: -0.01em; }
+  .d4-card .receiver-info { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--stroke-subtle); border-bottom: 1px solid var(--stroke-subtle); margin-bottom: 20px; }
+  .d4-card .receiver-info .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-elevated); border: 2px solid var(--surv-spectator); flex-shrink: 0; }
+  .d4-card .receiver-info .meta { flex: 1; }
+  .d4-card .receiver-info .meta .name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .d4-card .receiver-info .meta .state { font-size: 11px; color: var(--text-secondary); }
+  .d4-cta-group { display: flex; flex-direction: column; gap: 10px; }
+  .d4-cta { padding: 14px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; text-align: center; letter-spacing: -0.01em; border: none; cursor: pointer; font-family: inherit; }
+  .d4-cta.primary { background: var(--key-default); color: var(--text-primary); }
+  .d4-cta.secondary { background: transparent; border: 1px solid var(--ember-subtle); color: var(--ember-default); }
+  .d4-cta.tertiary { background: transparent; color: var(--text-tertiary); font-weight: 400; padding: 10px; }
+  .d4-comfort { font-size: 12px; color: var(--text-tertiary); text-align: center; margin-top: 16px; line-height: 1.6; }
+
+  /* D5 Plate System */
+  .mock-d5 .screen-inner { padding-top: 28px; padding-left: 16px; padding-right: 16px; }
+  .d5-page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 4px; }
+  .d5-page-meta { font-size: 12px; color: var(--text-tertiary); margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--stroke-default); }
+  .d5-section { margin-bottom: 24px; }
+  .d5-section-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px; font-weight: 600; }
+  .d5-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--stroke-subtle); font-size: 14px; }
+  .d5-row:last-child { border-bottom: none; }
+  .d5-row .label-col { color: var(--text-primary); }
+  .d5-row .label-col .sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+  .d5-row .value-col { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .d5-row .value-col.muted { color: var(--text-tertiary); }
+  .d5-row .chevron { color: var(--text-tertiary); margin-left: 10px; }
+  .d5-row .switch { display: inline-block; width: 36px; height: 20px; border-radius: 20px; background: var(--stroke-default); position: relative; }
+  .d5-row .switch.on { background: var(--key-default); }
+  .d5-row .switch::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--text-primary); top: 2px; left: 2px; }
+  .d5-row .switch.on::after { left: 18px; }
+
+  .page-footer { max-width: 1200px; margin: var(--space-16) auto 0; padding: var(--space-8) 0; border-top: 1px solid var(--stroke-subtle); font-size: 12px; color: var(--text-tertiary); text-align: center; line-height: 1.8; }
+  .page-footer a { color: var(--key-line); text-decoration: none; border-bottom: 1px dashed var(--key-line); }
+</style>
+</head>
+<body>
+
+<header class="page-hero">
+  <div class="eyebrow">yeolsal v2 — Phase H1 deliverable</div>
+  <h1>Oxblood <em>Editorial</em><br>5 sub-mode mockups</h1>
+  <p class="lede">하나의 토큰 시스템 위에 다섯 개의 페이스. 같은 다크 럭셔리 베이스 + Pretendard + oxblood ember, 표면별로 override를 한 줄씩만 갈아끼우는 surface-hybrid 구조. 아래 5개 mockup은 step-08에서 lock한 oklch 값을 그대로 소비합니다.</p>
+  <div class="meta">
+    <span><strong>System</strong>Dark Luxury × Editorial 융합</span>
+    <span><strong>Key color</strong>oxblood — oklch(42% 0.135 25)</span>
+    <span><strong>Primary type</strong>Pretendard + Nanum Myeongjo</span>
+    <span><strong>Token engine</strong>tokens.json → GeneratedTokens.java</span>
+    <span><strong>Built</strong>2026-05-11</span>
+  </div>
+</header>
+
+<section class="mode-section mock-d1">
+  <div class="mode-header">
+    <div class="mode-id">D1</div>
+    <div class="mode-title">
+      <h2>Editorial Spread</h2>
+      <div class="character">한국 인디 매거진 표지 톤. 큰 Nanum Myeongjo 세리프 헤드라인 + 단일 oxblood 강조 + 호흡 있는 여백. 페이지당 1개 surface 한도로 <em>희귀하게</em> 적용.</div>
+      <div class="mode-surfaces"><span>Final-3 monthly ceremony</span><span>Kakao invite preview card (BE SVG)</span></div>
+    </div>
+  </div>
+  <div class="mockup-grid">
+    <div class="phone"><div class="screen"><div class="screen-inner">
+      <div class="d1-issue-meta"><span class="k">운동방-3월기</span><span>VOL. 03 · MAY 2026</span></div>
+      <div class="d1-cover-title">우리의<br><em>14일</em></div>
+      <div class="d1-cover-subtitle">final-3 · monthly issue</div>
+      <div class="d1-final3"><div class="label">— Final 3</div><div class="names"><span>진수</span><br><span>민지</span><br><span>수진</span></div></div>
+      <div class="d1-survivors"><span class="name">진수</span><span class="name">민지</span><span class="name">수진</span><span class="name">도현</span><span class="name">보경</span><span class="name">영호</span><span class="name">다은</span></div>
+      <div class="d1-credits">함께 살아남은 7명<br><strong>운동방 · 5월의 기억</strong></div>
+      <div class="d1-share">카카오톡으로 공유하기</div>
+    </div></div></div>
+    <div class="mode-notes">
+      <h3>Character</h3>
+      <p>매거진 1면. 세리프(Nanum Myeongjo) 큰 헤드라인이 <em>간행물</em>이라는 메타 신호를 시각만으로 전달. oxblood는 final-3 명단 underline 1곳에만 — accent의 희소성이 가치를 만든다. <em>우리의 14일</em> 1인칭 복수 톤(KR 겸양 보정, A8 회피).</p>
+      <h3>Override tokens</h3>
+      <div class="override-grid">
+        <div class="row"><span class="k">typography.display.serif.enabled</span><span class="v">true</span></div>
+        <div class="row"><span class="k">typography.heading.weight</span><span class="v">900</span></div>
+        <div class="row"><span class="k">typography.heading.tracking</span><span class="v">-0.025em</span></div>
+        <div class="row"><span class="k">radius.default</span><span class="v">8</span></div>
+        <div class="row"><span class="k">space.layout.padding</span><span class="v">24</span></div>
+        <div class="row"><span class="k">motion.entry.duration</span><span class="v">600ms</span></div>
+        <div class="row"><span class="k">motion.entry.easing</span><span class="v">ease.ritual</span></div>
+        <div class="row"><span class="k">elevation.1</span><span class="v">none</span></div>
+      </div>
+      <h3>Why this works</h3>
+      <p>Day-30 falsification trigger(Final-3 share-rate)가 정확히 이 surface를 가리킴. 매거진 표지가 카카오톡 자체 카드와 시각적으로 차별돼야 <em>공유 동기</em>가 생긴다. Kakao SDK preview card BE renderer도 같은 D1 override를 소비 (FR-8.6.2 + Architecture §4.16).</p>
+    </div>
+  </div>
+</section>
+
+<section class="mode-section mock-d2">
+  <div class="mode-header">
+    <div class="mode-id">D2</div>
+    <div class="mode-title">
+      <h2>Bento Density</h2>
+      <div class="character">다중 카드 그리드에 정보 풍부. oxblood accent는 primary metric 1곳에만, 나머지는 무채색·muted. Wallet·Pool·Stats의 표준 톤.</div>
+      <div class="mode-surfaces"><span>Wallet 4-track</span><span>Pool stack</span><span>Stats dashboard</span><span>Today nested cards</span></div>
+    </div>
+  </div>
+  <div class="mockup-grid">
+    <div class="phone"><div class="screen"><div class="screen-inner">
+      <div class="top-bar"><div class="room-name">지갑 · 운동방</div><span class="surv-chip active"><span class="dot"></span>활동 중</span></div>
+      <div class="d2-greeting">5월 11일 월요일 · 03:42 KST</div>
+      <div class="d2-balance">12<span class="pt">pt</span></div>
+      <div class="d2-balance-delta">+2 어제 생존</div>
+      <div class="d2-grid">
+        <div class="d2-card key-tinted span-2">
+          <div class="label">방 누적 풀</div>
+          <div class="d2-pool-stack"><span class="fill"></span><span class="fill"></span><span class="fill"></span><span></span><span></span></div>
+          <div class="figure" style="margin-top:8px;">38<span class="unit">pt · Day 23</span></div>
+          <div class="caption">목표 Day-30: 50pt · 12pt 남음</div>
+        </div>
+        <div class="d2-card"><div class="label">무료 회생권</div><div class="figure">1<span class="unit">매</span></div><div class="caption">평생 1회</div></div>
+        <div class="d2-card"><div class="label">스트릭 프리즈</div><div class="figure">1<span class="unit">남음</span></div><div class="caption">5월 자동 적용 대기</div></div>
+        <div class="d2-card span-2">
+          <div class="label">친구 잔디 · 이번 주</div>
+          <div class="d2-friend-row">
+            <span class="avatar active"></span><span class="avatar active"></span><span class="avatar yellow"></span><span class="avatar active"></span><span class="avatar active"></span><span class="avatar spec"></span><span class="avatar active"></span><span class="avatar active"></span><span class="avatar active"></span><span class="avatar yellow"></span><span class="avatar active"></span>
+          </div>
+          <div class="caption" style="margin-top:10px;">11명 중 9명 활동 중 · 2명 노란 카드 · 1명 관전 중</div>
+        </div>
+        <div class="d2-card"><div class="label">최근 받음</div><div class="figure" style="font-size:14px;">정민이 회생</div><div class="caption">3일 전 · 5점</div></div>
+        <div class="d2-card"><div class="label">최근 보냄</div><div class="figure" style="font-size:14px;">수진이 응원</div><div class="caption">어제 · 0점</div></div>
+      </div>
+    </div></div></div>
+    <div class="mode-notes">
+      <h3>Character</h3>
+      <p>한 화면에 <em>4-track 정보</em>(개인 점수·풀·티켓·친구 잔디)를 동시에 보여줘야 하는 Wallet 특성을 정확히 받는 페이스. bento card 자체가 컨테이너 역할 — <em>분리는 gap이 아니라 surface 색</em>으로. oxblood tinted card 1개(풀)가 위계의 정점.</p>
+      <h3>Override tokens</h3>
+      <div class="override-grid">
+        <div class="row"><span class="k">color.bg.elevated</span><span class="v">oklch(20% 0.010 30)</span></div>
+        <div class="row"><span class="k">radius.default</span><span class="v">12</span></div>
+        <div class="row"><span class="k">space.layout.padding</span><span class="v">16</span></div>
+        <div class="row"><span class="k">elevation.1</span><span class="v">subtle</span></div>
+        <div class="row"><span class="k">typography.heading.weight</span><span class="v">700</span></div>
+      </div>
+      <h3>Why this works</h3>
+      <p>4-tab 대안(spec fallback)을 회피하면서 한 surface에 정보 응집. 친구 잔디 row는 packed type(<code>semantic.survival</code>) icon + color + 잔디 텍스처 3중 시그널 — NFR-9.6.1 색 단독 의존 금지 만족. tabular-nums가 매일 보이는 숫자의 흔들림을 제거.</p>
+    </div>
+  </div>
+</section>
+
+<section class="mode-section mock-d3">
+  <div class="mode-header">
+    <div class="mode-id">D3</div>
+    <div class="mode-title">
+      <h2>Quiet Dark</h2>
+      <div class="character">spectator mode의 <em>목소리 낮은</em> 톤. 본문 dim, motion 느림, ember 부재, 잔디 monochrome. 박탈은 visible하되 stigma는 만들지 않는다.</div>
+      <div class="mode-surfaces"><span>Spectator room view</span><span>Chat read-only</span><span>Eliminated user roster</span></div>
+    </div>
+  </div>
+  <div class="mockup-grid">
+    <div class="phone"><div class="screen"><div class="screen-inner">
+      <div class="d3-spectator-banner">— 관전 중 · Day 9 —</div>
+      <div class="d3-quiet-heading">방 안의 시간은 계속 흐르고 있어요.<br>천천히 보고 있어도 괜찮습니다.</div>
+      <div class="d3-quiet-meta">운동방 · 친구 11명 활동 중</div>
+      <div class="d3-grass-strip">
+        <span class="active"></span><span class="active"></span><span></span><span class="active"></span><span class="active"></span><span class="active"></span><span></span><span class="active"></span><span class="active"></span><span></span><span class="active"></span>
+      </div>
+      <div class="d3-chat-list">
+        <div class="d3-chat-msg"><div class="who">진수 · 06:12</div><div class="body">오늘도 시작. 어제 무릎이 좀 시원찮아서 걷기로 대체.</div></div>
+        <div class="d3-chat-msg"><div class="who">민지 · 06:38</div><div class="body">진수야 무리하지 마. 나는 30분 요가 했어.</div></div>
+        <div class="d3-chat-msg system"><div class="body">수진이 다시 함께합니다.</div></div>
+        <div class="d3-chat-msg"><div class="who">수진 · 07:02</div><div class="body">고마워 모두. 오늘부터 다시 시작.</div></div>
+        <div class="d3-chat-msg"><div class="who">도현 · 07:14</div><div class="body">5km 러닝 완료. 오늘 컨디션 좋음.</div></div>
+      </div>
+      <div class="d3-readonly-note">읽기 전용 · 메시지 전송 불가</div>
+    </div></div></div>
+    <div class="mode-notes">
+      <h3>Character</h3>
+      <p>본문 lightness가 96% → 86%, secondary는 72% → 60%. 텍스트 weight도 한 단계 가늘게. 잔디는 oxblood/green 컬러를 잃고 cool muted gray만 남음 — <em>지금 보고 있되 끼어들지 않음</em>. spectator banner는 oklch(48% 0.020 240)로 cool slate, dignity 톤 보존.</p>
+      <h3>Override tokens</h3>
+      <div class="override-grid">
+        <div class="row"><span class="k">color.bg.canvas</span><span class="v">oklch(11% ...)</span></div>
+        <div class="row"><span class="k">color.bg.surface</span><span class="v">oklch(15% ...)</span></div>
+        <div class="row"><span class="k">color.text.primary</span><span class="v">oklch(86% ...)</span></div>
+        <div class="row"><span class="k">color.text.secondary</span><span class="v">oklch(60% ...)</span></div>
+        <div class="row"><span class="k">typography.heading.weight</span><span class="v">600</span></div>
+        <div class="row"><span class="k">motion.entry.duration</span><span class="v">400ms</span></div>
+        <div class="row"><span class="k">motion.entry.easing</span><span class="v">ease.gentle</span></div>
+      </div>
+      <h3>Why this works</h3>
+      <p>C4 "다시 열고 싶게 만들기"의 시각 해답. 채팅이 <em>읽힘</em>에 머무름으로써 부담이 없고, 잔디가 <em>보임</em>에 머무름으로써 끈이 끊기지 않는다. 24h 쿨다운 후 broad visibility 전환 시에도 spectator banner는 그대로 — <em>나만 변한 게 아니라 모두에게 그렇게 보임</em>이라는 안도감.</p>
+    </div>
+  </div>
+</section>
+
+<section class="mode-section mock-d4">
+  <div class="mode-header">
+    <div class="mode-id">D4</div>
+    <div class="mode-title">
+      <h2>Postcard Mythic</h2>
+      <div class="character">M3 receiver fade-in의 cinematic. 카드 중심, ember gradient ambient, 느린 fade-in, editorial serif 1줄 액센트. "친구가 보낸 편지" 느낌.</div>
+      <div class="mode-surfaces"><span>Friend Gift Modal</span><span>M3 receiver entry</span><span>WelcomeWindow J0</span><span>RitualMoment 06:00</span></div>
+    </div>
+  </div>
+  <div class="mockup-grid">
+    <div class="phone"><div class="screen"><div class="screen-inner">
+      <div class="d4-eyebrow">— 친구의 회생을 기다려요 —</div>
+      <div class="d4-card">
+        <div class="from">수진이</div>
+        <div class="message">"어제 두 번째 노란 카드를 받았어요. 혼자가 아니라는 신호를 기다리고 있을지도."</div>
+        <div class="receiver-info">
+          <div class="avatar"></div>
+          <div class="meta"><div class="name">수진 · @sujin</div><div class="state">관전 중 · Day 9 · 어제 빨간 카드</div></div>
+        </div>
+        <div class="d4-cta-group">
+          <button class="d4-cta primary">회생권 선물 · 5점</button>
+          <button class="d4-cta secondary">응원만 보내기 · 0점</button>
+          <button class="d4-cta tertiary">닫기</button>
+        </div>
+      </div>
+      <div class="d4-comfort">선물해도 안 해도 수진이는 모릅니다.<br>잔액 12점 — 보낸 후에도 다음 회생을 위한 여유는 충분해요.</div>
+    </div></div></div>
+    <div class="mode-notes">
+      <h3>Character</h3>
+      <p>화면 전체가 <em>받은 엽서</em> 한 장처럼 작동. 배경에 oxblood ember radial gradient가 은은하게 깔리고, 카드는 부드러운 elevation으로 떠 있음. 카피는 Nanum Myeongjo 세리프 — 본문 톤과 <em>물성</em>이 다른 매체임을 시각적으로 전달.</p>
+      <h3>Override tokens</h3>
+      <div class="override-grid">
+        <div class="row"><span class="k">typography.display.serif.enabled</span><span class="v">true</span></div>
+        <div class="row"><span class="k">motion.entry.duration</span><span class="v">1500ms</span></div>
+        <div class="row"><span class="k">motion.entry.easing</span><span class="v">ease.ritual</span></div>
+        <div class="row"><span class="k">color.bg.surface</span><span class="v">oklch(20% 0.012 30)</span></div>
+        <div class="row"><span class="k">elevation.2</span><span class="v">+ ember tint</span></div>
+        <div class="row"><span class="k">radius.pronounced</span><span class="v">16</span></div>
+      </div>
+      <h3>Why this works</h3>
+      <p>M3 "친구가 자기 점수로 나를 살렸다" 격언이 <em>말이 아닌 매체</em>로 전달돼야 함. 3-CTA 동등 비중(primary oxblood / secondary ember outline / tertiary muted) + 하단 안심 메시지로 거래감·압박 zero. Phase 3 receiver fade-in에서도 같은 카드가 3-5초 cinematic으로 등장. RitualMoment 06:00에도 동일 sub-mode 적용 — 매일 같은 시각의 <em>짧은 의식</em>이 같은 톤으로 반복된다는 시각적 약속.</p>
+    </div>
+  </div>
+</section>
+
+<section class="mode-section mock-d5">
+  <div class="mode-header">
+    <div class="mode-id">D5</div>
+    <div class="mode-title">
+      <h2>Plate System</h2>
+      <div class="character">설정·규칙·프로필의 <em>유틸 톤</em>. 표 형태, 명확한 horizontal rule, decorative accent 없음. Toss의 정확함만 차용, 친근함은 의도적으로 제거.</div>
+      <div class="mode-surfaces"><span>Room settings</span><span>Leader rules</span><span>Profile</span><span>Notification settings</span><span>About</span></div>
+    </div>
+  </div>
+  <div class="mockup-grid">
+    <div class="phone"><div class="screen"><div class="screen-inner">
+      <div class="d5-page-title">방 설정</div>
+      <div class="d5-page-meta">운동방 · 방장: 진수</div>
+      <div class="d5-section">
+        <div class="d5-section-label">규칙</div>
+        <div class="d5-row"><div class="label-col">최대 인원<div class="sub">다음 달부터 적용</div></div><div class="value-col">12명 <span class="chevron">›</span></div></div>
+        <div class="d5-row"><div class="label-col">주말 인증</div><div class="value-col"><span class="switch on"></span></div></div>
+        <div class="d5-row"><div class="label-col">grace 기간<div class="sub">시작 14일 환영 기간</div></div><div class="value-col">14일</div></div>
+        <div class="d5-row"><div class="label-col">스트릭 프리즈<div class="sub">월 1회 자동 적용</div></div><div class="value-col">활성</div></div>
+      </div>
+      <div class="d5-section">
+        <div class="d5-section-label">멤버</div>
+        <div class="d5-row"><div class="label-col">활동 중</div><div class="value-col">9명</div></div>
+        <div class="d5-row"><div class="label-col">노란 카드</div><div class="value-col">2명</div></div>
+        <div class="d5-row"><div class="label-col">관전 중</div><div class="value-col">1명</div></div>
+        <div class="d5-row"><div class="label-col">초대 링크 관리</div><div class="value-col muted"><span class="chevron">›</span></div></div>
+      </div>
+      <div class="d5-section">
+        <div class="d5-section-label">방 정보</div>
+        <div class="d5-row"><div class="label-col">시작일</div><div class="value-col">2026.04.18</div></div>
+        <div class="d5-row"><div class="label-col">방 코드</div><div class="value-col muted">EXR-7K3M</div></div>
+        <div class="d5-row"><div class="label-col">방장 이양</div><div class="value-col muted"><span class="chevron">›</span></div></div>
+      </div>
+    </div></div></div>
+    <div class="mode-notes">
+      <h3>Character</h3>
+      <p><em>유틸</em>이 <em>시각적으로 유틸</em>임을 정직하게 드러냄. 보더와 horizontal rule만으로 정보 분리, 그림자·radius·강조 컬러 모두 제거. label은 small caps + tracking 넓힘 — 행정 문서 톤. switch는 ON 상태에만 oxblood — 유일한 키 컬러 등장.</p>
+      <h3>Override tokens</h3>
+      <div class="override-grid">
+        <div class="row"><span class="k">radius.default</span><span class="v">6</span></div>
+        <div class="row"><span class="k">space.layout.padding</span><span class="v">16</span></div>
+        <div class="row"><span class="k">elevation.0</span><span class="v">none</span></div>
+        <div class="row"><span class="k">elevation.1</span><span class="v">none</span></div>
+        <div class="row"><span class="k">typography.heading.weight</span><span class="v">700</span></div>
+        <div class="row"><span class="k">color.stroke.default</span><span class="v">visible</span></div>
+      </div>
+      <h3>Why this works</h3>
+      <p>설정·규칙 surface는 <em>해석</em>이 아닌 <em>조회·수정</em>이 본질. D2 bento로 짜면 over-design, D1/D4 톤으로 짜면 신중함이 과잉으로 변질. D5는 <em>없는 듯한 디자인</em>으로 cognitive cost를 낮춤. "다음 달부터 적용" 같은 시간 단위 규칙 차이가 sub-row에 명시되어 room_rule_versions 정책을 시각적으로 받음.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="page-footer">
+  Sprint Change Proposal 2026-05-10 · Phase H1 deliverable<br>
+  Tokens: <a href="./ux-design-specification.md">ux-design-specification.md §Visual Design Foundation</a> · Architecture §4.16 codegen pipeline · brand-voice lint hard gate (NFR-9.6.1)<br>
+  © yeolsal — 2026. v2 Oxblood Editorial design round.
+</footer>
+
+</body>
+</html>
