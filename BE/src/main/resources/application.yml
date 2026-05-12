@@ -26,3 +26,7 @@ yeosal:
     client-id: ${KAKAO_CLIENT_ID:}
     redirect-uri: ${KAKAO_REDIRECT_URI:https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback}
     mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI:yeosal://auth/kakao}
+  evaluator:
+    mass-elimination-alert-threshold: ${YEOSAL_EVALUATOR_MASS_ELIM_THRESHOLD:20}
+  realtime:
+    broadcast-dispatcher-delay-ms: ${YEOSAL_REALTIME_BROADCAST_DISPATCHER_DELAY_MS:60000}

@@ -17,6 +17,7 @@ import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
@@ -49,6 +50,7 @@ class RoomServiceEvaluationTest {
     @Mock private ChatService chatService;
     @Mock private InviteCodeGenerator codeGenerator;
     @Mock private com.yeosal.api.realtime.RealtimePublisher realtime;
+    @Mock private SurvivalStateService survivalState;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T00:10:00Z"), ZoneId.of("UTC"));
 
@@ -71,7 +73,8 @@ class RoomServiceEvaluationTest {
                 chatService,
                 codeGenerator,
                 clock,
-                realtime);
+                realtime,
+                survivalState);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         room = makeRoom(42L, "기본 방", alice);

@@ -3,8 +3,10 @@ package com.yeosal.api.room;
 import com.yeosal.api.friend.Friendship;
 import com.yeosal.api.friend.FriendshipRepository;
 import com.yeosal.api.friend.FriendshipStatus;
+import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -38,17 +40,20 @@ public class DefaultRoomMigrationRunner implements ApplicationRunner {
     private final RoomRepository rooms;
     private final RoomMemberRepository roomMembers;
     private final UserRepository users;
+    private final SurvivalStateService survivalStateService;
 
     public DefaultRoomMigrationRunner(
             FriendshipRepository friendships,
             RoomRepository rooms,
             RoomMemberRepository roomMembers,
-            UserRepository users
+            UserRepository users,
+            SurvivalStateService survivalStateService
     ) {
         this.friendships = friendships;
         this.rooms = rooms;
         this.roomMembers = roomMembers;
         this.users = users;
+        this.survivalStateService = survivalStateService;
     }
 
     @Override
@@ -102,13 +107,28 @@ public class DefaultRoomMigrationRunner implements ApplicationRunner {
             log.warn("Default-room seed skipped: owner user id={} not found.", ownerId);
             return;
         }
+        // Single per-room timestamp so every membership + survival_state row in
+        // this seeded room shares the same joined_at instant — AC2/AC7 require
+        // grace_ends_at = joined_at + 14d, and the daily evaluator (Story 1.2)
+        // wants consistent windows across co-seeded members. Runner has no
+        // Clock injected today; that's out of scope for this fix.
+        Instant now = Instant.now();
         Room room = rooms.save(new Room(DEFAULT_ROOM_NAME, owner));
-        roomMembers.save(new RoomMember(room, owner, RoomRole.OWNER));
+        RoomMember ownerMember = new RoomMember(room, owner, RoomRole.OWNER);
+        ownerMember.setJoinedAt(now);
+        RoomMember savedOwner = roomMembers.save(ownerMember);
+        // Pair the survival_state row with each membership inside the same
+        // @Transactional boundary so the auto-seeded rooms satisfy the same
+        // (room_members, survival_state) atomicity invariant as RoomService.create.
+        survivalStateService.initializeOnJoin(room, owner, savedOwner.getJoinedAt());
         for (Long memberId : memberIds) {
             if (memberId.equals(ownerId)) continue;
-            users.findById(memberId).ifPresent(member ->
-                    roomMembers.save(new RoomMember(room, member, RoomRole.MEMBER))
-            );
+            users.findById(memberId).ifPresent(member -> {
+                RoomMember rm = new RoomMember(room, member, RoomRole.MEMBER);
+                rm.setJoinedAt(now);
+                RoomMember savedMember = roomMembers.save(rm);
+                survivalStateService.initializeOnJoin(room, member, savedMember.getJoinedAt());
+            });
         }
     }
 }

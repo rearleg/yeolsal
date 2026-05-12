@@ -60,4 +60,16 @@ public class RoomMember {
     public Instant getJoinedAt() { return joinedAt; }
 
     public void setRole(RoomRole role) { this.role = role; }
+
+    /**
+     * Bind the persisted join timestamp to a caller-supplied {@link Instant}
+     * before {@code save()}. {@link RoomService} uses this to anchor
+     * {@code joined_at} to the injected {@link java.time.Clock} (matching
+     * {@code clock.instant()}), so the {@code survival_state.grace_ends_at
+     * = joinedAt + 14 days} write is derived from the exact same instant
+     * (AC2). Without this, {@code prePersist} falls back to {@code Instant.now()}
+     * and the two writes diverge by however long the surrounding service
+     * method takes — a race the daily evaluator could surface as off-by-one.
+     */
+    public void setJoinedAt(Instant joinedAt) { this.joinedAt = joinedAt; }
 }

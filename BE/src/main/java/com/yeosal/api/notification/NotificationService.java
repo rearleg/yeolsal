@@ -140,6 +140,11 @@ public class NotificationService {
             case REFLECTION_NUDGE -> pref.isReflectionNudgeEnabled();
             case FRIEND_GOAL, FRIEND_REFLECTION,
                  FRIEND_REQUEST_RECEIVED, FRIEND_REQUEST_ACCEPTED -> pref.isEventHooksEnabled();
+            // SURVIVAL_STATE is the daily-evaluator idempotency-gate kind
+            // (Story 1.2). It never flows through the push path, so a
+            // misrouted call here silently short-circuits instead of paging
+            // users with debug-only payloads.
+            case SURVIVAL_STATE -> false;
         };
     }
 

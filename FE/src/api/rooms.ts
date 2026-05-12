@@ -53,9 +53,19 @@ export interface MemberTodayDto {
   currentStreak: number;
 }
 
+/**
+ * Inclusive bounds for the room capacity picker (FR-8.1.1). The BE
+ * Bean-Validation contract is `@Min(2) @Max(30)` and the JPA whitelist
+ * mirrors the same range — keep both sides aligned.
+ */
+export const MAX_MEMBERS_MIN = 2;
+export const MAX_MEMBERS_MAX = 30;
+export const MAX_MEMBERS_DEFAULT = 12;
+
 export interface CreateRoomInput {
   name: string;
   minDailyGoalDays: MinDays;
+  maxMembers: number;
 }
 
 export async function listRooms(): Promise<Room[]> {
@@ -69,6 +79,7 @@ export async function createRoom(input: CreateRoomInput): Promise<Room> {
     body: JSON.stringify({
       name: input.name,
       minDailyGoalDays: input.minDailyGoalDays,
+      maxMembers: input.maxMembers,
     }),
   });
   return envelope.data;

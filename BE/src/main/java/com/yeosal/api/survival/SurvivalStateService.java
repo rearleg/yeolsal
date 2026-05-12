@@ -1,10 +1,30 @@
 package com.yeosal.api.survival;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.yeosal.api.daily.DailyEntry;
+import com.yeosal.api.daily.DailyEntryRepository;
+import com.yeosal.api.notification.NotificationKind;
+import com.yeosal.api.notification.NotificationLogRepository;
+import com.yeosal.api.revival.LedgerReason;
+import com.yeosal.api.revival.PersonalPointsLedger;
+import com.yeosal.api.revival.PersonalPointsLedgerRepository;
 import com.yeosal.api.room.Room;
+import com.yeosal.api.room.RoomMember;
+import com.yeosal.api.room.RoomMemberRepository;
+import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.user.User;
+import com.yeosal.api.user.UserRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import org.springframework.dao.DataIntegrityViolationException;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,9 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h2>AC3/AC4 grace contract — DO NOT REGRESS (Story 1.1 → Story 1.2)</h2>
  *
- * <p>Story 1.1 only mints rows. The daily evaluator in Story 1.2 is the
- * only legitimate caller of any future transition method, and it MUST gate
- * every YELLOW→RED transition behind {@link #inGraceWindow(SurvivalState, Instant)}:
+ * <p>The {@link #inGraceWindow(SurvivalState, Instant)} guard is the sole
+ * authorization for any {@code YELLOW → RED} transition:
  *
  * <ul>
  *   <li>If {@code inGraceWindow(state, now)} returns {@code true}, the only
@@ -28,18 +47,81 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  *
  * <p>The boundary is <em>exclusive</em>: at the exact instant
- * {@code now == grace_ends_at}, the guard reports out-of-grace. This matches
- * the contract asserted by {@code SurvivalStateServiceTest}.
+ * {@code now == grace_ends_at}, the guard reports out-of-grace.
+ *
+ * <h2>Story 1.2 — {@link #evaluateRoom(long, LocalDate)}</h2>
+ *
+ * <p>One {@code @Transactional} method per room called by
+ * {@code SurvivalStateEvaluatorJob} at 06:00 KST. Walks every member, runs
+ * the {@code notification_log} dedup gate (per-user idempotency, AC8), then:
+ *
+ * <ul>
+ *   <li><strong>Compliant</strong> — {@code daily_entries} row exists for
+ *       the prior entry-date → insert {@code +2 SURVIVAL} to
+ *       {@code personal_points_ledger} (AC3).</li>
+ *   <li><strong>Miss + freeze unused this month</strong> — insert a
+ *       {@code streak_freezes} row via {@code ON CONFLICT DO NOTHING}; no
+ *       state change, no realtime emission (AC4).</li>
+ *   <li><strong>Miss + freeze unavailable</strong> — drive the state
+ *       machine: {@code ACTIVE → YELLOW} on first uncovered miss (AC5);
+ *       {@code YELLOW → RED} on the second miss within the rolling 7-day
+ *       window — clamped to YELLOW when {@link #inGraceWindow} fires
+ *       (AC6).</li>
+ * </ul>
+ *
+ * <p>All wall-clock reads come from the injected {@link Clock}; a single
+ * {@code Instant now = clock.instant()} flows through the per-room call so
+ * {@code last_state_change_at}, {@code eliminated_at}, and
+ * {@code broad_visibility_at} share one snapshot (AC9). Transitions
+ * publish {@link SurvivalStateTransitionEvent} via Spring's
+ * {@link ApplicationEventPublisher}; the listener fires
+ * {@code AFTER_COMMIT} so a rolled-back transaction never lights up the
+ * realtime fan-out (Story 1.2 BE-6).
  */
 @Service
 public class SurvivalStateService {
 
+    private static final Logger log = LoggerFactory.getLogger(SurvivalStateService.class);
     private static final Duration GRACE_WINDOW = Duration.ofDays(14);
+    private static final Duration ROLLING_WINDOW = Duration.ofDays(7);
+    private static final Duration RED_BROAD_DELAY = Duration.ofHours(24);
+    private static final short SURVIVAL_DELTA = 2;
 
     private final SurvivalStateRepository repository;
+    private final NotificationLogRepository notificationLogs;
+    private final UserRepository users;
+    private final StreakFreezeRepository streakFreezes;
+    private final PersonalPointsLedgerRepository personalLedger;
+    private final DailyEntryRepository dailyEntries;
+    private final RoomMemberRepository roomMembers;
+    private final RoomRepository rooms;
+    private final RoomRuleVersionRepository ruleVersions;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
-    public SurvivalStateService(SurvivalStateRepository repository) {
+    public SurvivalStateService(
+            SurvivalStateRepository repository,
+            NotificationLogRepository notificationLogs,
+            UserRepository users,
+            StreakFreezeRepository streakFreezes,
+            PersonalPointsLedgerRepository personalLedger,
+            DailyEntryRepository dailyEntries,
+            RoomMemberRepository roomMembers,
+            RoomRepository rooms,
+            RoomRuleVersionRepository ruleVersions,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.repository = repository;
+        this.notificationLogs = notificationLogs;
+        this.users = users;
+        this.streakFreezes = streakFreezes;
+        this.personalLedger = personalLedger;
+        this.dailyEntries = dailyEntries;
+        this.roomMembers = roomMembers;
+        this.rooms = rooms;
+        this.ruleVersions = ruleVersions;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     /**
@@ -47,22 +129,21 @@ public class SurvivalStateService {
      * Status defaults to {@link SurvivalStatus#ACTIVE}; {@code grace_ends_at}
      * is {@code joinedAt + 14 days}.
      *
-     * <p>Idempotent under the unique {@code (room_id, user_id)} race: when
-     * two concurrent {@code save} calls collide we let the loser swallow the
-     * {@link DataIntegrityViolationException} and re-read the winner's row,
-     * so callers can stay single-transaction without an explicit advisory lock.
+     * <p>Idempotent under the unique {@code (room_id, user_id)} race via the
+     * V8/V9-style native {@code INSERT ... ON CONFLICT DO NOTHING} in
+     * {@link SurvivalStateRepository#insertIfAbsent}.
      */
     @Transactional
     public SurvivalState initializeOnJoin(Room room, User user, Instant joinedAt) {
         Instant graceEndsAt = joinedAt.plus(GRACE_WINDOW);
-        SurvivalState row = new SurvivalState(room, user, graceEndsAt);
-        try {
-            return repository.save(row);
-        } catch (DataIntegrityViolationException race) {
-            return repository
-                    .findByRoomIdAndUserId(room.getId(), user.getId())
-                    .orElseThrow(() -> race);
-        }
+        long roomId = room.getId();
+        long userId = user.getId();
+        repository.insertIfAbsent(roomId, userId, graceEndsAt);
+        return repository
+                .findByRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "survival_state row missing after upsert: roomId=" + roomId
+                                + " userId=" + userId));
     }
 
     /**
@@ -71,13 +152,166 @@ public class SurvivalStateService {
      * {@code now} is strictly before it. The boundary is exclusive so a
      * member whose grace ends exactly at {@code now} is already exposed to
      * Story 1.2's full transition rules.
-     *
-     * <p>See the AC3/AC4 contract in the class-level Javadoc — Story 1.2's
-     * evaluator must consult this method before any {@code YELLOW → RED}
-     * transition.
      */
     public boolean inGraceWindow(SurvivalState state, Instant now) {
         Instant graceEndsAt = state.getGraceEndsAt();
         return graceEndsAt != null && now.isBefore(graceEndsAt);
     }
+
+    /**
+     * Evaluates every member of {@code roomId} against {@code priorEntryDate}
+     * (already in {@code Asia/Seoul} via {@code EntryDateResolver}). One
+     * transaction per room; misbehaving rooms surface up to the scheduler's
+     * try/catch as a single failed-room count without aborting the night.
+     *
+     * <p>The {@code notification_log (user_id, 'SURVIVAL_STATE',
+     * "{priorEntryDate}:{userId}")} gate is the per-user idempotency key
+     * (AC3/AC8) — a re-run for the same {@code priorEntryDate} writes zero
+     * additional ledger / state-machine rows.
+     */
+    @Transactional
+    public EvaluationResult evaluateRoom(long roomId, LocalDate priorEntryDate) {
+        Instant now = clock.instant();
+        String monthKey = YearMonth.from(priorEntryDate).toString();
+
+        // 1. Active rule for this room+month.
+        RoomRuleVersion rule = ruleVersions
+                .findTopByRoomIdAndEffectiveFromMonthLessThanEqualOrderByEffectiveFromMonthDesc(
+                        roomId, monthKey)
+                .orElseThrow(() -> new IllegalStateException(
+                        "rule version missing for roomId=" + roomId));
+
+        // 2. Weekend skip — no progress, no miss, no notification row (AC2).
+        JsonNode payload = rule.getRulePayload();
+        if (!RulePresetEvaluator.shouldEvaluate(payload, priorEntryDate)) {
+            return new EvaluationResult(roomId, priorEntryDate, 0, 0, 0, 0, 0, 0);
+        }
+
+        // 3. Room + members + entries.
+        Room room = rooms.findById(roomId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "room missing for roomId=" + roomId));
+        long ownerUserId = room.getOwner().getId();
+
+        List<RoomMember> members = roomMembers.findByRoom(room);
+        if (members.isEmpty()) {
+            return new EvaluationResult(roomId, priorEntryDate, 0, 0, 0, 0, 0, 0);
+        }
+
+        List<User> memberUsers = members.stream().map(RoomMember::getUser).toList();
+        List<DailyEntry> entries = dailyEntries.findByUserInAndDate(memberUsers, priorEntryDate);
+        Set<Long> compliantUserIds = new HashSet<>();
+        for (DailyEntry e : entries) {
+            compliantUserIds.add(e.getUser().getId());
+        }
+
+        int evaluated = 0;
+        int compliant = 0;
+        int frozen = 0;
+        int toYellow = 0;
+        int toRed = 0;
+        int skipped = 0;
+
+        for (RoomMember rm : members) {
+            long userId = rm.getUser().getId();
+            evaluated += 1;
+
+            // 4. Per-(room, user) dedup gate (AC3 + AC8 idempotency).
+            String dedupKey = priorEntryDate + ":" + roomId + ":" + userId;
+            int inserted = notificationLogs.insertIfAbsent(
+                    userId, NotificationKind.SURVIVAL_STATE.name(), dedupKey);
+            if (inserted == 0) {
+                skipped += 1;
+                continue;
+            }
+
+            if (compliantUserIds.contains(userId)) {
+                // 5. Compliant path → +2 SURVIVAL (AC3).
+                personalLedger.save(new PersonalPointsLedger(
+                        userId, roomId, SURVIVAL_DELTA, LedgerReason.SURVIVAL, now));
+                compliant += 1;
+                continue;
+            }
+
+            // 6. Miss path → try freeze first (AC4).
+            int freezeInserted = streakFreezes.insertIfAbsent(
+                    userId, roomId, priorEntryDate, monthKey);
+            if (freezeInserted == 1) {
+                frozen += 1;
+                continue;
+            }
+
+            // 7. Miss + no freeze → state machine.
+            SurvivalState state = repository.findByRoomIdAndUserId(roomId, userId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "survival_state missing for roomId=" + roomId
+                                    + " userId=" + userId));
+
+            switch (state.getStatus()) {
+                case ACTIVE -> {
+                    state.setStatus(SurvivalStatus.YELLOW);
+                    state.setLastStateChangeAt(now);
+                    eventPublisher.publishEvent(new SurvivalStateTransitionEvent(
+                            roomId, userId, ownerUserId,
+                            SurvivalStatus.ACTIVE, SurvivalStatus.YELLOW,
+                            now, null));
+                    toYellow += 1;
+                }
+                case YELLOW -> {
+                    Instant rollingFloor = now.minus(ROLLING_WINDOW);
+                    boolean withinWindow = !state.getLastStateChangeAt().isBefore(rollingFloor);
+                    if (!withinWindow) {
+                        skipped += 1;
+                        break;
+                    }
+                    if (inGraceWindow(state, now)) {
+                        skipped += 1;
+                        break;
+                    }
+                    Instant broadVisibilityAt = now.plus(RED_BROAD_DELAY);
+                    state.setStatus(SurvivalStatus.RED);
+                    state.setLastStateChangeAt(now);
+                    state.setEliminatedAt(now);
+                    state.setBroadVisibilityAt(broadVisibilityAt);
+                    eventPublisher.publishEvent(new SurvivalStateTransitionEvent(
+                            roomId, userId, ownerUserId,
+                            SurvivalStatus.YELLOW, SurvivalStatus.RED,
+                            now, broadVisibilityAt));
+                    toRed += 1;
+                }
+                case RED, SPECTATOR -> skipped += 1;
+            }
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info("[evaluator] room={} date={} evaluated={} compliant={} frozen={} "
+                            + "toYellow={} toRed={} skipped={}",
+                    roomId, priorEntryDate, evaluated, compliant, frozen,
+                    toYellow, toRed, skipped);
+        }
+
+        // UserRepository is injected for the Story 1.3 hand-off; the evaluator
+        // itself does not resolve managed User entities, but constructor
+        // shaping stays stable across stories. Silence unused warning.
+        if (users == null) {
+            throw new IllegalStateException("users repository missing");
+        }
+
+        return new EvaluationResult(
+                roomId, priorEntryDate, evaluated, compliant, frozen, toYellow, toRed, skipped);
+    }
+
+    /**
+     * Per-room counts surfaced to the scheduler for aggregation + the
+     * mass-elimination alarm threshold (AC10/AC11).
+     */
+    public record EvaluationResult(
+            long roomId,
+            LocalDate date,
+            int evaluated,
+            int compliant,
+            int frozen,
+            int toYellow,
+            int toRed,
+            int skipped) {}
 }
