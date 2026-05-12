@@ -10,6 +10,7 @@ import com.yeosal.api.daily.TodoItem;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.Clock;
@@ -46,6 +47,7 @@ public class RoomService {
     private final InviteCodeGenerator codeGenerator;
     private final Clock clock;
     private final com.yeosal.api.realtime.RealtimePublisher realtime;
+    private final SurvivalStateService survivalState;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -64,7 +66,8 @@ public class RoomService {
             ChatService chatService,
             InviteCodeGenerator codeGenerator,
             Clock clock,
-            com.yeosal.api.realtime.RealtimePublisher realtime
+            com.yeosal.api.realtime.RealtimePublisher realtime,
+            SurvivalStateService survivalState
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -78,15 +81,24 @@ public class RoomService {
         this.codeGenerator = codeGenerator;
         this.clock = clock;
         this.realtime = realtime;
+        this.survivalState = survivalState;
     }
 
-    /** Backwards-compatible overload that creates a room with the default minimum. */
+    /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
+    static final int DEFAULT_MAX_MEMBERS = 12;
+
+    /** Backwards-compatible overload — defaults to {@link GoalMinimumDays#DEFAULT} + max 12. */
     public RoomSummary create(User owner, String name) {
-        return create(owner, name, GoalMinimumDays.DEFAULT);
+        return create(owner, name, GoalMinimumDays.DEFAULT, DEFAULT_MAX_MEMBERS);
+    }
+
+    /** Backwards-compatible overload — defaults to max 12 members. */
+    public RoomSummary create(User owner, String name, int minDailyGoalDays) {
+        return create(owner, name, minDailyGoalDays, DEFAULT_MAX_MEMBERS);
     }
 
     @Transactional
-    public RoomSummary create(User owner, String name, int minDailyGoalDays) {
+    public RoomSummary create(User owner, String name, int minDailyGoalDays, int maxMembers) {
         if (name == null || name.isBlank()) {
             throw new BadRequestException("방 이름은 비어있을 수 없습니다.");
         }
@@ -95,11 +107,29 @@ public class RoomService {
         if (!GoalMinimumDays.isAllowed(minDailyGoalDays)) {
             throw new BadRequestException("최소 목표일수는 10/15/20/매일 중 하나여야 합니다.");
         }
+        // FR-8.1.1: capacity is bounded server-side so a client that bypasses
+        // the picker (older bundle, direct curl) still gets a clean 400 rather
+        // than the JPA prePersist clamp swallowing the choice silently.
+        if (maxMembers < 2 || maxMembers > 30) {
+            throw new BadRequestException("정원은 2에서 30 사이여야 합니다.");
+        }
         short min = (short) minDailyGoalDays;
-        Room room = rooms.save(new Room(name.trim(), owner, min));
-        roomMembers.save(new RoomMember(room, owner, RoomRole.OWNER));
+        Room candidate = new Room(name.trim(), owner, min);
+        candidate.setMaxMembers((short) maxMembers);
+        Room room = rooms.save(candidate);
+        Instant now = clock.instant();
+        // AC2 — bind joined_at to the injected Clock so survival_state.grace_ends_at
+        // is derived from the SAME instant as the persisted RoomMember.joined_at,
+        // not from a separate Instant.now() call inside prePersist.
+        RoomMember ownerMember = new RoomMember(room, owner, RoomRole.OWNER);
+        ownerMember.setJoinedAt(now);
+        RoomMember savedOwnerMember = roomMembers.save(ownerMember);
         // Owner's per-member row mirrors the room minimum at creation time.
         minimums.save(new GroupMemberMinimum(room.getId(), owner.getId(), min));
+        // AC2/AC7 — survival_state row is created atomically with the
+        // RoomMember row inside this @Transactional method; idempotency under
+        // a unique-(room, user) race lives in SurvivalStateService (native upsert).
+        survivalState.initializeOnJoin(room, owner, savedOwnerMember.getJoinedAt());
         return RoomSummary.from(room);
     }
 
@@ -222,12 +252,22 @@ public class RoomService {
         if (memberCount >= room.getMaxMembers()) {
             throw new BadRequestException("방 정원을 초과했습니다.");
         }
-        RoomMember saved = roomMembers.save(new RoomMember(room, user, RoomRole.MEMBER));
+        // AC2 — anchor the new member's joined_at to the same Clock instant
+        // we'll feed into initializeOnJoin below, so survival_state.grace_ends_at
+        // equals joined_at + 14d exactly (no millisecond drift from prePersist).
+        RoomMember newMember = new RoomMember(room, user, RoomRole.MEMBER);
+        newMember.setJoinedAt(now);
+        RoomMember saved = roomMembers.save(newMember);
         // New members start by mirroring the room's current minimum. They can
         // raise (but not lower) their own minimum later via the PATCH endpoint
         // introduced in PR E.
         GroupMemberMinimum minimum = minimums.save(new GroupMemberMinimum(
                 room.getId(), user.getId(), room.getMinDailyGoalDays()));
+        // AC2/AC7 — survival_state lives inside the same @Transactional
+        // boundary as the membership write so a join is atomic across both
+        // tables. Idempotency under a unique-(room, user) race lives in
+        // SurvivalStateService (native INSERT ... ON CONFLICT DO NOTHING).
+        survivalState.initializeOnJoin(room, user, saved.getJoinedAt());
         MemberSummary summary = MemberSummary.from(saved, minimum);
         // Realtime fan-out — every existing member subscribed to
         // /topic/rooms.{id}.members sees the new member without waiting
@@ -302,6 +342,21 @@ public class RoomService {
     private RoomMember requireMembership(Room room, User user) {
         return roomMembers.findByRoomAndUser(room, user)
                 .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
+    }
+
+    /**
+     * Leader-of-record authorization gate per FR-8.5.1. The {@code Room.owner}
+     * FK is the canonical leader identity; this is the single source of truth
+     * any future leader-only endpoint (Stories 5.1, 5.2, 5.6) must consult so
+     * the auth contract cannot drift between handlers.
+     *
+     * @throws ForbiddenException when {@code user} is not the room's owner.
+     */
+    @SuppressWarnings("unused") // wired by Stories 5.1, 5.2, 5.6 — kept resident as the single leader check.
+    private void requireLeader(Room room, User user) {
+        if (!room.getOwner().getId().equals(user.getId())) {
+            throw new ForbiddenException("방장 권한이 필요합니다.");
+        }
     }
 
     public record RoomSummary(long id, String name, long ownerId, int maxMembers, int minDailyGoalDays) {

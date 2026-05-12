@@ -12,5 +12,7 @@ public enum NotificationKind {
     /** Event hook — someone sent the user a friend request. Debounced 30 min per requester. */
     FRIEND_REQUEST_RECEIVED,
     /** Event hook — the user's outgoing friend request was accepted. Debounced 30 min per addressee. */
-    FRIEND_REQUEST_ACCEPTED
+    FRIEND_REQUEST_ACCEPTED,
+    /** Daily evaluator idempotency gate — key format {@code "{prior_entry_date}:{user_id}"}. */
+    SURVIVAL_STATE
 }

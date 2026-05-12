@@ -28,7 +28,7 @@ public class Room {
     private User owner;
 
     @Column(name = "max_members", nullable = false)
-    private short maxMembers = 8;
+    private short maxMembers = 12;
 
     @Column(name = "min_daily_goal_days", nullable = false)
     private short minDailyGoalDays = (short) GoalMinimumDays.DEFAULT;
@@ -53,8 +53,13 @@ public class Room {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
-        if (maxMembers <= 0) {
-            maxMembers = 8;
+        // Defense-in-depth clamp. The API-level reject lives in
+        // CreateRoomRequest (@Min/@Max) + RoomService whitelist check so
+        // clients get a 400 VALIDATION with a clear message; this guard is
+        // a last-resort fallback for direct-entity test paths and legacy
+        // code that bypasses the controller.
+        if (maxMembers < 2 || maxMembers > 30) {
+            maxMembers = 12;
         }
         if (!GoalMinimumDays.isAllowed(minDailyGoalDays)) {
             minDailyGoalDays = (short) GoalMinimumDays.DEFAULT;

@@ -16,6 +16,8 @@ import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.SurvivalState;
+import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
@@ -49,6 +51,7 @@ class RoomServiceTest {
     @Mock private ChatService chatService;
     @Mock private InviteCodeGenerator codeGenerator;
     @Mock private com.yeosal.api.realtime.RealtimePublisher realtime;
+    @Mock private SurvivalStateService survivalState;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -72,10 +75,17 @@ class RoomServiceTest {
                 chatService,
                 codeGenerator,
                 clock,
-                realtime);
+                realtime,
+                survivalState);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
+        // Default save behavior: echo the argument back. RoomService now reads
+        // the saved RoomMember.joinedAt to seed survival_state.grace_ends_at
+        // (AC2 — same instant for both writes), so tests that don't otherwise
+        // stub the save would NPE without this default.
+        lenient().when(roomMembers.save(any(RoomMember.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -505,6 +515,87 @@ class RoomServiceTest {
 
         assertThatThrownBy(() -> service.updateMyMinimum(bob, 42L, 20))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    // -- Story 1.1: max_members widening + survival_state on join --
+
+    @Test
+    @DisplayName("create(maxMembers=12): persists Room.maxMembers and initializes survival_state for owner")
+    void createPersistsMaxMembersAndSurvivalState() {
+        ArgumentCaptor<Room> roomCaptor = ArgumentCaptor.forClass(Room.class);
+        when(rooms.save(roomCaptor.capture())).thenAnswer(inv -> setId(inv.getArgument(0), 42L));
+
+        RoomService.RoomSummary created = service.create(alice, "기본 방", 10, 12);
+
+        assertThat(created.maxMembers()).isEqualTo(12);
+        assertThat(roomCaptor.getValue().getMaxMembers()).isEqualTo((short) 12);
+        // AC5 — leader-of-record invariant.
+        assertThat(roomCaptor.getValue().getOwner().getId()).isEqualTo(alice.getId());
+        verify(survivalState, times(1)).initializeOnJoin(roomCaptor.getValue(), alice, now);
+    }
+
+    @Test
+    @DisplayName("create: rejects maxMembers below 2 with BadRequest")
+    void createRejectsMaxMembersBelow2() {
+        assertThatThrownBy(() -> service.create(alice, "기본 방", 10, 1))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("정원");
+        verify(rooms, never()).save(any());
+        verify(survivalState, never()).initializeOnJoin(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("create: rejects maxMembers above 30 with BadRequest")
+    void createRejectsMaxMembersAbove30() {
+        assertThatThrownBy(() -> service.create(alice, "기본 방", 10, 31))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("정원");
+        verify(rooms, never()).save(any());
+        verify(survivalState, never()).initializeOnJoin(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("create: accepts maxMembers at boundaries 2 and 30")
+    void createAcceptsBoundaries() {
+        when(rooms.save(any(Room.class))).thenAnswer(inv -> setId(inv.getArgument(0), 42L));
+
+        service.create(alice, "방2", 10, 2);
+        service.create(alice, "방30", 10, 30);
+
+        ArgumentCaptor<Room> roomCaptor = ArgumentCaptor.forClass(Room.class);
+        verify(rooms, times(2)).save(roomCaptor.capture());
+        assertThat(roomCaptor.getAllValues())
+                .extracting(Room::getMaxMembers)
+                .containsExactly((short) 2, (short) 30);
+    }
+
+    @Test
+    @DisplayName("create: 3-arg overload defaults maxMembers to 12")
+    void createBackwardsCompatDefaultsMaxMembersTo12() {
+        ArgumentCaptor<Room> roomCaptor = ArgumentCaptor.forClass(Room.class);
+        when(rooms.save(roomCaptor.capture())).thenAnswer(inv -> setId(inv.getArgument(0), 42L));
+
+        service.create(alice, "기본 방", 10);
+
+        assertThat(roomCaptor.getValue().getMaxMembers()).isEqualTo((short) 12);
+    }
+
+    @Test
+    @DisplayName("joinByCode: initializes survival_state for the newly added member")
+    void joinByCodeInitializesSurvivalState() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        room.setMaxMembers((short) 12);
+        room.setMinDailyGoalDays((short) 10);
+        RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, now.plus(Duration.ofDays(1)));
+        when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
+        when(roomMembers.countByRoom(room)).thenReturn(1L);
+        when(roomMembers.save(any(RoomMember.class))).thenAnswer(inv -> setId(inv.getArgument(0), 7L));
+        when(minimums.save(any(GroupMemberMinimum.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.joinByCode(bob, "A7K9PXMQ");
+
+        verify(survivalState, times(1)).initializeOnJoin(room, bob, now);
     }
 
     // -- helpers --

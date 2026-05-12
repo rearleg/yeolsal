@@ -2,9 +2,16 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { MIN_DAYS_LABELS, type MinDays, type Room } from "../../src/api/rooms";
+import {
+  MAX_MEMBERS_DEFAULT,
+  MIN_DAYS_LABELS,
+  type MinDays,
+  type Room,
+} from "../../src/api/rooms";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
+import { GraceBanner } from "../../src/components/rooms/GraceBanner";
+import { MaxMembersPicker } from "../../src/components/rooms/MaxMembersPicker";
 import { MinDaysSegmented } from "../../src/components/rooms/MinDaysSegmented";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
@@ -22,6 +29,7 @@ export default function RoomsScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [minDays, setMinDays] = useState<MinDays>(10);
+  const [maxMembers, setMaxMembers] = useState<number>(MAX_MEMBERS_DEFAULT);
   const rooms = roomsQuery.data ?? [];
   const loading = roomsQuery.isLoading;
 
@@ -29,11 +37,12 @@ export default function RoomsScreen() {
     const trimmed = name.trim();
     if (!trimmed) return;
     createMut.mutate(
-      { name: trimmed, minDailyGoalDays: minDays },
+      { name: trimmed, minDailyGoalDays: minDays, maxMembers },
       {
         onSuccess: () => {
           setName("");
           setMinDays(10);
+          setMaxMembers(MAX_MEMBERS_DEFAULT);
           setShowCreate(false);
         },
       },
@@ -47,7 +56,7 @@ export default function RoomsScreen() {
           <View style={{ flex: 1 }}>
             <Text variant="h1">함께하는 그룹</Text>
             <Text variant="bodySmall" color={palette.inkMute}>
-              초대 코드로 작은 그룹을 만들어요 (최대 8명)
+              초대 코드로 작은 그룹을 만들어요 (최대 30명까지)
             </Text>
           </View>
           <Pressable
@@ -80,6 +89,18 @@ export default function RoomsScreen() {
               <View style={{ marginTop: space[2] }}>
                 <MinDaysSegmented value={minDays} onChange={setMinDays} />
               </View>
+            </View>
+            <View style={styles.maxMembersGroup}>
+              <Text variant="bodyStrong">정원</Text>
+              <Text variant="caption" color={palette.inkMute}>
+                초대 가능 인원을 2~30명 사이에서 골라주세요.
+              </Text>
+              <View style={{ marginTop: space[2] }}>
+                <MaxMembersPicker value={maxMembers} onChange={setMaxMembers} />
+              </View>
+            </View>
+            <View style={styles.graceBannerWrap}>
+              <GraceBanner />
             </View>
             <Button label="만들기" tone="primary" size="md" fullWidth onPress={submitCreate} />
           </Card>
@@ -181,6 +202,8 @@ const styles = StyleSheet.create({
   },
   joinRow: { flexDirection: "row", alignItems: "center", gap: space[3] },
   minDaysGroup: { marginBottom: space[3] },
+  maxMembersGroup: { marginBottom: space[3] },
+  graceBannerWrap: { marginBottom: space[3] },
   skeletonList: { gap: space[2] },
   list: { gap: space[2] },
   roomRow: { flexDirection: "row", alignItems: "center", gap: space[3] },

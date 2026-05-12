@@ -4,6 +4,8 @@ import com.yeosal.api.common.ApiResponse;
 import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.user.User;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -50,7 +52,14 @@ public class RoomController {
         int min = body.minDailyGoalDays() == null
                 ? GoalMinimumDays.DEFAULT
                 : body.minDailyGoalDays();
-        return ApiResponse.of(roomService.create(me, body.name(), min));
+        // Cap defaults to 12 when the client omits it (older FE bundles without
+        // the picker UI still create rooms). The whitelist check on the full
+        // int lives in the service so a direct curl bypassing @Min/@Max still
+        // gets a clean 400 instead of silent JPA prePersist clamping.
+        int max = body.maxMembers() == null
+                ? RoomService.DEFAULT_MAX_MEMBERS
+                : body.maxMembers();
+        return ApiResponse.of(roomService.create(me, body.name(), min, max));
     }
 
     @GetMapping
@@ -121,7 +130,11 @@ public class RoomController {
             // Nullable for backwards-compat with FE bundles that haven't shipped
             // the picker yet; the controller falls back to the default and the
             // service rejects values outside the {10, 15, 20, 31} whitelist.
-            Integer minDailyGoalDays
+            Integer minDailyGoalDays,
+            // Nullable for the same reason — older bundles omit it. Bean
+            // Validation rejects out-of-range at the DTO boundary; the service
+            // double-checks for clients that bypass validation (FR-8.1.1).
+            @Min(2) @Max(30) Integer maxMembers
     ) {}
 
     public record JoinRequest(@NotBlank @Size(min = 4, max = 32) String code) {}

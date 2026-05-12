@@ -1,0 +1,109 @@
+# generated: 2026-05-11
+# last_updated: 2026-05-12
+# (story 1-1 review; story 1-2 review; epic-1 in-progress)
+# project: yeolsal
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {project-root}/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-05-11
+last_updated: 2026-05-12
+project: yeolsal
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  # Epic 1: Survival State & Daily Loop
+  epic-1: in-progress
+  1-1-room-creation-with-v1-cap-14-day-grace-trial: done
+  1-2-06-00-kst-survival-state-evaluator-job: review
+  1-3-privacy-filtered-survival-roster-api: backlog
+  1-4-v11-migration-production-backfill: backlog
+  1-5-design-system-foundation-v2-token-packed-type-fe-be-codegen: backlog
+  1-6-welcomewindow-j0-leaders-lonely-30-seconds: backlog
+  1-7-ritualmoment-06-00-kst-5-second-sacred-wrapper: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Spectator Mode
+  epic-2: backlog
+  2-1-spectator-mode-fe-routing-branch: backlog
+  2-2-spectator-daily-digest-push: backlog
+  2-3-record-visibility-opt-in-for-eliminated-users: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Revival Economy
+  epic-3: backlog
+  3-1-free-revival-ticket-self-revival-via-personal-points: backlog
+  3-2-friend-gift-revival-push-prompt-friend-gift-modal: backlog
+  3-3-wallet-friend-revival-badge-passive-discoverability: backlog
+  3-4-wallet-ui-surface: backlog
+  3-5-kudos-message-endpoint-chat-messages-kind-extension: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Group Point Pool & Future Redemption Promise
+  epic-4: backlog
+  4-1-room-point-pool-counter-cache: backlog
+  4-2-phase-2-promise-ui: backlog
+  4-3-poolstack-5-stage-svg-asset-pipeline-threshold-table: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Group Leader & Rule Versioning
+  epic-5: backlog
+  5-1-rule-edit-with-next-month-only-application: backlog
+  5-2-member-cap-edit-leader-transfer: backlog
+  5-3-auto-leader-promotion-on-elimination: backlog
+  5-4-rule-change-broadcast-in-chat: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: KakaoTalk SDK Invite Virality
+  epic-6: backlog
+  6-1-server-side-preview-card-renderer-cache: backlog
+  6-2-kakao-share-sdk-integration-deep-linking: backlog
+  6-3-runbook-native-module-reinstall-guidance: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Final-3 Monthly Ceremony
+  epic-7: backlog
+  7-1-server-side-svg-poster-renderer: backlog
+  7-2-monthly-final-3-scheduled-job: backlog
+  7-3-home-tab-final-3-card-with-kakao-share: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Brand Voice & Onboarding
+  epic-8: backlog
+  8-1-5-screen-onboarding-flow: backlog
+  8-2-brand-voice-copy-pass-lint-helper: backlog
+  8-3-aso-copy-lock-for-app-store-google-play-kr: backlog
+  8-4-release-gate-brand-voice-review: backlog
+  8-5-analytics-sdk-selection-event-taxonomy: backlog
+  epic-8-retrospective: optional
