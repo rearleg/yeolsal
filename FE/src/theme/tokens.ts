@@ -1,8 +1,28 @@
-// Bento Modular Warm — design tokens for 열살방
-// Hex values are derived from the locked oklch palette in the implementation plan.
-// Keep palette and semantic tokens as the single source of truth; legacy `colors`
-// exports below are remapped onto the new palette so existing screens transition
-// without touching each call site.
+// Theme exports for 열살방.
+//
+// Story 1.5 lands the v2 Oxblood Editorial token system in `tokens.json` and
+// makes it available through `useTheme()` (see ./useTheme.ts). Every v1
+// Bento Modular Warm export below stays in place — it is the bridge so the
+// dozens of existing screens importing `palette` / `colors` / `surface` /
+// `text` / `semantic` / `roomHues` / `grassRamp` / `spacing` / `borders` /
+// `typography` keep compiling unchanged. Downstream stories (1.6, 1.7, 2.1,
+// 3.2, 3.4, 4.x, 6.x, 7.x) migrate their screen(s) off the v1 surface onto
+// `useTheme()` one at a time; each migration deletes whichever symbols it
+// no longer needs from this file.
+//
+// Until that lands, treat every named export below as TRANSITIONAL v1 —
+// per Story 1.5 AC11 readability-exception clause, the v1-equivalent values
+// stay rather than blindly inverting fg/bg into the dark v2 palette. New
+// code prefers `useTheme()`; if you need a static constant outside a render,
+// pull it from `tokensV2` re-exported here.
+
+import tokensJson from "./tokens.json";
+
+// v2 token surface for new code. `useTheme()` is the React entry point;
+// `tokensV2` is the static read for non-render contexts (e.g., a
+// stylesheet helper) where you need a frozen snapshot rather than the
+// sub-mode-resolved value.
+export const tokensV2 = tokensJson;
 
 export const palette = {
   inkDeep: "#1B1D22",
