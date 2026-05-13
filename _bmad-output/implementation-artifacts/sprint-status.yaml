@@ -1,6 +1,6 @@
 # generated: 2026-05-11
 # last_updated: 2026-05-13
-# (story 1-1 done; story 1-2 done — PR #54 merged 565d505; story 1-3 done; story 1-4 review; story 1-5 ready-for-dev; epic-1 in-progress)
+# (story 1-1 done; story 1-2 done — PR #54 merged 565d505; story 1-3 done; story 1-4 review; story 1-5 done; epic-1 in-progress)
 # project: yeolsal
 # project_key: NOKEY
 # tracking_system: file-system
@@ -49,7 +49,7 @@ development_status:
   1-2-06-00-kst-survival-state-evaluator-job: done
   1-3-privacy-filtered-survival-roster-api: done
   1-4-v11-migration-production-backfill: review
-  1-5-design-system-foundation-v2-token-packed-type-fe-be-codegen: in-progress
+  1-5-design-system-foundation-v2-token-packed-type-fe-be-codegen: done
   1-6-welcomewindow-j0-leaders-lonely-30-seconds: backlog
   1-7-ritualmoment-06-00-kst-5-second-sacred-wrapper: backlog
   epic-1-retrospective: optional

@@ -12,6 +12,18 @@ else
   echo "FE dependencies are not installed; skipping npm typecheck/test. Run npm install in yeosal/FE."
 fi
 
+# Story 1.5 AC13 — brand-voice (NFR-9.6.1 hard CI gate) + WCAG 2.2 AA contrast.
+# Silent-skip when the tools workspace is uninstalled (matches the FE guard
+# pattern above): the fast-path doesn't fail on a missing dev dep, but a
+# real violation when the tools DO run is a hard failure.
+if [ -x "$ROOT_DIR/tools/node_modules/.bin/tsx" ]; then
+  (cd "$ROOT_DIR" && tools/node_modules/.bin/tsx tools/brand-voice-lint.ts)
+  (cd "$ROOT_DIR" && tools/node_modules/.bin/tsx tools/contrast-check.ts)
+  (cd "$ROOT_DIR/tools" && ./node_modules/.bin/tsx --test __tests__/brand-voice-lint.test.ts __tests__/contrast-check.test.ts)
+else
+  echo "tools dependencies are not installed; skipping brand-voice-lint + contrast-check. Run npm install in yeosal/tools."
+fi
+
 if [ -x "$ROOT_DIR/BE/gradlew" ]; then
   (cd "$ROOT_DIR/BE" && ./gradlew test --no-daemon)
 elif command -v gradle >/dev/null 2>&1; then

@@ -10,6 +10,7 @@ import { setupReactQueryFocus } from "../src/lib/query/focus";
 import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
 import { QueryProvider } from "../src/providers/QueryProvider";
 import { RealtimeProvider } from "../src/providers/RealtimeProvider";
+import { SubModeProvider } from "../src/providers/SubModeProvider";
 import { ToastProvider } from "../src/components/feedback/ToastProvider";
 import { ErrorBoundary } from "../src/components/feedback/ErrorBoundary";
 import { surface } from "../src/theme/tokens";
@@ -32,28 +33,30 @@ export default function RootLayout() {
     return <View style={{ flex: 1, backgroundColor: surface.page }} />;
   }
   return (
-    <AuthProvider>
-      <QueryProvider>
-        <RealtimeProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              <PushTokenBootstrap />
-              <NotificationInvalidationBootstrap />
-              <SentryUserBinding />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  // Page-coloured stack background prevents the dark RN
-                  // window from bleeding through during route transitions.
-                  contentStyle: { backgroundColor: surface.page },
-                }}
-              />
-              <StatusBar style="dark" />
-            </ErrorBoundary>
-          </ToastProvider>
-        </RealtimeProvider>
-      </QueryProvider>
-    </AuthProvider>
+    <SubModeProvider subMode={null}>
+      <AuthProvider>
+        <QueryProvider>
+          <RealtimeProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                <PushTokenBootstrap />
+                <NotificationInvalidationBootstrap />
+                <SentryUserBinding />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    // Page-coloured stack background prevents the dark RN
+                    // window from bleeding through during route transitions.
+                    contentStyle: { backgroundColor: surface.page },
+                  }}
+                />
+                <StatusBar style="dark" />
+              </ErrorBoundary>
+            </ToastProvider>
+          </RealtimeProvider>
+        </QueryProvider>
+      </AuthProvider>
+    </SubModeProvider>
   );
 }
 
