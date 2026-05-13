@@ -358,19 +358,22 @@ claude-opus-4-7 (1M context).
   Expected: `V11MigrationIT` runs 9 tests + the three previously-quiescent ITs (`RoomControllerIT`, `SurvivalStateEvaluatorIT`, `SurvivalStateRosterIT`) also fire because of the BE-2 fix.
 - **Sprint-status flip (X-3).** `1-4-v11-migration-production-backfill: ready-for-dev → in-progress` at start; flipped to `review` on completion (this file). Epic-1 remains `in-progress`.
 - **FE out-of-scope (AC12 / FE-1).** No FE files touched. Pre-existing FE baseline failures (Story 1.2/1.3 Git Intelligence) are unchanged.
+- **Hotfix 2026-05-13 — V11 partial unique index defect.** First real Postgres-16-alpine cutover attempt (server `git pull origin main` + `docker compose up -d --build`) failed at V11 line 68 with `SQLSTATE 42P17 — functions in index expression must be marked IMMUTABLE`. Root cause: `((eliminated_at)::date)` is STABLE (session-tz dependent), not IMMUTABLE. The original BE-3 audit missed this because `V11MigrationIT` had been deferred (no Docker on dev host). Fix: replaced index expression with bare `eliminated_at` — strictly tighter dedup (timestamp-level), preserves the intent of catching duplicate successful revivals for one elimination. V11 SQL file edited in-place because no environment had successfully applied V11 yet (`flyway_schema_history` rolled the failed row back). `infra/RUNBOOK-V11.md` § "V11 audit finding (BE-3) → Hotfix 2026-05-13" records the lesson: never sign off a V11-class audit without a green opt-in IT run.
 
 ### File List
 
+- `BE/src/main/resources/db/migration/V11__survival_revival_economy.sql` (MODIFIED 2026-05-13 hotfix — index expression on `revival_events` swapped from `((eliminated_at)::date)` to `eliminated_at`; comment block expanded to document the IMMUTABLE constraint)
 - `BE/src/test/java/com/yeosal/api/migration/V11MigrationIT.java` (NEW)
 - `BE/build.gradle` (MODIFIED — `tasks.named("test")` block)
-- `infra/RUNBOOK-V11.md` (NEW)
+- `infra/RUNBOOK-V11.md` (NEW + 2026-05-13 hotfix entry added)
 - `infra/verify-v11.sh` (NEW, executable)
 - `docs/RUNBOOK.md` (MODIFIED — added "Migration Cutover Runbooks" cross-link section)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (MODIFIED — story 1-4 status transitions)
-- `_bmad-output/implementation-artifacts/1-4-v11-migration-production-backfill.md` (this file — task checkboxes ticked, Dev Agent Record filled, Status flipped to review)
+- `_bmad-output/implementation-artifacts/1-4-v11-migration-production-backfill.md` (this file — task checkboxes ticked, Dev Agent Record filled, Status flipped to review, 2026-05-13 hotfix logged)
 
 ### Change Log
 
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-05-12 | dev (claude-opus-4-7) | Implemented Story 1.4 — V11 migration verification IT, build.gradle property forwarding fix (retro-enables Stories 1.1/1.2/1.3 opt-in ITs), V11 SQL audit, production cutover runbook, post-deploy `verify-v11.sh`. BE default cycle remains green; opt-in IT layer deferred to a Docker-capable host per Story 1.3 precedent. |
+| 2026-05-13 | dev (claude-opus-4-7) | Hotfix — V11 line 68 `((eliminated_at)::date)` STABLE expression rejected by Postgres in partial unique index (SQLSTATE 42P17), caught at first server cutover. Replaced with `eliminated_at` (timestamp-level dedup, strictly tighter than day-level intent). RUNBOOK-V11 audit section updated with the lesson learned. |
