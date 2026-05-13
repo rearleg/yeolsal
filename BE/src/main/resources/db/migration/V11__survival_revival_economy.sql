@@ -51,7 +51,15 @@ create unique index if not exists ux_streak_freezes_user_month on streak_freezes
 
 -- (5) revival_events — append-only audit with V8/V9-style partial unique
 -- dedupe so concurrent revival attempts collapse to exactly one success
--- per (room, user, elimination date).
+-- per (room, user, eliminated_at). The dedupe key uses the exact
+-- elimination timestamp rather than ((eliminated_at)::date) — the cast
+-- is STABLE (session-timezone dependent) and Postgres rejects STABLE
+-- functions inside a partial unique index expression (SQLSTATE 42P17).
+-- Per elimination, exactly one row is INSERT'd by SurvivalStateService
+-- at the elimination moment, so timestamp-level uniqueness is strictly
+-- tighter than the original day-level intent and still catches the bug
+-- class the index was meant to defend against (duplicate successful
+-- revivals for the same elimination event).
 create table if not exists revival_events (
     id              bigserial primary key,
     room_id         bigint not null references rooms(id) on delete cascade,
@@ -66,7 +74,7 @@ create table if not exists revival_events (
     occurred_at     timestamptz not null default now()
 );
 create unique index if not exists ux_revival_events_one_per_elimination
-    on revival_events (room_id, user_id, ((eliminated_at)::date))
+    on revival_events (room_id, user_id, eliminated_at)
     where succeeded = true;
 create index if not exists idx_revival_events_giver
     on revival_events (giver_user_id) where giver_user_id is not null;
