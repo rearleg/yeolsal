@@ -160,6 +160,57 @@ is a deploy abort.
 
 ## V11 audit finding (BE-3)
 
+### Hotfix 2026-05-13: `ux_revival_events_one_per_elimination` index expression
+
+The original Story 1.4 audit missed a Postgres-level defect on V11
+line 68. The partial unique index was authored as:
+
+```sql
+create unique index if not exists ux_revival_events_one_per_elimination
+    on revival_events (room_id, user_id, ((eliminated_at)::date))
+    where succeeded = true;
+```
+
+`eliminated_at` is `timestamptz` and `timestamptz::date` is **STABLE**
+(its result depends on the session `timezone` GUC). Postgres only
+accepts **IMMUTABLE** functions inside index expressions and fails
+the migration with:
+
+```text
+SQL State : 42P17
+Message   : ERROR: functions in index expression must be marked IMMUTABLE
+```
+
+The bug was caught on the first real Postgres-16-alpine cutover
+attempt (server pull + `docker compose up -d --build`, 2026-05-13).
+The Story 1.4 audit had marked V11 safe because the AC1/AC5 IT
+(`V11MigrationIT`) had not been exercised against a live Docker —
+deferred per Story 1.3 precedent. Lesson: never sign off the audit
+on a V11-class migration without a green opt-in IT run.
+
+**Fix shipped in the same Story 1.3 + 1.4 PR:** the index drops the
+`::date` cast and dedupes on the exact elimination timestamp:
+
+```sql
+create unique index if not exists ux_revival_events_one_per_elimination
+    on revival_events (room_id, user_id, eliminated_at)
+    where succeeded = true;
+```
+
+Semantic impact: timestamp-level uniqueness is strictly tighter than
+day-level. Per elimination, exactly one `revival_events` row is
+INSERT'd by `SurvivalStateService` at the elimination moment, so the
+new index still catches the bug class the original guard was meant
+to defend against (duplicate successful revivals for the same
+elimination event). Any future writer must mirror the new key:
+`ON CONFLICT (room_id, user_id, eliminated_at) WHERE succeeded = true
+DO NOTHING`.
+
+V11 is replay-safe under this change: the `CREATE UNIQUE INDEX IF
+NOT EXISTS` guard short-circuits on the second run.
+
+### Original audit (still valid for the rest of V11)
+
 Per Story 1.4 task BE-3, V11 was re-audited line-by-line. All
 statements fall into the additive / idempotent categories:
 
