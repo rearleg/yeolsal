@@ -1,5 +1,18 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        // Used by the validateTokens task (Story 1.5, Arch 4.16).
+        // com.networknt's json-schema-validator supports JSON Schema draft 2020-12
+        // and bundles its own Jackson; no other buildscript deps required.
+        classpath "com.networknt:json-schema-validator:1.5.0"
+    }
+}
+
 plugins {
     id "java"
+    id "checkstyle"
     id "org.springframework.boot" version "3.3.5"
     id "io.spring.dependency-management" version "1.1.6"
 }
@@ -31,7 +44,262 @@ dependencies {
     testImplementation "org.springframework.security:spring-security-test"
     testImplementation "org.testcontainers:junit-jupiter"
     testImplementation "org.testcontainers:postgresql"
+    testImplementation "com.networknt:json-schema-validator:1.5.0"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+// -----------------------------------------------------------------------------
+// Design token codegen pipeline (Story 1.5, Arch 4.16).
+//
+// tokens.json is the canonical FE-owned source; BE consumes via build-time
+// codegen. No string-literal token values in BE code (Checkstyle guard below).
+//
+// validateTokens : schema-validates ../FE/src/theme/tokens.json against
+//                  src/main/resources/tokens.schema.json (draft 2020-12).
+// generateTokens : emits GeneratedTokens.java into build/generated/...
+// -----------------------------------------------------------------------------
+
+ext.tokensJsonFile      = file("${rootDir}/../FE/src/theme/tokens.json")
+ext.tokensSchemaFile    = file("${projectDir}/src/main/resources/tokens.schema.json")
+ext.generatedTokensDir  = file("${buildDir}/generated/sources/tokens")
+ext.generatedTokensFile = file("${generatedTokensDir}/com/yeosal/api/theme/GeneratedTokens.java")
+
+tasks.register("validateTokens") {
+    description = "Validates FE/src/theme/tokens.json against tokens.schema.json (draft 2020-12)."
+    group = "verification"
+
+    inputs.file(tokensJsonFile)
+    inputs.file(tokensSchemaFile)
+    outputs.upToDateWhen { tokensJsonFile.exists() && tokensSchemaFile.exists() }
+
+    doLast {
+        if (!tokensJsonFile.exists()) {
+            throw new GradleException("tokens.json not found at ${tokensJsonFile} — expected FE-owned canonical source.")
+        }
+        if (!tokensSchemaFile.exists()) {
+            throw new GradleException("tokens.schema.json not found at ${tokensSchemaFile}.")
+        }
+
+        def factoryCls       = Class.forName("com.networknt.schema.JsonSchemaFactory")
+        def specVersionCls   = Class.forName("com.networknt.schema.SpecVersion\$VersionFlag")
+        def mapperCls        = Class.forName("com.fasterxml.jackson.databind.ObjectMapper")
+        def jsonNodeCls      = Class.forName("com.fasterxml.jackson.databind.JsonNode")
+        def versionFlag      = specVersionCls.getField("V202012").get(null)
+        def factory          = factoryCls.getMethod("getInstance", specVersionCls).invoke(null, versionFlag)
+        def mapper           = mapperCls.getDeclaredConstructor().newInstance()
+        def schemaStream     = tokensSchemaFile.newInputStream()
+        def schema           = factory.getClass().getMethod("getSchema", java.io.InputStream).invoke(factory, schemaStream)
+        def jsonNode         = mapperCls.getMethod("readTree", java.io.File).invoke(mapper, tokensJsonFile)
+        def errors           = schema.getClass().getMethod("validate", jsonNodeCls).invoke(schema, jsonNode) as Set
+
+        if (errors && !errors.isEmpty()) {
+            def report = errors.collect { "  - ${it}" }.join("\n")
+            throw new GradleException(
+                "tokens.json schema validation FAILED (${errors.size()} error(s)):\n${report}\n\n" +
+                "Fix tokens.json or tokens.schema.json. Reference: Story 1.5 AC2."
+            )
+        }
+        logger.lifecycle("[validateTokens] tokens.json passed schema validation (${tokensJsonFile.name}).")
+    }
+}
+
+tasks.register("generateTokens") {
+    description = "Reads tokens.json and emits com.yeosal.api.theme.GeneratedTokens — public static constants for every leaf token."
+    group = "build"
+    dependsOn(tasks.named("validateTokens"))
+
+    inputs.file(tokensJsonFile)
+    outputs.file(generatedTokensFile)
+
+    doLast {
+        generatedTokensFile.parentFile.mkdirs()
+
+        def slurper = new groovy.json.JsonSlurper()
+        def tokens  = slurper.parse(tokensJsonFile)
+
+        def constants = []
+        flattenColors(tokens.color, ["COLOR"], constants)
+        flattenSurvival(tokens.semantic.survival, constants)
+        flattenTypography(tokens.typography, constants)
+        flattenSimpleMap(tokens.space, "SPACE", constants, ["layout"])
+        if (tokens.space.layout?.padding != null) {
+            constants << ["SPACE_LAYOUT_PADDING", tokens.space.layout.padding.toString(), "int"]
+        }
+        flattenSimpleMap(tokens.radius,    "RADIUS",    constants, [])
+        flattenSimpleMap(tokens.elevation, "ELEVATION", constants, [])
+        flattenSimpleMap(tokens.blur,      "BLUR",      constants, [])
+        flattenMotion(tokens.motion, constants)
+
+        // Sub-mode overrides emit as a static inner class SubMode with one inner class per mode.
+        def subModeBlocks = [:]
+        tokens.subMode.each { modeId, overrides ->
+            def modeConsts = []
+            overrides.each { k, v ->
+                def constName = k.toUpperCase().replace(".", "_")
+                if (v instanceof Map && v.containsKey("hex")) {
+                    modeConsts << [constName, "\"${v.hex}\"", "String"]
+                } else if (v instanceof String) {
+                    modeConsts << [constName, "\"${escapeJava(v)}\"", "String"]
+                } else if (v instanceof Boolean) {
+                    modeConsts << [constName, v.toString(), "boolean"]
+                } else if (v instanceof Number) {
+                    modeConsts << [constName, v.toString(), "int"]
+                } else {
+                    modeConsts << [constName, "\"${escapeJava(v.toString())}\"", "String"]
+                }
+            }
+            subModeBlocks[modeId] = modeConsts
+        }
+
+        def sb = new StringBuilder()
+        sb.append("// AUTO-GENERATED by ./gradlew generateTokens from FE/src/theme/tokens.json — DO NOT EDIT.\n")
+        sb.append("// Source revision: ${tokens.version} (${tokens.system})\n")
+        sb.append("// Generated: ${tokens.lastUpdated}\n")
+        sb.append("package com.yeosal.api.theme;\n\n")
+        sb.append("public final class GeneratedTokens {\n")
+        sb.append("    private GeneratedTokens() {}\n\n")
+        sb.append("    public static final String VERSION = \"${tokens.version}\";\n")
+        sb.append("    public static final String SYSTEM  = \"${escapeJava(tokens.system)}\";\n\n")
+
+        constants.each { entry ->
+            def name  = entry[0]
+            def value = entry[1]
+            def type  = entry[2]
+            sb.append("    public static final ${type} ${name} = ${value};\n")
+        }
+
+        sb.append("\n    public static final class SubMode {\n")
+        sb.append("        private SubMode() {}\n\n")
+        subModeBlocks.each { modeId, modeConsts ->
+            def inner = capitalize(modeId)
+            sb.append("        public static final class ${inner} {\n")
+            sb.append("            private ${inner}() {}\n")
+            modeConsts.each { e ->
+                sb.append("            public static final ${e[2]} ${e[0]} = ${e[1]};\n")
+            }
+            sb.append("        }\n")
+        }
+        sb.append("    }\n")
+        sb.append("}\n")
+
+        generatedTokensFile.text = sb.toString()
+        logger.lifecycle("[generateTokens] GeneratedTokens.java written: ${generatedTokensFile} (${constants.size()} base constants + ${subModeBlocks.size()} sub-mode blocks).")
+    }
+}
+
+// Helper closures for the generator.
+ext.flattenColors = { Map node, List path, List acc ->
+    node.each { k, v ->
+        if (v instanceof Map && v.containsKey("hex")) {
+            def name = (path + [k.toUpperCase()]).join("_")
+            acc << [name, "\"${v.hex}\"", "String"]
+        } else if (v instanceof Map) {
+            flattenColors(v, path + [k.toUpperCase()], acc)
+        }
+    }
+}
+
+ext.flattenSurvival = { Map survival, List acc ->
+    survival.each { state, fields ->
+        acc << ["SURVIVAL_${state}_COLOR",           "\"${fields.color.hex}\"", "String"]
+        acc << ["SURVIVAL_${state}_LABEL",           "\"${escapeJava(fields.label)}\"", "String"]
+        acc << ["SURVIVAL_${state}_ICON",            "\"${escapeJava(fields.icon)}\"", "String"]
+        acc << ["SURVIVAL_${state}_GRASS_TREATMENT", "\"${fields['grass-treatment']}\"", "String"]
+    }
+}
+
+ext.flattenTypography = { Map typography, List acc ->
+    typography.each { role, spec ->
+        if (role == "tracking") {
+            spec.each { tk, tv ->
+                acc << ["TYPOGRAPHY_TRACKING_${tk.toUpperCase()}", "\"${escapeJava(tv)}\"", "String"]
+            }
+        } else {
+            def rolePrefix = "TYPOGRAPHY_" + role.toUpperCase().replace(".", "_")
+            acc << ["${rolePrefix}_SIZE",        spec.size.toString(),       "int"]
+            acc << ["${rolePrefix}_LINE_HEIGHT", spec.lineHeight.toString(), "int"]
+            acc << ["${rolePrefix}_WEIGHT",      spec.weight.toString(),     "int"]
+            if (spec.family != null) {
+                acc << ["${rolePrefix}_FAMILY", "\"${escapeJava(spec.family)}\"", "String"]
+            }
+        }
+    }
+}
+
+ext.flattenSimpleMap = { Map node, String prefix, List acc, List excludeKeys ->
+    node.each { k, v ->
+        if (excludeKeys.contains(k)) return
+        def safeKey = k.toString().toUpperCase().replace(".", "_")
+        def name = "${prefix}_${safeKey}"
+        if (v instanceof Number) {
+            acc << [name, v.toString(), "int"]
+        } else if (v instanceof String) {
+            acc << [name, "\"${escapeJava(v)}\"", "String"]
+        } else if (v instanceof Boolean) {
+            acc << [name, v.toString(), "boolean"]
+        }
+    }
+}
+
+ext.flattenMotion = { Map motion, List acc ->
+    motion.duration.each { k, v -> acc << ["MOTION_DURATION_${k.toUpperCase()}", v.toString(), "int"] }
+    motion.easing.each   { k, v -> acc << ["MOTION_EASING_${k.toUpperCase()}",   "\"${escapeJava(v)}\"", "String"] }
+    acc << ["MOTION_ENTRY_DURATION", motion.entry.duration.toString(), "int"]
+    acc << ["MOTION_ENTRY_EASING",   "\"${escapeJava(motion.entry.easing)}\"", "String"]
+}
+
+ext.escapeJava = { String s ->
+    if (s == null) return ""
+    return s.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+ext.capitalize = { String s ->
+    if (s == null || s.isEmpty()) return s
+    return s.substring(0, 1).toUpperCase() + s.substring(1)
+}
+
+// Wire codegen into the build graph.
+sourceSets {
+    main {
+        java {
+            srcDirs += generatedTokensDir
+        }
+    }
+}
+
+tasks.named("compileJava").configure {
+    dependsOn(tasks.named("generateTokens"))
+}
+
+tasks.named("processResources").configure {
+    dependsOn(tasks.named("validateTokens"))
+}
+
+// -----------------------------------------------------------------------------
+// Checkstyle hex-literal guard (Story 1.5 AC4 Option A, Arch 4.15 BE complement).
+// Blocks #hex / rgb() / rgba() / oklch() literals in BE Java sources outside
+// the generated com.yeosal.api.theme.* package. Forces all token consumption
+// through GeneratedTokens constants.
+// -----------------------------------------------------------------------------
+
+checkstyle {
+    toolVersion = "10.18.0"
+    configFile  = file("${projectDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    showViolations = true
+}
+
+tasks.named("checkstyleMain").configure {
+    // GeneratedTokens.java contains hex literals by design (it IS the canonical
+    // token table). Exclude the auto-generated file from the hex-literal guard.
+    // Path is relative to the source-set root (build/generated/sources/tokens),
+    // so the simple package-relative path is what Gradle's PatternFilterable matches.
+    exclude("com/yeosal/api/theme/GeneratedTokens.java")
+}
+
+tasks.named("checkstyleTest").configure {
+    // Test classes contain fixtures + negative cases — exempt from the guard.
+    enabled = false
 }
 
 tasks.named("test") {

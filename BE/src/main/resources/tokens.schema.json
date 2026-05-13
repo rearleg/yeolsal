@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeolsal.app/schemas/tokens.schema.json",
+  "title": "yeolsal v2 Design Tokens",
+  "description": "Schema for FE/src/theme/tokens.json — canonical FE/BE design-token source (Story 1.5, Arch 4.16).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "system", "color", "semantic", "typography", "space", "radius", "elevation", "blur", "motion", "subMode"],
+
+  "$defs": {
+    "colorValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oklch", "hex"],
+      "properties": {
+        "oklch": { "type": "string", "pattern": "^oklch\\(" },
+        "hex":   { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" }
+      }
+    },
+    "weight": {
+      "type": "integer",
+      "enum": [300, 400, 600, 700, 800, 900]
+    },
+    "typographyRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "lineHeight", "weight"],
+      "properties": {
+        "size":       { "type": "integer", "minimum": 8,  "maximum": 96 },
+        "lineHeight": { "type": "integer", "minimum": 12, "maximum": 128 },
+        "weight":     { "$ref": "#/$defs/weight" },
+        "family":     { "type": "string" }
+      }
+    },
+    "spaceStep": {
+      "type": "integer",
+      "minimum": 0,
+      "multipleOf": 4
+    },
+    "survivalState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["color", "label", "icon", "grass-treatment"],
+      "properties": {
+        "color":           { "$ref": "#/$defs/colorValue" },
+        "label":           { "type": "string", "minLength": 1 },
+        "icon":            { "type": "string", "minLength": 1 },
+        "grass-treatment": { "type": "string", "enum": ["vivid", "muted", "ghosted", "monochrome"] }
+      }
+    },
+    "subModeOverrideValue": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "$ref": "#/$defs/colorValue" }
+      ]
+    },
+    "subModeOverrideBlock": {
+      "description": "Flat dict. Keys MUST be drawn from the 16-key sub-mode override whitelist.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color.bg.canvas":                  { "$ref": "#/$defs/subModeOverrideValue" },
+        "color.bg.surface":                 { "$ref": "#/$defs/subModeOverrideValue" },
+        "color.bg.elevated":                { "$ref": "#/$defs/subModeOverrideValue" },
+        "color.text.primary":               { "$ref": "#/$defs/subModeOverrideValue" },
+        "color.text.secondary":             { "$ref": "#/$defs/subModeOverrideValue" },
+        "color.stroke.default":             { "$ref": "#/$defs/subModeOverrideValue" },
+        "typography.heading.weight":        { "$ref": "#/$defs/weight" },
+        "typography.heading.tracking":      { "type": "string" },
+        "typography.display.serif.enabled": { "type": "boolean" },
+        "motion.entry.duration":            { "type": "integer", "minimum": 0, "maximum": 5000 },
+        "motion.entry.easing":              { "type": "string" },
+        "radius.default":                   { "type": "integer", "minimum": 0 },
+        "radius.pronounced":                { "type": "integer", "minimum": 0 },
+        "elevation.1":                      { "type": "string" },
+        "elevation.2":                      { "type": "string" },
+        "space.layout.padding":             { "$ref": "#/$defs/spaceStep" }
+      }
+    }
+  },
+
+  "properties": {
+    "version":     { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "system":      { "type": "string", "minLength": 1 },
+    "lastUpdated": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bg", "text", "key", "ember", "stroke", "chart"],
+      "properties": {
+        "bg": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canvas", "surface", "elevated", "overlay", "inverse"],
+          "properties": {
+            "canvas":   { "$ref": "#/$defs/colorValue" },
+            "surface":  { "$ref": "#/$defs/colorValue" },
+            "elevated": { "$ref": "#/$defs/colorValue" },
+            "overlay":  { "$ref": "#/$defs/colorValue" },
+            "inverse":  { "$ref": "#/$defs/colorValue" }
+          }
+        },
+        "text": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["primary", "secondary", "tertiary", "disabled", "inverse"],
+          "properties": {
+            "primary":   { "$ref": "#/$defs/colorValue" },
+            "secondary": { "$ref": "#/$defs/colorValue" },
+            "tertiary":  { "$ref": "#/$defs/colorValue" },
+            "disabled":  { "$ref": "#/$defs/colorValue" },
+            "inverse":   { "$ref": "#/$defs/colorValue" }
+          }
+        },
+        "key": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["default", "glow", "deep", "muted", "line"],
+          "properties": {
+            "default": { "$ref": "#/$defs/colorValue" },
+            "glow":    { "$ref": "#/$defs/colorValue" },
+            "deep":    { "$ref": "#/$defs/colorValue" },
+            "muted":   { "$ref": "#/$defs/colorValue" },
+            "line":    { "$ref": "#/$defs/colorValue" }
+          }
+        },
+        "ember": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["default", "subtle"],
+          "properties": {
+            "default": { "$ref": "#/$defs/colorValue" },
+            "subtle":  { "$ref": "#/$defs/colorValue" }
+          }
+        },
+        "stroke": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["subtle", "default", "strong", "key"],
+          "properties": {
+            "subtle":  { "$ref": "#/$defs/colorValue" },
+            "default": { "$ref": "#/$defs/colorValue" },
+            "strong":  { "$ref": "#/$defs/colorValue" },
+            "key":     { "$ref": "#/$defs/colorValue" }
+          }
+        },
+        "chart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["primary", "muted", "grid"],
+          "properties": {
+            "primary": { "$ref": "#/$defs/colorValue" },
+            "muted":   { "$ref": "#/$defs/colorValue" },
+            "grid":    { "$ref": "#/$defs/colorValue" }
+          }
+        }
+      }
+    },
+
+    "semantic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["survival"],
+      "properties": {
+        "survival": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ACTIVE", "YELLOW", "RED", "SPECTATOR"],
+          "properties": {
+            "ACTIVE":    { "$ref": "#/$defs/survivalState" },
+            "YELLOW":    { "$ref": "#/$defs/survivalState" },
+            "RED":       { "$ref": "#/$defs/survivalState" },
+            "SPECTATOR": { "$ref": "#/$defs/survivalState" }
+          }
+        }
+      }
+    },
+
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caption.sm", "caption", "body.sm", "body", "body.lg",
+        "label", "label.lg",
+        "heading.sm", "heading", "heading.lg",
+        "display.sm", "display", "display.serif",
+        "tracking"
+      ],
+      "properties": {
+        "caption.sm":    { "$ref": "#/$defs/typographyRole" },
+        "caption":       { "$ref": "#/$defs/typographyRole" },
+        "body.sm":       { "$ref": "#/$defs/typographyRole" },
+        "body":          { "$ref": "#/$defs/typographyRole" },
+        "body.lg":       { "$ref": "#/$defs/typographyRole" },
+        "label":         { "$ref": "#/$defs/typographyRole" },
+        "label.lg":      { "$ref": "#/$defs/typographyRole" },
+        "heading.sm":    { "$ref": "#/$defs/typographyRole" },
+        "heading":       { "$ref": "#/$defs/typographyRole" },
+        "heading.lg":    { "$ref": "#/$defs/typographyRole" },
+        "display.sm":    { "$ref": "#/$defs/typographyRole" },
+        "display":       { "$ref": "#/$defs/typographyRole" },
+        "display.serif": { "$ref": "#/$defs/typographyRole" },
+        "tracking": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tight", "normal", "wide"],
+          "properties": {
+            "tight":  { "type": "string" },
+            "normal": { "type": "string" },
+            "wide":   { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "space": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3", "4", "5", "6", "8", "10", "12", "16", "24", "layout"],
+      "properties": {
+        "0":  { "$ref": "#/$defs/spaceStep" },
+        "1":  { "$ref": "#/$defs/spaceStep" },
+        "2":  { "$ref": "#/$defs/spaceStep" },
+        "3":  { "$ref": "#/$defs/spaceStep" },
+        "4":  { "$ref": "#/$defs/spaceStep" },
+        "5":  { "$ref": "#/$defs/spaceStep" },
+        "6":  { "$ref": "#/$defs/spaceStep" },
+        "8":  { "$ref": "#/$defs/spaceStep" },
+        "10": { "$ref": "#/$defs/spaceStep" },
+        "12": { "$ref": "#/$defs/spaceStep" },
+        "16": { "$ref": "#/$defs/spaceStep" },
+        "24": { "$ref": "#/$defs/spaceStep" },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["padding"],
+          "properties": {
+            "padding": { "$ref": "#/$defs/spaceStep" }
+          }
+        }
+      }
+    },
+
+    "radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["none", "subtle", "default", "pronounced", "pill"],
+      "properties": {
+        "none":       { "type": "integer", "minimum": 0 },
+        "subtle":     { "type": "integer", "minimum": 0 },
+        "default":    { "type": "integer", "minimum": 0 },
+        "pronounced": { "type": "integer", "minimum": 0 },
+        "pill":       { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "elevation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3"],
+      "properties": {
+        "0": { "type": "string" },
+        "1": { "type": "string" },
+        "2": { "type": "string" },
+        "3": { "type": "string" }
+      }
+    },
+
+    "blur": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subtle", "modal"],
+      "properties": {
+        "subtle": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "modal":  { "type": "integer", "minimum": 0, "maximum": 8 }
+      }
+    },
+
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration", "easing", "entry"],
+      "properties": {
+        "duration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["instant", "fast", "normal", "slow", "cinematic"],
+          "properties": {
+            "instant":   { "type": "integer", "minimum": 0 },
+            "fast":      { "type": "integer", "minimum": 0 },
+            "normal":    { "type": "integer", "minimum": 0 },
+            "slow":      { "type": "integer", "minimum": 0 },
+            "cinematic": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "easing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["standard", "entry", "exit", "gentle", "ritual"],
+          "properties": {
+            "standard": { "type": "string" },
+            "entry":    { "type": "string" },
+            "exit":     { "type": "string" },
+            "gentle":   { "type": "string" },
+            "ritual":   { "type": "string" }
+          }
+        },
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["duration", "easing"],
+          "properties": {
+            "duration": { "type": "integer", "minimum": 0 },
+            "easing":   { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "subMode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["editorial", "bento", "quiet", "postcard", "plate"],
+      "properties": {
+        "editorial": { "$ref": "#/$defs/subModeOverrideBlock" },
+        "bento":     { "$ref": "#/$defs/subModeOverrideBlock" },
+        "quiet":     { "$ref": "#/$defs/subModeOverrideBlock" },
+        "postcard":  { "$ref": "#/$defs/subModeOverrideBlock" },
+        "plate":     { "$ref": "#/$defs/subModeOverrideBlock" }
+      }
+    }
+  }
+}
