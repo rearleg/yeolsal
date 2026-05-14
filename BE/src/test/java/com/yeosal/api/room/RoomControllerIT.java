@@ -1,12 +1,14 @@
 package com.yeosal.api.room;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yeosal.api.auth.UserPrincipal;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.survival.SurvivalStatus;
@@ -25,7 +27,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -67,18 +71,32 @@ class RoomControllerIT {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository users;
     @Autowired private SurvivalStateRepository survivalStates;
+    @Autowired private JdbcTemplate jdbc;
 
     private User alice;
 
+    /**
+     * Wipe the schema and re-seed Alice between tests. The Testcontainers
+     * container is class-scoped, so without an explicit truncate the second
+     * test's {@code users.save(...)} collides with the first test's row on
+     * {@code users.email} UNIQUE (Story 1.3 review finding #4 — same defect
+     * class, applied to this older sibling IT).
+     */
     @BeforeEach
-    void seedUser() {
+    void setUp() {
+        jdbc.execute(
+                "TRUNCATE TABLE "
+                        + "survival_state, streak_freezes, personal_points_ledger, "
+                        + "pending_realtime_broadcasts, room_rule_versions, room_point_pool, "
+                        + "notification_log, chat_messages, daily_entries, reflections, "
+                        + "room_members, rooms, users "
+                        + "RESTART IDENTITY CASCADE");
         alice = users.save(new User(
                 "alice-it@example.com", "Alice", "hash", AuthProvider.EMAIL));
     }
 
     @Test
     @DisplayName("POST /rooms with maxMembers=12 persists the room and a survival_state row for the owner")
-    @WithMockUser(username = "alice-it@example.com")
     void createPersistsRoomAndSurvivalState() throws Exception {
         Instant before = Instant.now();
         Map<String, Object> body = Map.of(
@@ -87,6 +105,7 @@ class RoomControllerIT {
                 "maxMembers", 12);
 
         MvcResult result = mockMvc.perform(post("/api/v1/rooms")
+                        .with(authentication(authFor(alice)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -109,7 +128,6 @@ class RoomControllerIT {
 
     @Test
     @DisplayName("POST /rooms with maxMembers=1 rejects with 400 (below FR-8.1.1 floor)")
-    @WithMockUser(username = "alice-it@example.com")
     void createRejectsMaxMembersBelow2() throws Exception {
         Map<String, Object> body = Map.of(
                 "name", "방1",
@@ -117,6 +135,7 @@ class RoomControllerIT {
                 "maxMembers", 1);
 
         mockMvc.perform(post("/api/v1/rooms")
+                        .with(authentication(authFor(alice)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -124,7 +143,6 @@ class RoomControllerIT {
 
     @Test
     @DisplayName("POST /rooms with maxMembers=31 rejects with 400 (above FR-8.1.1 ceiling)")
-    @WithMockUser(username = "alice-it@example.com")
     void createRejectsMaxMembersAbove30() throws Exception {
         Map<String, Object> body = Map.of(
                 "name", "방31",
@@ -132,6 +150,7 @@ class RoomControllerIT {
                 "maxMembers", 31);
 
         mockMvc.perform(post("/api/v1/rooms")
+                        .with(authentication(authFor(alice)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
@@ -139,16 +158,29 @@ class RoomControllerIT {
 
     @Test
     @DisplayName("POST /rooms with maxMembers omitted defaults to 12 (AC8 default per V11)")
-    @WithMockUser(username = "alice-it@example.com")
     void createDefaultsMaxMembersTo12() throws Exception {
         Map<String, Object> body = Map.of(
                 "name", "방기본",
                 "minDailyGoalDays", 10);
 
         mockMvc.perform(post("/api/v1/rooms")
+                        .with(authentication(authFor(alice)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.maxMembers").value(12));
+    }
+
+    /**
+     * Build a {@link UserPrincipal}-backed {@link Authentication} matching the
+     * production {@code CurrentUser.require(...)} contract. Plain
+     * {@code @WithMockUser} produces a Spring Security {@code User} principal
+     * which fails the {@code instanceof UserPrincipal} guard and 401s before
+     * exercising controller behavior (Story 1.3 review finding #2).
+     */
+    private static Authentication authFor(User user) {
+        UserPrincipal principal = new UserPrincipal(user.getId(), user.getEmail());
+        return new UsernamePasswordAuthenticationToken(
+                principal, "", principal.getAuthorities());
     }
 }

@@ -23,6 +23,7 @@ import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -205,9 +206,15 @@ class SurvivalStateEvaluatorIT {
         assertThat(dianaBroadcastPayload.path("roomId").asLong()).isEqualTo(room.getId());
         assertThat(dianaBroadcastPayload.path("userId").asLong()).isEqualTo(diana.getId());
         assertThat(dianaBroadcastPayload.path("toStatus").asText()).isEqualTo("RED");
-        assertThat(dianaBroadcastPayload.path("eliminatedAt").asText())
-                .as("AC7 RED payload must carry explicit eliminatedAt field")
-                .isEqualTo(dianaState.getEliminatedAt().toString());
+        // The JSONB payload preserves the in-memory Instant precision (nanos),
+        // while survival_state.eliminated_at is persisted to Postgres timestamptz
+        // (microsecond precision). Both must represent the same instant once
+        // truncated to the column's actual storage precision.
+        Instant payloadEliminatedAt =
+                Instant.parse(dianaBroadcastPayload.path("eliminatedAt").asText());
+        assertThat(payloadEliminatedAt.truncatedTo(ChronoUnit.MICROS))
+                .as("AC7 RED payload must carry explicit eliminatedAt field (Postgres timestamptz micros precision)")
+                .isEqualTo(dianaState.getEliminatedAt().truncatedTo(ChronoUnit.MICROS));
 
         // first run summary sanity.
         assertThat(first.totalCompliant()).isEqualTo(1);
