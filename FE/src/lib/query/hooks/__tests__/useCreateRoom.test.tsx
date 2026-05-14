@@ -49,6 +49,7 @@ describe("useCreateRoom", () => {
       ownerId: 1,
       maxMembers: 12,
       minDailyGoalDays: 10,
+      createdAt: "2026-05-14T10:00:00Z",
     });
 
     const { result } = renderHook(() => useCreateRoom(), {

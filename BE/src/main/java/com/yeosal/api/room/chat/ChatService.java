@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,6 +130,29 @@ public class ChatService {
         // without waiting for the next polling refresh.
         realtime.publishChatMessage(roomId, MessageDto.from(saved));
         return saved;
+    }
+
+    /**
+     * Story 1.6 — emits a SYSTEM-kind chat row when a new member joins a room.
+     *
+     * <p>Body is the locked Korean copy "{nickname} 함께합니다 🌿"; payload carries
+     * the joined user's id/displayName so the FE doesn't need an extra fetch to
+     * render. Reuses {@link #publishSystem} which runs in {@code REQUIRES_NEW}
+     * — a chat-write failure therefore does NOT roll back the membership insert
+     * inside {@code RoomService.joinByCode}. This matches the canonical
+     * "system fan-out is best-effort" pattern (cf. {@code publishGoalSystemMessages},
+     * {@code publishAutoLeaveAfterCommit}).
+     */
+    public ChatMessage publishMemberJoinedSystemMessage(Room room, User newMember) {
+        Objects.requireNonNull(room, "room is required");
+        Objects.requireNonNull(newMember, "newMember is required");
+        String nickname = newMember.getNickname();
+        String body = nickname + " 함께합니다 🌿";
+        String payload = String.format(
+                "{\"userId\":\"%d\",\"displayName\":%s}",
+                newMember.getId(),
+                JSON.valueToTree(nickname).toString());
+        return publishSystem(room.getId(), ChatMessageKind.SYSTEM, body, payload);
     }
 
     /**
