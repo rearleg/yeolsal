@@ -274,6 +274,12 @@ public class RoomService {
         // for a manual refresh. Publisher swallows broker errors so a
         // WS hiccup never rolls back the join itself.
         realtime.publishMemberAdded(room.getId(), summary);
+        // Story 1.6 AC5 — publish a SYSTEM chat row "{nickname} 함께합니다 🌿"
+        // so the J0 leader's WelcomeWindow can transition from solo→growing
+        // and historical members see the join on chat reload. The hook reuses
+        // ChatService.publishSystem (REQUIRES_NEW) so a chat-write failure
+        // does NOT roll back the membership insert.
+        chatService.publishMemberJoinedSystemMessage(room, user);
         return summary;
     }
 
@@ -359,14 +365,22 @@ public class RoomService {
         }
     }
 
-    public record RoomSummary(long id, String name, long ownerId, int maxMembers, int minDailyGoalDays) {
+    public record RoomSummary(
+            long id,
+            String name,
+            long ownerId,
+            int maxMembers,
+            int minDailyGoalDays,
+            Instant createdAt
+    ) {
         public static RoomSummary from(Room room) {
             return new RoomSummary(
                     room.getId(),
                     room.getName(),
                     room.getOwner().getId(),
                     room.getMaxMembers(),
-                    room.getMinDailyGoalDays()
+                    room.getMinDailyGoalDays(),
+                    room.getCreatedAt()
             );
         }
     }

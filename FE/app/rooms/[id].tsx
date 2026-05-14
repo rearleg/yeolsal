@@ -34,6 +34,8 @@ import { qk } from "../../src/lib/query/keys";
 import { useRealtimeSubscription } from "../../src/lib/realtime/client";
 import { space } from "../../src/theme/spacing";
 import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
+import { SubModeProvider } from "../../src/providers/SubModeProvider";
+import { shouldShowWelcomeWindow, WelcomeWindow } from "../../src/components/welcome";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -66,6 +68,24 @@ export default function RoomDetailScreen() {
   const me = members.find((m) => user != null && m.userId === user.id) ?? null;
   const room = (roomsQuery.data ?? []).find((r) => r.id === roomId) ?? null;
   const roomFloor: MinDays = room?.minDailyGoalDays ?? 10;
+
+  // Story 1.6 — J0 WelcomeWindow surface. Gated by the single-seat predicate
+  // shouldShowWelcomeWindow so the rule (leader + grace not yet ended) lives
+  // in one place. CTA-B sets a transient query-cache flag the Today tab reads
+  // to render the warm-tone "첫 잔디 — 곧 함께 채워질 거예요" tagline (AC6).
+  const showWelcome = shouldShowWelcomeWindow({
+    currentUserId: user?.id ?? null,
+    ownerId: room?.ownerId ?? null,
+    memberCount: members.length,
+    roomCreatedAt: room?.createdAt ?? null,
+  });
+  const graceEndsAt = room?.createdAt
+    ? new Date(new Date(room.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000)
+    : null;
+  function handleWelcomeStartToday() {
+    qcMembers.setQueryData(qk.soloLeaderTagline(roomId), true);
+    router.push("/(tabs)/today");
+  }
 
   // Today's per-member snapshot (goal/todos/reflection). Falls into the same
   // cache as the home tab's GroupTodayCard so cross-tab navigation reuses
@@ -176,6 +196,16 @@ export default function RoomDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {showWelcome && graceEndsAt != null && room != null ? (
+          <SubModeProvider subMode="postcard">
+            <WelcomeWindow
+              roomName={room.name}
+              memberCount={members.length}
+              graceEndsAt={graceEndsAt}
+              onTapStartToday={handleWelcomeStartToday}
+            />
+          </SubModeProvider>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="그룹 채팅 열기"

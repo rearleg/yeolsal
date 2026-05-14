@@ -22,6 +22,12 @@ export interface Room {
   ownerId: number;
   maxMembers: number;
   minDailyGoalDays: MinDays;
+  /**
+   * Room creation timestamp (ISO-8601 UTC). Used by the J0 WelcomeWindow to
+   * derive room-level grace window (createdAt + 14 days). Surfaced by BE
+   * {@code RoomSummary} after Story 1.6's small DTO addition.
+   */
+  createdAt: string;
 }
 
 export interface RoomMember {

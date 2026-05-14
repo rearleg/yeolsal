@@ -12,4 +12,9 @@ export const qk = {
   monthlyStats: (month: string) => ["monthly", month] as const,
   friendRequests: ["friendRequests"] as const,
   friendProfile: (userId: number) => ["friendProfile", userId] as const,
+  // Transient flag set by WelcomeWindow CTA-B so the Today tab can render
+  // the warm-tone "첫 잔디 — 곧 함께 채워질 거예요" tagline (Story 1.6 AC6).
+  // Lives in the in-memory query cache (no persistence) and is cleared once
+  // the Today screen has rendered the tagline at least once.
+  soloLeaderTagline: (roomId: number) => ["soloLeaderTagline", roomId] as const,
 };
