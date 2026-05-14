@@ -13,6 +13,7 @@ import { RealtimeProvider } from "../src/providers/RealtimeProvider";
 import { SubModeProvider } from "../src/providers/SubModeProvider";
 import { ToastProvider } from "../src/components/feedback/ToastProvider";
 import { ErrorBoundary } from "../src/components/feedback/ErrorBoundary";
+import { RitualMoment } from "../src/components/ritual";
 import { surface } from "../src/theme/tokens";
 
 bootstrapSentry();
@@ -50,6 +51,21 @@ export default function RootLayout() {
                     contentStyle: { backgroundColor: surface.page },
                   }}
                 />
+                {/*
+                  Story 1.7 — RitualMoment 06:00–06:05 KST sacred wrapper.
+                  Renders as a sibling overlay on top of the Stack so it
+                  doesn't block route transitions. The overlay returns null
+                  outside the window or after it has fired today (per-KST-date
+                  idempotency via AsyncStorage).
+                  Wrapped in SubModeProvider subMode="postcard" so the D4
+                  cinematic motion + serif typography tokens light up — leaf
+                  components do not read the sub-mode string directly.
+                  TODO Story 2.1: replace spectator={false} with the real
+                  SPECTATOR detection when that pipe lands.
+                */}
+                <SubModeProvider subMode="postcard">
+                  <RitualMoment spectator={false} />
+                </SubModeProvider>
                 <StatusBar style="dark" />
               </ErrorBoundary>
             </ToastProvider>
