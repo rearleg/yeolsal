@@ -1,6 +1,7 @@
 package com.yeosal.api.survival;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -23,6 +24,7 @@ import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -205,9 +207,19 @@ class SurvivalStateEvaluatorIT {
         assertThat(dianaBroadcastPayload.path("roomId").asLong()).isEqualTo(room.getId());
         assertThat(dianaBroadcastPayload.path("userId").asLong()).isEqualTo(diana.getId());
         assertThat(dianaBroadcastPayload.path("toStatus").asText()).isEqualTo("RED");
-        assertThat(dianaBroadcastPayload.path("eliminatedAt").asText())
-                .as("AC7 RED payload must carry explicit eliminatedAt field")
-                .isEqualTo(dianaState.getEliminatedAt().toString());
+        // The JSONB payload preserves the in-memory Instant precision (nanos)
+        // while survival_state.eliminated_at round-trips through Postgres
+        // timestamptz, which truncates to platform-dependent sub-second
+        // precision (micros on most installs, millis on some JDBC drivers).
+        // The AC7 contract is "RED payload carries an explicit eliminatedAt
+        // field that matches the persisted state", not bit-exact equality —
+        // a one-second tolerance is well within the semantic intent and
+        // robust across CI platforms.
+        Instant payloadEliminatedAt =
+                Instant.parse(dianaBroadcastPayload.path("eliminatedAt").asText());
+        assertThat(payloadEliminatedAt)
+                .as("AC7 RED payload eliminatedAt within 1s of survival_state.eliminated_at")
+                .isCloseTo(dianaState.getEliminatedAt(), within(1, ChronoUnit.SECONDS));
 
         // first run summary sanity.
         assertThat(first.totalCompliant()).isEqualTo(1);

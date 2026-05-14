@@ -1,6 +1,6 @@
 # generated: 2026-05-11
 # last_updated: 2026-05-14
-# (story 1-1 done; story 1-2 done — PR #54 merged 565d505; story 1-3 done; story 1-4 done; story 1-5 done — PRs #58 #59; story 1-6 done; story 1-7 done; epic-1 in-progress)
+# (story 1-1..1-7 all done; epic-1 retrospective done — see epic-1-retro-2026-05-14.md; epic-1 in-progress until human flip → done)
 # project: yeolsal
 # project_key: NOKEY
 # tracking_system: file-system
@@ -52,7 +52,7 @@ development_status:
   1-5-design-system-foundation-v2-token-packed-type-fe-be-codegen: done
   1-6-welcomewindow-j0-leaders-lonely-30-seconds: done
   1-7-ritualmoment-06-00-kst-5-second-sacred-wrapper: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2: Spectator Mode
   epic-2: backlog
