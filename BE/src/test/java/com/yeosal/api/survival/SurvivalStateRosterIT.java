@@ -1,5 +1,7 @@
 package com.yeosal.api.survival;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -112,17 +114,22 @@ class SurvivalStateRosterIT {
                 Instant.now().minus(Duration.ofHours(22)),
                 Instant.now().plus(Duration.ofHours(2)));
 
+        // Per Story 1.3 AC3 the masked DTO emits these three fields as
+        // explicit nulls (Jackson default includes nulls). A JsonPath filter
+        // expression returns a list, so `.doesNotExist()` (which requires
+        // path absence) does not match `[null]`. The semantic check is
+        // "every value at this path is null".
         mockMvc.perform(get("/api/v1/rooms/{id}/survival", f.room().getId())
                         .with(authentication(authFor(f.bob()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.userId == " + f.carol().getId() + ")].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.data[?(@.userId == " + f.carol().getId() + ")].eliminatedAt")
-                        .doesNotExist())
+                        .value(everyItem(nullValue())))
                 .andExpect(jsonPath("$.data[?(@.userId == " + f.carol().getId() + ")].broadVisibilityAt")
-                        .doesNotExist())
+                        .value(everyItem(nullValue())))
                 .andExpect(jsonPath("$.data[?(@.userId == " + f.carol().getId() + ")].lastStateChangeAt")
-                        .doesNotExist());
+                        .value(everyItem(nullValue())));
     }
 
     @Test
