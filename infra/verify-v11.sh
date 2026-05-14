@@ -11,7 +11,14 @@
 #
 # See infra/RUNBOOK-V11.md for context.
 
-set -euo pipefail
+# NOTE: deliberately omitting `set -e`. The whole point of this script is
+# to surface a PASS/FAIL summary even when individual checks fail (SQL
+# errors, missing tables, connection drops). With `set -e` a single bad
+# query aborts before the summary line, leaving the on-call operator
+# without diagnostic context. We still keep `-u` (unset-var safety) and
+# `-o pipefail` (so internal pipelines surface real errors). Exit code
+# remains 0 on full pass, 1 on any fail (computed at the summary block).
+set -uo pipefail
 
 VERBOSE=0
 SHOW_HELP=0
@@ -62,13 +69,16 @@ fi
 
 run_sql() {
     # $1: SQL. Returns trimmed stdout from psql (-A -t = unaligned + tuples-only).
+    # On psql failure (connection drop, missing table, syntax error) we emit
+    # the sentinel literal "__SQL_ERR__" and return 0 — never abort. Each
+    # caller compares against expected-OK token values and reports FAIL.
     local sql=$1
     local out
     if [[ -n "${PGURL:-}" ]]; then
-        out=$(psql "$PGURL" -A -t -c "$sql")
+        out=$(psql "$PGURL" -A -t -c "$sql" 2>/dev/null) || out="__SQL_ERR__"
     else
         out=$(docker compose exec -T postgres \
-                  psql -U yeosal yeosal -A -t -c "$sql")
+                  psql -U yeosal yeosal -A -t -c "$sql" 2>/dev/null) || out="__SQL_ERR__"
     fi
     # Strip surrounding whitespace / newlines.
     printf '%s' "${out//$'\n'/ }" | awk '{$1=$1; print}'
@@ -106,7 +116,10 @@ fi
 
 SS_COUNT=$(run_sql "SELECT count(*) FROM survival_state")
 RM_COUNT=$(run_sql "SELECT count(*) FROM room_members")
-if [[ "$SS_COUNT" == "$RM_COUNT" ]]; then
+if [[ "$SS_COUNT" == "__SQL_ERR__" || "$RM_COUNT" == "__SQL_ERR__" ]]; then
+    report FAIL "survival_state count == room_members count" \
+           "SQL error: survival_state=$SS_COUNT, room_members=$RM_COUNT"
+elif [[ "$SS_COUNT" == "$RM_COUNT" ]]; then
     report PASS "survival_state count == room_members count" \
            "survival_state=$SS_COUNT, room_members=$RM_COUNT"
 else
@@ -118,7 +131,10 @@ fi
 
 RRV_COUNT=$(run_sql "SELECT count(*) FROM room_rule_versions")
 ROOMS_COUNT=$(run_sql "SELECT count(*) FROM rooms")
-if [[ "$RRV_COUNT" == "$ROOMS_COUNT" ]]; then
+if [[ "$RRV_COUNT" == "__SQL_ERR__" || "$ROOMS_COUNT" == "__SQL_ERR__" ]]; then
+    report FAIL "room_rule_versions count == rooms count" \
+           "SQL error: room_rule_versions=$RRV_COUNT, rooms=$ROOMS_COUNT"
+elif [[ "$RRV_COUNT" == "$ROOMS_COUNT" ]]; then
     report PASS "room_rule_versions count == rooms count" \
            "room_rule_versions=$RRV_COUNT, rooms=$ROOMS_COUNT"
 else
@@ -129,7 +145,10 @@ fi
 # ----- 4. room_point_pool count == rooms count -----
 
 RPP_COUNT=$(run_sql "SELECT count(*) FROM room_point_pool")
-if [[ "$RPP_COUNT" == "$ROOMS_COUNT" ]]; then
+if [[ "$RPP_COUNT" == "__SQL_ERR__" || "$ROOMS_COUNT" == "__SQL_ERR__" ]]; then
+    report FAIL "room_point_pool count == rooms count" \
+           "SQL error: room_point_pool=$RPP_COUNT, rooms=$ROOMS_COUNT"
+elif [[ "$RPP_COUNT" == "$ROOMS_COUNT" ]]; then
     report PASS "room_point_pool count == rooms count" \
            "room_point_pool=$RPP_COUNT, rooms=$ROOMS_COUNT"
 else

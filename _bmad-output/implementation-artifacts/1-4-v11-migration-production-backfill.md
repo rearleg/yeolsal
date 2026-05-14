@@ -1,6 +1,6 @@
 # Story 1.4: V11 migration + production backfill
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -186,10 +186,10 @@ Architecture authority: §4.11 (V11 callback backfill, NOT runtime lazy-create),
 
 ### Review Findings
 
-- [ ] [Review][Patch] `scripts/verify.sh` does not expose the BOOT_SMOKE opt-in path required by AC11 [scripts/verify.sh:6]
-- [ ] [Review][Patch] `verify-v11.sh` exits early on SQL/connection errors, so operators do not get the required PASS/FAIL summary on failed or partial V11 deploys [infra/verify-v11.sh:14]
-- [ ] [Review][Patch] `V11MigrationIT` computes the expected KST month in the JVM instead of querying Postgres, making the rule-version backfill test flaky at month boundaries and violating the story's DB-time assertion guidance [BE/src/test/java/com/yeosal/api/migration/V11MigrationIT.java:186]
-- [ ] [Review][Patch] Rollback restore command pipes a plain `pg_dump` back into the existing V11 database without first dropping/recreating or cleaning it, so the documented preferred rollback path is likely to fail with duplicate-object/duplicate-row errors [infra/RUNBOOK-V11.md:222]
+- [x] [Review][Patch] `scripts/verify.sh` does not expose the BOOT_SMOKE opt-in path required by AC11 [scripts/verify.sh:6]
+- [x] [Review][Patch] `verify-v11.sh` exits early on SQL/connection errors, so operators do not get the required PASS/FAIL summary on failed or partial V11 deploys [infra/verify-v11.sh:14]
+- [x] [Review][Patch] `V11MigrationIT` computes the expected KST month in the JVM instead of querying Postgres, making the rule-version backfill test flaky at month boundaries and violating the story's DB-time assertion guidance [BE/src/test/java/com/yeosal/api/migration/V11MigrationIT.java:186]
+- [x] [Review][Patch] Rollback restore command pipes a plain `pg_dump` back into the existing V11 database without first dropping/recreating or cleaning it, so the documented preferred rollback path is likely to fail with duplicate-object/duplicate-row errors [infra/RUNBOOK-V11.md:222]
 
 ## Dev Notes
 
@@ -377,3 +377,4 @@ claude-opus-4-7 (1M context).
 |------|--------|--------|
 | 2026-05-12 | dev (claude-opus-4-7) | Implemented Story 1.4 — V11 migration verification IT, build.gradle property forwarding fix (retro-enables Stories 1.1/1.2/1.3 opt-in ITs), V11 SQL audit, production cutover runbook, post-deploy `verify-v11.sh`. BE default cycle remains green; opt-in IT layer deferred to a Docker-capable host per Story 1.3 precedent. |
 | 2026-05-13 | dev (claude-opus-4-7) | Hotfix — V11 line 68 `((eliminated_at)::date)` STABLE expression rejected by Postgres in partial unique index (SQLSTATE 42P17), caught at first server cutover. Replaced with `eliminated_at` (timestamp-level dedup, strictly tighter than day-level intent). RUNBOOK-V11 audit section updated with the lesson learned. |
+| 2026-05-14 | dev (claude-opus-4-7) | Review-findings close-out: (#1) `scripts/verify.sh` + `scripts/test.sh` accept `BOOT_SMOKE=true` env var → forwards `-Dyeosal.boot-smoke=true` to Gradle (AC11). (#2) `infra/verify-v11.sh` dropped `set -e`, added `__SQL_ERR__` sentinel + error guards on every check so PASS/FAIL summary always renders. (#3) `V11MigrationIT.v11_backfills_room_rule_versions_for_every_legacy_room` reads `expectedMonth` from Postgres (`SELECT to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY-MM')`) instead of JVM `ZonedDateTime.now(KST)` — eliminates the month-boundary race. (#4) `infra/RUNBOOK-V11.md` rollback prepends `DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ...` before the pg_dump restore, avoiding duplicate-object errors. `./gradlew compileTestJava` green; `bash -n verify-v11.sh` syntax OK; `--help` path verified. Status flipped `review → done`. |

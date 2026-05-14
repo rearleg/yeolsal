@@ -24,10 +24,20 @@ else
   echo "tools dependencies are not installed; skipping brand-voice-lint + contrast-check. Run npm install in yeosal/tools."
 fi
 
+# Story 1.4 AC11 opt-in: BOOT_SMOKE=true forwards -Dyeosal.boot-smoke=true
+# to Gradle so the Testcontainers-gated ITs run (`V11MigrationIT`,
+# `SurvivalStateRosterIT`, `SurvivalStateEvaluatorIT`, `RoomControllerIT`).
+# Off by default — those tests require Docker. The flag is forwarded to
+# the test JVM via `BE/build.gradle`'s `tasks.named("test").systemProperty`.
+BOOT_SMOKE_FLAG=""
+if [ "${BOOT_SMOKE:-false}" = "true" ]; then
+  BOOT_SMOKE_FLAG="-Dyeosal.boot-smoke=true"
+fi
+
 if [ -x "$ROOT_DIR/BE/gradlew" ]; then
-  (cd "$ROOT_DIR/BE" && ./gradlew test --no-daemon)
+  (cd "$ROOT_DIR/BE" && ./gradlew test --no-daemon $BOOT_SMOKE_FLAG)
 elif command -v gradle >/dev/null 2>&1; then
-  (cd "$ROOT_DIR/BE" && gradle test --no-daemon)
+  (cd "$ROOT_DIR/BE" && gradle test --no-daemon $BOOT_SMOKE_FLAG)
 else
   echo "Gradle is not installed and BE/gradlew is absent; skipping BE tests."
 fi
