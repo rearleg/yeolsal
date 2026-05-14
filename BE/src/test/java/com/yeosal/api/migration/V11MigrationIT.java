@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -183,8 +180,15 @@ class V11MigrationIT {
                 "SELECT count(*) FROM rooms", Integer.class);
         assertThat(rrv).isEqualTo(rooms).isEqualTo(2);
 
-        String expectedMonth = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-                .format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        // Query Postgres for the KST month using the same expression V11
+        // wrote into `effective_from_month` (V11 step 14:
+        // `to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY-MM')`). Computing
+        // this in the JVM raced with the V11 INSERT at KST month boundaries
+        // — e.g., JVM evaluates "2026-05" at 14:59:59 UTC, V11 evaluates
+        // "2026-06" at 15:00:00 UTC (= 00:00 KST). DB-side avoids the race.
+        String expectedMonth = jdbc.queryForObject(
+                "SELECT to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY-MM')",
+                String.class);
         Integer monthMatch = jdbc.queryForObject(
                 "SELECT count(*) FROM room_rule_versions WHERE effective_from_month = ?",
                 Integer.class, expectedMonth);

@@ -271,7 +271,20 @@ and rollback**.
 ### Rollback procedure (emergency only)
 
 ```bash
-# 1. Restore the pre-V11 backup. THIS IS THE PREFERRED PATH.
+# 1a. Drop the V11-applied schema so the pre-V11 dump can restore cleanly.
+#     Piping pg_dump back over the existing V11 schema fails with
+#     duplicate-object / duplicate-row errors (every CREATE TABLE in the
+#     dump collides with the live V11 tables; every INSERT collides with
+#     existing PKs). The `DROP SCHEMA public CASCADE` clears every
+#     V11-introduced table, the legacy V1–V10 tables, and the
+#     flyway_schema_history in one shot — exactly the state the dump
+#     expects on restore.
+docker compose exec -T postgres psql -U yeosal yeosal -c \
+  "DROP SCHEMA public CASCADE; CREATE SCHEMA public; \
+   GRANT ALL ON SCHEMA public TO yeosal; \
+   GRANT ALL ON SCHEMA public TO public;"
+
+# 1b. Restore the pre-V11 backup. THIS IS THE PREFERRED PATH.
 docker compose exec -T postgres psql -U yeosal yeosal \
   < infra/backups/pre-v11-<timestamp>.sql
 ```
