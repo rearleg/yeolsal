@@ -21,7 +21,6 @@ import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.lang.reflect.Field;
-import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -141,10 +140,13 @@ class ChatControllerSpectatorIntegrationTest {
             Room room = rooms.save(new Room("Spectator Test Room", alice));
             roomMembers.save(new RoomMember(room, alice, RoomRole.OWNER));
 
+            // @PrePersist on SurvivalState fills lastStateChangeAt to now()
+            // when the row is first saved, so we only need to seed status.
+            // The setter is package-private (Story 1.1 invariant: transitions
+            // go through SurvivalStateService), so we mutate via reflection.
             SurvivalState state = survivalStates.save(
                     new SurvivalState(room, alice, /* graceEndsAt */ null));
             setStatus(state, aliceStatus);
-            state.setLastStateChangeAt(Instant.now());
             survivalStates.save(state);
 
             return new Fixture(alice, room.getId());
