@@ -19,6 +19,7 @@ import com.yeosal.api.room.RoomMember;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.room.RoomRole;
+import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -42,6 +43,7 @@ class ChatServiceTest {
     @Mock private RoomMemberRepository roomMembers;
     @Mock private GroupMemberMinimumRepository minimums;
     @Mock private RealtimePublisher realtime;
+    @Mock private SurvivalStateRepository survivalStates;
 
     private ChatService service;
     private User alice;
@@ -50,7 +52,7 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ChatService(messages, rooms, roomMembers, minimums, realtime);
+        service = new ChatService(messages, rooms, roomMembers, minimums, realtime, survivalStates);
         alice = makeUser(1L, "Alice");
         bob = makeUser(2L, "Bob");
         room = makeRoom(42L, "기본 방", alice);

@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { getRealtimeClient } from "../lib/realtime/client";
 import { routeInvalidation } from "../lib/notifications";
+import { qk } from "../lib/query/keys";
 
 /**
  * Mounts the singleton {@link RealtimeClient}. Connects when an
@@ -37,8 +38,15 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
         // next disconnect cycle.
       }
     });
+    // Story 2.1 AC6 — SurvivalStateChange (revival, RED → SPECTATOR, etc.)
+    // invalidates the cross-room aggregation so the spectator branch flips
+    // back to ACTIVE in < 1s without an app restart.
+    const survivalSub = client.subscribe("/user/queue/private-survival", () => {
+      qc.invalidateQueries({ queryKey: qk.meSurvival });
+    });
     return () => {
       sub.unsubscribe();
+      survivalSub.unsubscribe();
     };
   }, [auth.loading, auth.user, qc]);
 

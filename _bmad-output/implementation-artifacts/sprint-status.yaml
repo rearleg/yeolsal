@@ -1,6 +1,6 @@
 # generated: 2026-05-11
 # last_updated: 2026-05-15
-# (epic-1 done — all 7 stories shipped, retrospective done, follow-ups merged via PR #64; epic-2 still backlog)
+# (epic-1 done — all 7 stories shipped, retrospective done, follow-ups merged via PR #64; epic-2 in-progress — all 3 stories scoped + ready-for-dev 2026-05-15)
 # project: yeolsal
 # project_key: NOKEY
 # tracking_system: file-system
@@ -37,6 +37,7 @@
 
 generated: 2026-05-11
 last_updated: 2026-05-15
+# 2026-05-15: Story 2.1 reviewer-approved — flipped review → done
 project: yeolsal
 project_key: NOKEY
 tracking_system: file-system
@@ -55,10 +56,10 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Spectator Mode
-  epic-2: backlog
-  2-1-spectator-mode-fe-routing-branch: backlog
-  2-2-spectator-daily-digest-push: backlog
-  2-3-record-visibility-opt-in-for-eliminated-users: backlog
+  epic-2: in-progress
+  2-1-spectator-mode-fe-routing-branch: done
+  2-2-spectator-daily-digest-push: ready-for-dev
+  2-3-record-visibility-opt-in-for-eliminated-users: ready-for-dev
   epic-2-retrospective: optional
 
   # Epic 3: Revival Economy

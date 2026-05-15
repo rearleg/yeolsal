@@ -1,6 +1,7 @@
 package com.yeosal.api.survival;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 import com.yeosal.api.daily.DailyEntryRepository;
@@ -27,12 +28,12 @@ import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * Unit tests for {@link SurvivalStateService#mySurvivalAcrossRooms(long)}
- * (Epic 1 retro T4, Architecture §6.4).
+ * (Epic 1 retro T4 — Architecture §6.4; Story 2.1 AC7 — WalletPreview fields).
  *
  * <p>Exercises the cross-room aggregation: returns one DTO per
  * {@link SurvivalState} row keyed by {@code user_id}, with {@code roomId},
- * {@code roomName}, and {@code status} pulled through the fetch-join.
- * Empty for a user with no memberships.
+ * {@code roomName}, {@code status}, {@code personalPoints}, and
+ * {@code roomPointPool} pulled through the fetch-join + per-row SUM.
  */
 @ExtendWith(MockitoExtension.class)
 class SurvivalStateServiceMeAcrossRoomsTest {
@@ -65,20 +66,58 @@ class SurvivalStateServiceMeAcrossRoomsTest {
     }
 
     @Test
-    @DisplayName("maps each SurvivalState row to a MeSurvivalEntryDto with roomId/roomName/status")
-    void mySurvivalAcrossRooms_mapsEveryRowWithRoomAndStatus() {
+    @DisplayName("maps each SurvivalState row to a MeSurvivalEntryDto with all 5 wire fields (Story 2.1 AC7)")
+    void mySurvivalAcrossRooms_mapsEveryRowWithWalletFields() {
         Room roomA = makeRoom(11L, "팀 A", viewer);
         Room roomB = makeRoom(12L, "팀 B", viewer);
         SurvivalState activeRow = stateOf(roomA, viewer, SurvivalStatus.ACTIVE);
         SurvivalState spectatorRow = stateOf(roomB, viewer, SurvivalStatus.SPECTATOR);
         when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID))
                 .thenReturn(List.of(activeRow, spectatorRow));
+        when(personalLedger.sumDeltaByUserIdAndRoomId(VIEWER_ID, 11L)).thenReturn(8);
+        when(personalLedger.sumDeltaByUserIdAndRoomId(VIEWER_ID, 12L)).thenReturn(-2);
+        when(survivalRepo.findRoomPointPoolTotal(11L)).thenReturn(15);
+        when(survivalRepo.findRoomPointPoolTotal(12L)).thenReturn(0);
 
         List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
 
         assertThat(result).containsExactly(
-                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE),
-                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR));
+                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE, 8, 15),
+                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR, -2, 0));
+    }
+
+    @Test
+    @DisplayName("personalPoints coalesces to 0 when the ledger SUM returns null (no rows for that pair)")
+    void mySurvivalAcrossRooms_nullLedgerSum_coalescesToZero() {
+        Room roomA = makeRoom(31L, "신규 방", viewer);
+        when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID))
+                .thenReturn(List.of(stateOf(roomA, viewer, SurvivalStatus.ACTIVE)));
+        // Mockito default for an unstubbed Integer is null — the service
+        // MUST treat that as 0 rather than NPE.
+        when(personalLedger.sumDeltaByUserIdAndRoomId(VIEWER_ID, 31L)).thenReturn(null);
+
+        List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
+
+        assertThat(result).hasSize(1);
+        MeSurvivalEntryDto only = result.get(0);
+        assertThat(only.personalPoints()).isZero();
+        assertThat(only.roomPointPool()).isZero();
+    }
+
+    @Test
+    @DisplayName("roomPointPool coalesces to 0 when the pool row is missing (defensive read)")
+    void mySurvivalAcrossRooms_missingPoolRow_coalescesToZero() {
+        Room roomA = makeRoom(41L, "포인트 방", viewer);
+        when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID))
+                .thenReturn(List.of(stateOf(roomA, viewer, SurvivalStatus.SPECTATOR)));
+        when(personalLedger.sumDeltaByUserIdAndRoomId(anyLong(), anyLong())).thenReturn(42);
+        // Unstubbed survivalRepo.findRoomPointPoolTotal(...) → null → coalesce to 0.
+
+        List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).roomPointPool()).isZero();
+        assertThat(result.get(0).personalPoints()).isEqualTo(42);
     }
 
     @Test
@@ -99,6 +138,7 @@ class SurvivalStateServiceMeAcrossRoomsTest {
                 stateOf(third, viewer, SurvivalStatus.RED),
                 stateOf(first, viewer, SurvivalStatus.ACTIVE),
                 stateOf(second, viewer, SurvivalStatus.YELLOW)));
+        when(personalLedger.sumDeltaByUserIdAndRoomId(anyLong(), anyLong())).thenReturn(0);
 
         List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
 

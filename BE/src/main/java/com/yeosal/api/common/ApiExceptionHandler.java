@@ -44,6 +44,21 @@ public class ApiExceptionHandler {
                 .body(ApiErrorResponse.of("NOT_FOUND", exception.getMessage()));
     }
 
+    /**
+     * Story 2.1 AC4 — surface the {@code SpectatorWriteForbiddenException}
+     * subtype with a stable wire code so the FE can distinguish "spectator
+     * cannot post" from generic 403s (room-not-member, etc.). Placed above
+     * the generic {@link #forbidden(ForbiddenException)} handler for human
+     * readability — Spring resolves the most specific subtype first
+     * regardless of source order, but proximity to the parent makes the
+     * intent obvious during review.
+     */
+    @ExceptionHandler(SpectatorWriteForbiddenException.class)
+    ResponseEntity<ApiErrorResponse> spectatorWriteForbidden(SpectatorWriteForbiddenException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiErrorResponse.of(SpectatorWriteForbiddenException.CODE, exception.getMessage()));
+    }
+
     @ExceptionHandler(ForbiddenException.class)
     ResponseEntity<ApiErrorResponse> forbidden(ForbiddenException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

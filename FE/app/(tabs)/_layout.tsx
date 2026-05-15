@@ -1,9 +1,31 @@
 import { Tabs } from "expo-router";
 import { BottomNav } from "../../src/components/BottomNav";
+import {
+  SpectatorRouteProvider,
+  useSpectatorRoute,
+} from "../../src/providers/SpectatorRouteProvider";
+import { SubModeProvider } from "../../src/providers/SubModeProvider";
 import { surface } from "../../src/theme/tokens";
 
+/**
+ * Story 2.1 AC2 — branch in-layout, NEVER a parallel route group
+ * (Architecture §4.7). Same tabs, same routes. When the viewer is
+ * SPECTATOR across every room, wrap the entire surface in
+ * `<SubModeProvider subMode="quiet">` so D3 Quiet Dark tokens light up
+ * (dim body, slow motion, ember absence). Leaf components MUST NOT read
+ * the spectator boolean — they call `useTheme()` and consume tokens.
+ */
 export default function TabsLayout() {
   return (
+    <SpectatorRouteProvider>
+      <TabsWithSubMode />
+    </SpectatorRouteProvider>
+  );
+}
+
+function TabsWithSubMode() {
+  const { isSpectatorEverywhere } = useSpectatorRoute();
+  const tabs = (
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -21,4 +43,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="profile" options={{ title: "마이" }} />
     </Tabs>
   );
+
+  if (isSpectatorEverywhere) {
+    return <SubModeProvider subMode="quiet">{tabs}</SubModeProvider>;
+  }
+  return tabs;
 }
