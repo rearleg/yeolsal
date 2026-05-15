@@ -13,6 +13,20 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
 
     List<RoomMember> findByRoom(Room room);
 
+    /**
+     * Fetch-join variant used by query-budget-sensitive read paths
+     * (Story 1.3 AC10 roster — collapses the per-member {@code rm.getUser()}
+     * lazy load that the plain {@link #findByRoom(Room)} would trigger
+     * inside the response-shaping loop).
+     */
+    @Query("""
+            select rm
+            from RoomMember rm
+            join fetch rm.user
+            where rm.room = :room
+            """)
+    List<RoomMember> findByRoomFetchingUser(@Param("room") Room room);
+
     List<RoomMember> findByUser(User user);
 
     /**

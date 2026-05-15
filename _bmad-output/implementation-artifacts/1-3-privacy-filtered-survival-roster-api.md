@@ -150,10 +150,10 @@ Architecture authority: §4.1 (materialized survival state), §4.7 (spectator br
 
 ### Review Findings
 
-- [ ] [Review][Patch] Roster path still performs per-member lazy user loads, so AC10's four-SQL budget is not met [BE/src/main/java/com/yeosal/api/survival/SurvivalStateService.java:344]
-- [ ] [Review][Patch] `SurvivalStateRosterIT` authenticates with `@WithMockUser`, but production `CurrentUser.require(...)` only accepts `UserPrincipal`, so the IT will return 401 before exercising roster behavior [BE/src/test/java/com/yeosal/api/survival/SurvivalStateRosterIT.java:85]
-- [ ] [Review][Patch] The documented `-Dyeosal.boot-smoke=true` IT command does not enable the opt-in tests because the Gradle `test` task does not forward the property to the test JVM [BE/build.gradle:37]
-- [ ] [Review][Patch] `SurvivalStateRosterIT.seed()` reuses the same unique emails in every test without cleanup, so enabled IT runs will hit user email uniqueness collisions after the first test [BE/src/test/java/com/yeosal/api/survival/SurvivalStateRosterIT.java:184]
+- [x] [Review][Patch] Roster path still performs per-member lazy user loads, so AC10's four-SQL budget is not met [BE/src/main/java/com/yeosal/api/survival/SurvivalStateService.java:344] — **Resolved 2026-05-15 (Epic 1 retro T7 follow-up):** added `findByRoomFetchingUser` (RoomMemberRepository) + `findByRoomIdFetchingUser` (SurvivalStateRepository); `roster()` swapped to both, collapsing the per-member `rm.getUser()` / `s.getUser()` lazy loads.
+- [x] [Review][Patch] `SurvivalStateRosterIT` authenticates with `@WithMockUser`, but production `CurrentUser.require(...)` only accepts `UserPrincipal`, so the IT will return 401 before exercising roster behavior [BE/src/test/java/com/yeosal/api/survival/SurvivalStateRosterIT.java:85] — **Resolved (auto-closed):** Story 1.4 follow-up replaced `@WithMockUser` with a `UserPrincipal`-backed `Authentication` (see `SurvivalStateRosterIT:214-221`).
+- [x] [Review][Patch] The documented `-Dyeosal.boot-smoke=true` IT command does not enable the opt-in tests because the Gradle `test` task does not forward the property to the test JVM [BE/build.gradle:37] — **Resolved (auto-closed):** Story 1.4 BE-2 added `systemProperty "yeosal.boot-smoke", System.getProperty("yeosal.boot-smoke", "false")` inside `tasks.named("test") { ... }`. T3 CI workflow (PR #63) consumes the forwarded property.
+- [x] [Review][Patch] `SurvivalStateRosterIT.seed()` reuses the same unique emails in every test without cleanup, so enabled IT runs will hit user email uniqueness collisions after the first test [BE/src/test/java/com/yeosal/api/survival/SurvivalStateRosterIT.java:184] — **Resolved (auto-closed):** Story 1.4 follow-up reworked `seed()` to use per-test unique emails (see JavaDoc at `SurvivalStateRosterIT:94`).
 
 ## Dev Notes
 

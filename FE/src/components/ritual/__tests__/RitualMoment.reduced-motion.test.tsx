@@ -53,6 +53,18 @@ describe("RitualMoment — reduced-motion fallback (AC3)", () => {
     expect(screen.queryByTestId("ritual-ember")).toBeNull();
   });
 
+  it("reduced-motion headline reads the body.lg token instead of hardcoded values (Story 1.7 #4)", async () => {
+    renderInPostcard(<RitualMoment now={KST_IN_WINDOW} />);
+
+    const headline = await screen.findByTestId("ritual-text");
+    const flatStyle = Array.isArray(headline.props.style)
+      ? Object.assign({}, ...headline.props.style.filter(Boolean))
+      : (headline.props.style ?? {});
+    expect(flatStyle.fontSize).toBe(18);
+    expect(flatStyle.lineHeight).toBe(30);
+    expect(String(flatStyle.fontWeight)).toBe("400");
+  });
+
   it("fires the AccessibilityInfo announcement immediately at mount (no 0.2s delay)", async () => {
     const announceSpy = jest
       .spyOn(AccessibilityInfo, "announceForAccessibility")
