@@ -341,9 +341,12 @@ public class SurvivalStateService {
         }
 
         boolean viewerIsLeader = ownerUserId == viewerUserId;
-        List<RoomMember> members = roomMembers.findByRoom(room);
+        // Fetch-join variants collapse the per-member user lazy loads that
+        // the plain finders would trigger inside the shaping loop below
+        // (Story 1.3 AC10 four-SQL budget — Epic 1 retro T7).
+        List<RoomMember> members = roomMembers.findByRoomFetchingUser(room);
         Map<Long, SurvivalState> byUserId = new HashMap<>();
-        for (SurvivalState s : repository.findByRoomId(roomId)) {
+        for (SurvivalState s : repository.findByRoomIdFetchingUser(roomId)) {
             byUserId.put(s.getUser().getId(), s);
         }
 

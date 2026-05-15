@@ -73,7 +73,7 @@ export function deriveWelcomeWindowState(
 }
 
 export function WelcomeWindow({
-  roomName: _roomName,
+  roomName,
   memberCount,
   graceEndsAt,
   kakaoEnabled = false,
@@ -81,7 +81,6 @@ export function WelcomeWindow({
   onTapStartToday,
   now,
 }: WelcomeWindowProps) {
-  void _roomName;
   const theme = useTheme();
   const graceDate = graceEndsAt instanceof Date ? graceEndsAt : new Date(graceEndsAt);
   const nowDate = now ?? new Date();
@@ -138,6 +137,15 @@ export function WelcomeWindow({
         },
       ]}
     >
+      <Text
+        testID="welcome-window-room-name"
+        accessibilityRole="text"
+        style={{ color: theme.color.text.secondary.hex }}
+        numberOfLines={1}
+      >
+        {roomName}
+      </Text>
+
       <Text
         testID="welcome-window-headline"
         style={{

@@ -104,6 +104,34 @@ describe("WelcomeWindow — A10 anti-pattern guard (AC3)", () => {
   }
 });
 
+describe("WelcomeWindow — room name (AC2)", () => {
+  it("renders the room name above the headline (AC2 first bullet)", () => {
+    renderInPostcard(
+      <WelcomeWindow
+        roomName="첫 그룹"
+        memberCount={1}
+        graceEndsAt={GRACE_FUTURE}
+        now={NOW}
+        onTapStartToday={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("welcome-window-room-name")).toHaveTextContent("첫 그룹");
+  });
+
+  it("re-renders the room name in growing state too", () => {
+    renderInPostcard(
+      <WelcomeWindow
+        roomName="우리 모임"
+        memberCount={3}
+        graceEndsAt={GRACE_FUTURE}
+        now={NOW}
+        onTapStartToday={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("welcome-window-room-name")).toHaveTextContent("우리 모임");
+  });
+});
+
 describe("WelcomeWindow — accessibility composite (AC8)", () => {
   it("wrapper exposes a composite role and CTAs are accessible by role 'button'", () => {
     renderInPostcard(

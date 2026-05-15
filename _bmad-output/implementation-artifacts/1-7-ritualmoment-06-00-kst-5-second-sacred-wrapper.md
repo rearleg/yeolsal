@@ -327,10 +327,10 @@ Default cycle (no Docker): `cd FE && npm test` + `tools/node_modules/.bin/tsx to
 
 ### Review Findings
 
-- [ ] [Review][Patch] Add the Android/modal accessibility trap required by AC6 [`FE/src/components/ritual/RitualMoment.tsx:197`]
-- [ ] [Review][Patch] Format the caption as `YYYY년 M월 D일 (요일)` instead of relying on raw `Intl` output [`FE/src/components/ritual/ritualWindow.ts:115`]
-- [ ] [Review][Patch] Delay the standard-motion accessibility announcement until T+0.2s [`FE/src/components/ritual/RitualMoment.tsx:104`]
-- [ ] [Review][Patch] Use the `typography.body.lg` token for the reduced-motion headline path [`FE/src/components/ritual/RitualMoment.tsx:188`]
+- [x] [Review][Patch] Add the Android/modal accessibility trap required by AC6 [`FE/src/components/ritual/RitualMoment.tsx:197`] — **Resolved 2026-05-15 (Epic 1 retro T2 follow-up):** root `<View testID="ritual-root">` now declares `importantForAccessibility="yes"` + `accessibilityElementsHidden={false}` so TalkBack treats the overlay as the focused subtree. New `it` case in `RitualMoment.test.tsx` asserts both props.
+- [ ] [Review][Patch] Format the caption as `YYYY년 M월 D일 (요일)` instead of relying on raw `Intl` output [`FE/src/components/ritual/ritualWindow.ts:115`] — **Tracked as GitHub issue (Epic 1 retro Track 2).** ICU output is locale-stable in practice; explicit reformat deferred.
+- [x] [Review][Patch] Delay the standard-motion accessibility announcement until T+0.2s [`FE/src/components/ritual/RitualMoment.tsx:104`] — **Resolved 2026-05-15 (Epic 1 retro T2 follow-up):** standard-motion path now defers `AccessibilityInfo.announceForAccessibility` via `setTimeout(..., 200)` so the announce lands after the surface fade-in. Reduced-motion path stays at T+0 (existing reduced-motion test still asserts immediate announce).
+- [x] [Review][Patch] Use the `typography.body.lg` token for the reduced-motion headline path [`FE/src/components/ritual/RitualMoment.tsx:188`] — **Resolved 2026-05-15 (Epic 1 retro T2 follow-up):** reduced-motion `headlineStyle` reads `theme.typography["body.lg"]` (size 18 / lineHeight 30 / weight 400) instead of hardcoded `{ 18, 26, "700" }`. New assertion in `RitualMoment.reduced-motion.test.tsx`.
 
 ## Dev Agent Record
 

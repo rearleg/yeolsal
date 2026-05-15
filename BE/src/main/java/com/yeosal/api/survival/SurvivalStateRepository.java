@@ -15,6 +15,20 @@ public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Lo
     List<SurvivalState> findByRoomId(long roomId);
 
     /**
+     * Fetch-join variant used by Story 1.3 AC10 roster — eagerly loads the
+     * {@code user} association so the response-shaping loop ({@code
+     * SurvivalStateService.roster}) can read {@code s.getUser().getId()} as
+     * an index key without triggering one {@code user} SELECT per row.
+     */
+    @Query("""
+            select s
+            from SurvivalState s
+            join fetch s.user
+            where s.room.id = :roomId
+            """)
+    List<SurvivalState> findByRoomIdFetchingUser(@Param("roomId") long roomId);
+
+    /**
      * Race-safe upsert for the (room_id, user_id) pair. Mirrors the V8/V9
      * milestone-dedup pattern (project-context): pushing dedup down to
      * Postgres via {@code ON CONFLICT DO NOTHING} is stronger than catching

@@ -104,10 +104,12 @@ export function RitualMoment({
   useEffect(() => {
     if (gate !== "show") return undefined;
 
-    // Single a11y announcement per mount (AC6).
-    AccessibilityInfo.announceForAccessibility(`${caption}, ${variantText}`);
-
     if (reduced) {
+      // T+0 announce — the reduced-motion path seeds textOpacity to 1, so
+      // the headline is already visible at mount; speaking it immediately
+      // matches what the user can see.
+      AccessibilityInfo.announceForAccessibility(`${caption}, ${variantText}`);
+
       // 1s fade-in + 1s display + immediate dismiss = 2s total (AC3).
       Animated.timing(surfaceOpacity, {
         toValue: 1,
@@ -121,6 +123,13 @@ export function RitualMoment({
       }, 2000);
       return () => clearTimeout(t);
     }
+
+    // Standard motion: hold the announce until the 200ms surface fade-in
+    // settles (T+0.2s, Story 1.7 FE-1.7). Speaking it at T+0 would beat
+    // the pixels onto the screen.
+    const announceTimer = setTimeout(() => {
+      AccessibilityInfo.announceForAccessibility(`${caption}, ${variantText}`);
+    }, 200);
 
     const emberPeak = spectator ? 0.18 : 0.3;
     const seq = Animated.sequence([
@@ -162,6 +171,7 @@ export function RitualMoment({
     });
 
     return () => {
+      clearTimeout(announceTimer);
       seq.stop();
     };
   }, [
@@ -184,9 +194,14 @@ export function RitualMoment({
     : theme.color.bg.overlay.hex;
 
   const serif = theme.typography["display.serif"];
+  const bodyLg = theme.typography["body.lg"];
 
   const headlineStyle: TextStyle = reduced
-    ? { fontSize: 18, lineHeight: 26, fontWeight: "700" }
+    ? {
+        fontSize: bodyLg.size,
+        lineHeight: bodyLg.lineHeight,
+        fontWeight: String(bodyLg.weight) as TextStyle["fontWeight"],
+      }
     : {
         fontFamily: serif.family,
         fontWeight: String(serif.weight) as TextStyle["fontWeight"],
@@ -199,6 +214,11 @@ export function RitualMoment({
       testID="ritual-root"
       accessibilityViewIsModal
       accessibilityRole="alert"
+      // Android does not honor accessibilityViewIsModal; declaring the
+      // overlay as accessibility-important + non-hidden gives TalkBack
+      // a clear signal that focus belongs inside this subtree (AC6).
+      importantForAccessibility="yes"
+      accessibilityElementsHidden={false}
       pointerEvents="auto"
       style={[
         StyleSheet.absoluteFill,
