@@ -100,6 +100,14 @@ describe("RitualMoment — accessibility composite (AC6)", () => {
     expect(root.props.accessibilityRole).toBe("alert");
   });
 
+  it("declares Android a11y intent so TalkBack treats the overlay as the focused subtree (AC6)", async () => {
+    renderInPostcard(<RitualMoment now={KST_IN_WINDOW} />);
+
+    const root = await screen.findByTestId("ritual-root");
+    expect(root.props.importantForAccessibility).toBe("yes");
+    expect(root.props.accessibilityElementsHidden).toBe(false);
+  });
+
   it("announces the caption + variant text once via AccessibilityInfo", async () => {
     const announceSpy = jest
       .spyOn(AccessibilityInfo, "announceForAccessibility")

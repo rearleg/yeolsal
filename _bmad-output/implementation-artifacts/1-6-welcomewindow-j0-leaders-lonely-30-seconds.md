@@ -159,10 +159,10 @@ Sprint Change Proposal 2026-05-10: Story 1.6 introduction + 2-CTA equal-weight c
 
 ### Review Findings
 
-- [ ] [Review][Patch] Member-join chat publish can roll back the join despite the best-effort contract [BE/src/main/java/com/yeosal/api/room/chat/ChatService.java:155]
-- [ ] [Review][Patch] Today solo-leader tagline flag is persisted and never consumed/cleared [FE/app/(tabs)/today.tsx:37]
-- [ ] [Review][Patch] WelcomeWindow ignores `roomName` even though AC2 requires rendering the room name [FE/src/components/welcome/WelcomeWindow.tsx:75]
-- [ ] [Review][Patch] Disabled Kakao CTA has no long-press/revealed tooltip path required by AC2 [FE/src/components/welcome/WelcomeWindow.tsx:156]
+- [x] [Review][Patch] Member-join chat publish can roll back the join despite the best-effort contract [BE/src/main/java/com/yeosal/api/room/chat/ChatService.java:155] — **Resolved (auto-closed):** Story 1.6 BE-1.2 implementation deviated to `@Transactional(propagation = Propagation.REQUIRES_NEW)` on `ChatService.publishSystem` (`ChatService.java:117`). A chat-write failure no longer rolls back the membership insert, matching the canonical "system fan-out is best-effort" invariant (retro C6).
+- [ ] [Review][Patch] Today solo-leader tagline flag is persisted and never consumed/cleared [FE/app/(tabs)/today.tsx:37] — **Tracked as GitHub issue (Epic 1 retro Track 2).** Auto-clears in practice via `isFirstEntryVibe` gate; explicit cleanup deferred.
+- [x] [Review][Patch] WelcomeWindow ignores `roomName` even though AC2 requires rendering the room name [FE/src/components/welcome/WelcomeWindow.tsx:75] — **Resolved 2026-05-15 (Epic 1 retro T2 follow-up):** `roomName` is now rendered as a `<Text testID="welcome-window-room-name">` eyebrow above the headline using `theme.color.text.secondary`. AC2 first bullet covered. Two new tests in `WelcomeWindow.test.tsx`.
+- [ ] [Review][Patch] Disabled Kakao CTA has no long-press/revealed tooltip path required by AC2 [FE/src/components/welcome/WelcomeWindow.tsx:156] — **Still open.** Press path already fires `toast.info(KAKAO_LOCKED_COPY)` + `accessibilityHint`; the explicit long-press tooltip reveal is platform-specific and deferred (not blocking Epic 2).
 
 ## Dev Notes
 

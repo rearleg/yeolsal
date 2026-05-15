@@ -96,7 +96,7 @@ class SurvivalStateServiceRosterTest {
                 /* broadVisibilityAt */ NOW.plus(Duration.ofHours(14)));
         SurvivalState aliceActive = activeState(alice, NOW.minus(Duration.ofDays(1)));
         SurvivalState bobActive = activeState(bob, NOW.minus(Duration.ofDays(1)));
-        when(survivalRepo.findByRoomId(ROOM_ID))
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID))
                 .thenReturn(List.of(aliceActive, bobActive, carolRed));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
@@ -117,7 +117,7 @@ class SurvivalStateServiceRosterTest {
         Instant eliminated = NOW.minus(Duration.ofHours(48));
         Instant broadVis = NOW.minus(Duration.ofHours(24));
         SurvivalState carolRed = redState(carol, eliminated, broadVis);
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolRed));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolRed));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
 
@@ -136,7 +136,7 @@ class SurvivalStateServiceRosterTest {
         Instant eliminated = NOW.minus(Duration.ofHours(5));
         Instant broadVis = NOW.plus(Duration.ofHours(19));
         SurvivalState carolRed = redState(carol, eliminated, broadVis);
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolRed));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolRed));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, ALICE_ID);
 
@@ -155,7 +155,7 @@ class SurvivalStateServiceRosterTest {
         Instant eliminated = NOW.minus(Duration.ofHours(2));
         Instant broadVis = NOW.plus(Duration.ofHours(22));
         SurvivalState carolRed = redState(carol, eliminated, broadVis);
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolRed));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolRed));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, CAROL_ID);
 
@@ -174,7 +174,7 @@ class SurvivalStateServiceRosterTest {
         Instant changedAt = NOW.minus(Duration.ofHours(3));
         SurvivalState carolYellow = stateOf(carol, SurvivalStatus.YELLOW,
                 changedAt, /* eliminatedAt */ null, /* broadVisibilityAt */ null);
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolYellow));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolYellow));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
 
@@ -195,7 +195,7 @@ class SurvivalStateServiceRosterTest {
         SurvivalState carolSpectator = stateOf(carol, SurvivalStatus.SPECTATOR,
                 changedAt, /* eliminatedAt */ NOW.minus(Duration.ofDays(3)),
                 /* broadVisibilityAt */ NOW.minus(Duration.ofDays(2)));
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolSpectator));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolSpectator));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
 
@@ -209,8 +209,8 @@ class SurvivalStateServiceRosterTest {
     void roster_emptyRoom_returnsEmpty() {
         stubRoom();
         stubMembership(BOB_ID, true);
-        when(roomMembers.findByRoom(room)).thenReturn(List.of());
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of());
+        when(roomMembers.findByRoomFetchingUser(room)).thenReturn(List.of());
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of());
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
 
@@ -247,7 +247,7 @@ class SurvivalStateServiceRosterTest {
         Instant eliminated = NOW.minus(Duration.ofHours(24));
         Instant broadVis = NOW;
         SurvivalState carolRed = redState(carol, eliminated, broadVis);
-        when(survivalRepo.findByRoomId(ROOM_ID)).thenReturn(List.of(carolRed));
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID)).thenReturn(List.of(carolRed));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
 
@@ -263,7 +263,7 @@ class SurvivalStateServiceRosterTest {
         stubRoom();
         stubMembership(BOB_ID, true);
         stubMembers(carol, alice, bob);
-        when(survivalRepo.findByRoomId(ROOM_ID))
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID))
                 .thenReturn(List.of(
                         activeState(alice, NOW.minus(Duration.ofDays(1))),
                         activeState(bob, NOW.minus(Duration.ofDays(1))),
@@ -281,7 +281,7 @@ class SurvivalStateServiceRosterTest {
         stubRoom();
         stubMembership(BOB_ID, true);
         stubMembers(alice, bob, carol);
-        when(survivalRepo.findByRoomId(ROOM_ID))
+        when(survivalRepo.findByRoomIdFetchingUser(ROOM_ID))
                 .thenReturn(List.of(activeState(alice, NOW.minus(Duration.ofDays(1)))));
 
         List<SurvivalStateDto> result = service.roster(ROOM_ID, BOB_ID);
@@ -307,7 +307,7 @@ class SurvivalStateServiceRosterTest {
         List<RoomMember> rms = java.util.Arrays.stream(members)
                 .map(u -> new RoomMember(room, u, RoomRole.MEMBER))
                 .toList();
-        when(roomMembers.findByRoom(room)).thenReturn(rms);
+        when(roomMembers.findByRoomFetchingUser(room)).thenReturn(rms);
     }
 
     private SurvivalState activeState(User user, Instant lastChangeAt) {

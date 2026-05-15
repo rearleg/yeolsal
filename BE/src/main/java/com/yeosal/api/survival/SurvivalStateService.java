@@ -341,9 +341,12 @@ public class SurvivalStateService {
         }
 
         boolean viewerIsLeader = ownerUserId == viewerUserId;
-        List<RoomMember> members = roomMembers.findByRoom(room);
+        // Fetch-join variants collapse the per-member user lazy loads that
+        // the plain finders would trigger inside the shaping loop below
+        // (Story 1.3 AC10 four-SQL budget — Epic 1 retro T7).
+        List<RoomMember> members = roomMembers.findByRoomFetchingUser(room);
         Map<Long, SurvivalState> byUserId = new HashMap<>();
-        for (SurvivalState s : repository.findByRoomId(roomId)) {
+        for (SurvivalState s : repository.findByRoomIdFetchingUser(roomId)) {
             byUserId.put(s.getUser().getId(), s);
         }
 
@@ -392,6 +395,27 @@ public class SurvivalStateService {
                 state.getLastStateChangeAt(),
                 state.getEliminatedAt(),
                 state.getBroadVisibilityAt());
+    }
+
+    /**
+     * Cross-room aggregation of the current user's own survival state
+     * (Architecture §6.4, Epic 1 retro T4). One {@link MeSurvivalEntryDto}
+     * per room the user is a member of — the user is always self, so the
+     * AC3 RED-cooldown mask never applies and {@link SurvivalStatus} is
+     * reported as the real value. Used by the FE Home-tab to decide
+     * cross-room treatments (e.g. {@code isSpectatorAcrossAllRooms}
+     * — Epic 2 Story 2.1).
+     *
+     * <p>Single SQL: {@code survival_state} fetch-joined to {@code rooms},
+     * keyed by {@code user_id}. Returns an empty list for a user with no
+     * memberships rather than throwing.
+     */
+    @Transactional(readOnly = true)
+    public List<MeSurvivalEntryDto> mySurvivalAcrossRooms(long userId) {
+        return repository.findByUserIdFetchingRoom(userId).stream()
+                .map(s -> new MeSurvivalEntryDto(
+                        s.getRoom().getId(), s.getRoom().getName(), s.getStatus()))
+                .toList();
     }
 
     /**
