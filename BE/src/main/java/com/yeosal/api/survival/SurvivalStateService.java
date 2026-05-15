@@ -412,9 +412,26 @@ public class SurvivalStateService {
      */
     @Transactional(readOnly = true)
     public List<MeSurvivalEntryDto> mySurvivalAcrossRooms(long userId) {
+        // Story 2.1 AC7 — populate the spectator WalletPreview fields. Two
+        // follow-up queries per row inside the same readOnly transaction so
+        // the snapshot is consistent: SUM(ledger.delta) for personalPoints
+        // and room_point_pool.total for the group counter (V11 backfilled
+        // every room with total=0 — null only if the row was somehow
+        // deleted, in which case we coalesce to 0 defensively).
         return repository.findByUserIdFetchingRoom(userId).stream()
-                .map(s -> new MeSurvivalEntryDto(
-                        s.getRoom().getId(), s.getRoom().getName(), s.getStatus()))
+                .map(s -> {
+                    long roomId = s.getRoom().getId();
+                    Integer summed = personalLedger.sumDeltaByUserIdAndRoomId(userId, roomId);
+                    int personalPoints = summed == null ? 0 : summed;
+                    Integer pool = repository.findRoomPointPoolTotal(roomId);
+                    int roomPointPool = pool == null ? 0 : pool;
+                    return new MeSurvivalEntryDto(
+                            roomId,
+                            s.getRoom().getName(),
+                            s.getStatus(),
+                            personalPoints,
+                            roomPointPool);
+                })
                 .toList();
     }
 

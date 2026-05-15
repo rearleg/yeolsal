@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.common.SpectatorWriteForbiddenException;
 import com.yeosal.api.realtime.RealtimePublisher;
 import com.yeosal.api.room.GoalMinimumDays;
 import com.yeosal.api.room.GroupMemberMinimum;
@@ -14,6 +15,9 @@ import com.yeosal.api.room.GroupMemberMinimumRepository;
 import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
+import com.yeosal.api.survival.SurvivalState;
+import com.yeosal.api.survival.SurvivalStateRepository;
+import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.User;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,19 +52,22 @@ public class ChatService {
     private final RoomMemberRepository roomMembers;
     private final GroupMemberMinimumRepository minimums;
     private final RealtimePublisher realtime;
+    private final SurvivalStateRepository survivalStates;
 
     public ChatService(
             ChatMessageRepository messages,
             RoomRepository rooms,
             RoomMemberRepository roomMembers,
             GroupMemberMinimumRepository minimums,
-            RealtimePublisher realtime
+            RealtimePublisher realtime,
+            SurvivalStateRepository survivalStates
     ) {
         this.messages = messages;
         this.rooms = rooms;
         this.roomMembers = roomMembers;
         this.minimums = minimums;
         this.realtime = realtime;
+        this.survivalStates = survivalStates;
     }
 
     /**
@@ -91,6 +98,10 @@ public class ChatService {
     public MessageDto sendUserMessage(User viewer, long roomId, String body) {
         Room room = requireRoom(roomId);
         requireMembership(room, viewer);
+        // Story 2.1 AC4 — BE half of the NFR-9.2.5 double enforcement.
+        // FE hides the input for SPECTATOR; this guard rejects writes from a
+        // buggy or tampered client. System messages bypass via publishSystem.
+        requireNotSpectator(room, viewer);
         String trimmed = normalizeBody(body);
         ChatMessage saved = messages.save(
                 new ChatMessage(room.getId(), viewer.getId(), ChatMessageKind.USER, trimmed));
@@ -270,6 +281,24 @@ public class ChatService {
     private void requireMembership(Room room, User user) {
         roomMembers.findByRoomAndUser(room, user)
                 .orElseThrow(() -> new ForbiddenException("방 멤버만 접근할 수 있습니다."));
+    }
+
+    /**
+     * Story 2.1 AC4 — block user-authored writes when the caller's
+     * {@code survival_state.status} for this room is {@code SPECTATOR}.
+     *
+     * <p>A missing row is treated as pass-through (defensive). V11's backfill
+     * should have created a row for every existing membership, but if one is
+     * absent the chat path MUST NOT 500 — the worst-case impact of a single
+     * missing row is a single user briefly able to post, not an outage.
+     */
+    private void requireNotSpectator(Room room, User user) {
+        SurvivalState state = survivalStates
+                .findByRoomIdAndUserId(room.getId(), user.getId())
+                .orElse(null);
+        if (state != null && state.getStatus() == SurvivalStatus.SPECTATOR) {
+            throw new SpectatorWriteForbiddenException();
+        }
     }
 
     public record MessageDto(

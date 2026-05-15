@@ -2,6 +2,10 @@ export const qk = {
   today: ["today"] as const,
   feed: (date: string) => ["feed", date] as const,
   rooms: ["rooms"] as const,
+  // Story 2.1 AC1 — GET /api/v1/me/survival cross-room aggregation.
+  // 30s staleTime; invalidated on STOMP SurvivalStateChange frames so
+  // a revival flips spectator → ACTIVE in < 1s without an app restart.
+  meSurvival: ["meSurvival"] as const,
   roomMembers: (id: number) => ["rooms", id, "members"] as const,
   roomToday: (id: number, date: string) => ["rooms", id, "today", date] as const,
   roomMessages: (id: number) => ["rooms", id, "messages"] as const,

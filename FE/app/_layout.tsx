@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
+import { useIsSpectatorEverywhere } from "../src/lib/query/hooks/survival";
 import { registerForPushAsync } from "../src/lib/push";
 import { useNotificationInvalidation } from "../src/lib/notifications";
 import { setupReactQueryFocus } from "../src/lib/query/focus";
@@ -60,11 +61,14 @@ export default function RootLayout() {
                   Wrapped in SubModeProvider subMode="postcard" so the D4
                   cinematic motion + serif typography tokens light up — leaf
                   components do not read the sub-mode string directly.
-                  TODO Story 2.1: replace spectator={false} with the real
-                  SPECTATOR detection when that pipe lands.
+                  Story 2.1 AC5 — `spectator` prop now reads the real
+                  cross-room signal from `useIsSpectatorEverywhere()`.
+                  The hook call is factored into RitualMomentBootstrap so it
+                  sits inside QueryProvider (Hooks-rules — must be inside the
+                  TanStack Query provider seat).
                 */}
                 <SubModeProvider subMode="postcard">
-                  <RitualMoment spectator={false} />
+                  <RitualMomentBootstrap />
                 </SubModeProvider>
                 <StatusBar style="dark" />
               </ErrorBoundary>
@@ -106,4 +110,16 @@ function SentryUserBinding() {
     setSentryUser(auth.user ? { id: auth.user.id, email: auth.user.email } : null);
   }, [auth.loading, auth.user]);
   return null;
+}
+
+/**
+ * Story 2.1 AC5 — single seat that owns the `useIsSpectatorEverywhere()`
+ * hook call so it sits inside <QueryProvider> (where TanStack Query is
+ * mounted) but stays outside <RootLayout>'s top render path. The wrapper
+ * forwards the resolved boolean to <RitualMoment>; the underlying
+ * component's prop contract is unchanged from Story 1.7.
+ */
+function RitualMomentBootstrap() {
+  const spectator = useIsSpectatorEverywhere();
+  return <RitualMoment spectator={spectator} />;
 }

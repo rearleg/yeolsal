@@ -11,11 +11,17 @@ import type { SurvivalState } from "../components/survival/types";
  * One row from `GET /api/v1/me/survival` (Architecture §6.4). The user is
  * always self for every entry, so `status` is the raw value; the per-room
  * privacy mask does not apply here.
+ *
+ * Story 2.1 AC7 — `personalPoints` and `roomPointPool` power the spectator
+ * `WalletPreview` block on the Today tab. Both default to `0` on the BE
+ * when source data is missing.
  */
 export interface MeSurvivalEntry {
   readonly roomId: number;
   readonly roomName: string;
   readonly status: SurvivalState;
+  readonly personalPoints: number;
+  readonly roomPointPool: number;
 }
 
 /**

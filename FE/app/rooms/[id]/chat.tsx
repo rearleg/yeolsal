@@ -12,6 +12,7 @@ import { useAuth } from "../../../src/auth/AuthContext";
 import { useRequireAuth } from "../../../src/auth/useRequireAuth";
 import { ChatList } from "../../../src/components/chat/ChatList";
 import { MessageInput } from "../../../src/components/chat/MessageInput";
+import { SpectatorReadOnlyBanner } from "../../../src/components/chat/SpectatorReadOnlyBanner";
 import { Text } from "../../../src/components/ui/Text";
 import { useRoomMembersQuery } from "../../../src/lib/query/hooks/rooms";
 import {
@@ -20,6 +21,7 @@ import {
   useMarkChatRead,
   useSendChatMessage,
 } from "../../../src/lib/query/hooks/chat";
+import { useCurrentRoomSurvivalState } from "../../../src/lib/query/hooks/survival";
 import { space } from "../../../src/theme/spacing";
 import { palette, surface } from "../../../src/theme/tokens";
 
@@ -34,6 +36,12 @@ export default function RoomChatScreen() {
   const membersQuery = useRoomMembersQuery(roomId);
   const sendMut = useSendChatMessage(roomId);
   const markRead = useMarkChatRead(roomId);
+  // Story 2.1 AC3 — derive the per-room spectator flag from the cached
+  // cross-room survival query. `useCurrentRoomSurvivalState` returns null
+  // when the viewer is not a member of this room; that falls through to
+  // the regular MessageInput path.
+  const currentRoomState = useCurrentRoomSurvivalState(roomId);
+  const spectator = currentRoomState?.status === "SPECTATOR";
   // Subscribes to /topic/rooms.{id}.chat for the lifetime of the screen.
   // Incoming frames merge into the InfiniteQuery cache (deduped by id) so
   // peer messages appear without waiting for the polling fallback.
@@ -99,10 +107,14 @@ export default function RoomChatScreen() {
             />
           )}
         </View>
-        <MessageInput
-          pending={sendMut.isPending}
-          onSubmit={(body) => sendMut.mutate({ roomId, body })}
-        />
+        {spectator ? (
+          <SpectatorReadOnlyBanner />
+        ) : (
+          <MessageInput
+            pending={sendMut.isPending}
+            onSubmit={(body) => sendMut.mutate({ roomId, body })}
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

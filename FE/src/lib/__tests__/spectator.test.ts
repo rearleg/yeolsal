@@ -11,7 +11,13 @@ const entry = (
   roomId: number,
   status: MeSurvivalEntry["status"],
   roomName = `room-${roomId}`,
-): MeSurvivalEntry => ({ roomId, roomName, status });
+): MeSurvivalEntry => ({
+  roomId,
+  roomName,
+  status,
+  personalPoints: 0,
+  roomPointPool: 0,
+});
 
 describe("isSpectatorAcrossAllRooms", () => {
   it("returns false for zero memberships (treated as 'not playing', not 'spectator')", () => {

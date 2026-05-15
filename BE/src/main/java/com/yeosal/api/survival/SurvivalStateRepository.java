@@ -44,6 +44,19 @@ public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Lo
     List<SurvivalState> findByUserIdFetchingRoom(@Param("userId") long userId);
 
     /**
+     * Story 2.1 AC7 — read the {@code room_point_pool.total} counter cache
+     * for a single room. V11 backfilled one row per room with total=0, so
+     * the query is expected to always return a value for any valid roomId,
+     * but callers MUST coalesce {@code null} → 0 defensively. No Java
+     * entity / repository for {@code room_point_pool} yet — Story 4.1 will
+     * lift this into proper JPA mapping; the native query here is the
+     * smallest possible diff.
+     */
+    @Query(value = "SELECT total FROM room_point_pool WHERE room_id = :roomId",
+            nativeQuery = true)
+    Integer findRoomPointPoolTotal(@Param("roomId") long roomId);
+
+    /**
      * Race-safe upsert for the (room_id, user_id) pair. Mirrors the V8/V9
      * milestone-dedup pattern (project-context): pushing dedup down to
      * Postgres via {@code ON CONFLICT DO NOTHING} is stronger than catching
