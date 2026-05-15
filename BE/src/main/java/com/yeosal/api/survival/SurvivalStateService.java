@@ -398,6 +398,27 @@ public class SurvivalStateService {
     }
 
     /**
+     * Cross-room aggregation of the current user's own survival state
+     * (Architecture §6.4, Epic 1 retro T4). One {@link MeSurvivalEntryDto}
+     * per room the user is a member of — the user is always self, so the
+     * AC3 RED-cooldown mask never applies and {@link SurvivalStatus} is
+     * reported as the real value. Used by the FE Home-tab to decide
+     * cross-room treatments (e.g. {@code isSpectatorAcrossAllRooms}
+     * — Epic 2 Story 2.1).
+     *
+     * <p>Single SQL: {@code survival_state} fetch-joined to {@code rooms},
+     * keyed by {@code user_id}. Returns an empty list for a user with no
+     * memberships rather than throwing.
+     */
+    @Transactional(readOnly = true)
+    public List<MeSurvivalEntryDto> mySurvivalAcrossRooms(long userId) {
+        return repository.findByUserIdFetchingRoom(userId).stream()
+                .map(s -> new MeSurvivalEntryDto(
+                        s.getRoom().getId(), s.getRoom().getName(), s.getStatus()))
+                .toList();
+    }
+
+    /**
      * Per-room counts surfaced to the scheduler for aggregation + the
      * mass-elimination alarm threshold (AC10/AC11).
      */

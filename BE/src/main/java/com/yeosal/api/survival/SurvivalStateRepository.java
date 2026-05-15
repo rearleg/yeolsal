@@ -29,6 +29,21 @@ public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Lo
     List<SurvivalState> findByRoomIdFetchingUser(@Param("roomId") long roomId);
 
     /**
+     * Cross-room aggregation used by {@code GET /api/v1/me/survival}
+     * (Architecture §6.4, Epic 1 retro T4). Fetch-joins {@code room} so the
+     * controller can read {@code s.getRoom().getId()} / {@code .getName()}
+     * outside the {@code @Transactional} boundary without triggering N+1
+     * lazy loads (one room SELECT per row).
+     */
+    @Query("""
+            select s
+            from SurvivalState s
+            join fetch s.room
+            where s.user.id = :userId
+            """)
+    List<SurvivalState> findByUserIdFetchingRoom(@Param("userId") long userId);
+
+    /**
      * Race-safe upsert for the (room_id, user_id) pair. Mirrors the V8/V9
      * milestone-dedup pattern (project-context): pushing dedup down to
      * Postgres via {@code ON CONFLICT DO NOTHING} is stronger than catching
