@@ -50,6 +50,7 @@ last_updated: 2026-05-16
 # 2026-05-16: Story 2.3 re-review found test-field assertion action item — flipped review → in-progress
 # 2026-05-16: Story 2.3 re-review patch landed (reflected → reflectionSubmitted in group-mode IT) — flipped in-progress → review
 # 2026-05-16: Story 2.3 re-review clean — flipped review → done
+# 2026-05-16: All 3 Epic 2 stories shipped to main (PRs #68 / #69 / #71) — flipped epic-2 in-progress → done
 project: yeolsal
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +69,7 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Spectator Mode
-  epic-2: in-progress
+  epic-2: done
   2-1-spectator-mode-fe-routing-branch: done
   2-2-spectator-daily-digest-push: done
   2-3-record-visibility-opt-in-for-eliminated-users: done
