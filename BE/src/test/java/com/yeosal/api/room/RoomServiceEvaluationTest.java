@@ -51,6 +51,8 @@ class RoomServiceEvaluationTest {
     @Mock private InviteCodeGenerator codeGenerator;
     @Mock private com.yeosal.api.realtime.RealtimePublisher realtime;
     @Mock private SurvivalStateService survivalState;
+    @Mock private com.yeosal.api.survival.SurvivalStateRepository survivalStates;
+    @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T00:10:00Z"), ZoneId.of("UTC"));
 
@@ -74,7 +76,9 @@ class RoomServiceEvaluationTest {
                 codeGenerator,
                 clock,
                 realtime,
-                survivalState);
+                survivalState,
+                survivalStates,
+                visibilityPrefs);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         room = makeRoom(42L, "기본 방", alice);

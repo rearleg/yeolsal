@@ -10,6 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.yeosal.api.common.BadRequestException;
+import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -46,7 +48,9 @@ class DailyServiceReflectionsTest {
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications,
-                mock(com.yeosal.api.room.chat.ChatService.class));
+                mock(com.yeosal.api.room.chat.ChatService.class),
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
         DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-29"), "오늘 목표");
@@ -83,7 +87,9 @@ class DailyServiceReflectionsTest {
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications,
-                mock(com.yeosal.api.room.chat.ChatService.class));
+                mock(com.yeosal.api.room.chat.ChatService.class),
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
         User alice = makeUser(1L, "alice@example.com", "Alice");
 
         when(reflections.findRecentByUser(eq(alice), any(Pageable.class))).thenReturn(List.of());
@@ -115,7 +121,9 @@ class DailyServiceReflectionsTest {
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications,
-                mock(com.yeosal.api.room.chat.ChatService.class));
+                mock(com.yeosal.api.room.chat.ChatService.class),
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
         DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");
@@ -150,7 +158,9 @@ class DailyServiceReflectionsTest {
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
                 clock, roomMembers, notifications,
-                mock(com.yeosal.api.room.chat.ChatService.class));
+                mock(com.yeosal.api.room.chat.ChatService.class),
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
         DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");
@@ -184,7 +194,9 @@ class DailyServiceReflectionsTest {
 
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
-                clock, roomMembers, notifications, chatService);
+                clock, roomMembers, notifications, chatService,
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
         DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");
@@ -235,7 +247,9 @@ class DailyServiceReflectionsTest {
 
         DailyService service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
-                clock, roomMembers, notifications, chatService);
+                clock, roomMembers, notifications, chatService,
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         User alice = makeUser(1L, "alice@example.com", "Alice");
         DailyEntry entry = new DailyEntry(alice, LocalDate.parse("2026-04-30"), "오늘 목표");

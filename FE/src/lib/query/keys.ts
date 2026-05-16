@@ -21,4 +21,8 @@ export const qk = {
   // Lives in the in-memory query cache (no persistence) and is cleared once
   // the Today screen has rendered the tagline at least once.
   soloLeaderTagline: (roomId: number) => ["soloLeaderTagline", roomId] as const,
+  // Story 2.3 — list cache for GET /api/v1/me/visibility-prefs. Single key
+  // shared across per-room Settings screens; each toggle derives its row by
+  // filtering the list locally so the FE never has to default-construct.
+  recordVisibilityPrefs: ["recordVisibilityPrefs"] as const,
 };

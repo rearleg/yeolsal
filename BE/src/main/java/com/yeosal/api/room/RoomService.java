@@ -10,7 +10,12 @@ import com.yeosal.api.daily.TodoItem;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.RecordVisibilityPref;
+import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.SurvivalState;
+import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.survival.SurvivalStateService;
+import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.Clock;
@@ -48,6 +53,8 @@ public class RoomService {
     private final Clock clock;
     private final com.yeosal.api.realtime.RealtimePublisher realtime;
     private final SurvivalStateService survivalState;
+    private final SurvivalStateRepository survivalStates;
+    private final RecordVisibilityPrefRepository visibilityPrefs;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -67,7 +74,9 @@ public class RoomService {
             InviteCodeGenerator codeGenerator,
             Clock clock,
             com.yeosal.api.realtime.RealtimePublisher realtime,
-            SurvivalStateService survivalState
+            SurvivalStateService survivalState,
+            SurvivalStateRepository survivalStates,
+            RecordVisibilityPrefRepository visibilityPrefs
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -82,6 +91,8 @@ public class RoomService {
         this.clock = clock;
         this.realtime = realtime;
         this.survivalState = survivalState;
+        this.survivalStates = survivalStates;
+        this.visibilityPrefs = visibilityPrefs;
     }
 
     /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
@@ -194,6 +205,22 @@ public class RoomService {
         Map<Long, List<DailyEntry>> streakByUserId = streakEntries.stream()
                 .collect(Collectors.groupingBy(e -> e.getUser().getId()));
 
+        // Story 2.3 AC3 — room-scoped redaction. For each member, if the
+        // viewer is not the member and the member is SPECTATOR in THIS room
+        // without an opt-in row, scrub the daily/todo-derived fields. Batch
+        // both reads so we don't issue 2 queries per member.
+        Map<Long, SurvivalStatus> statusByUserId = new HashMap<>();
+        for (SurvivalState s : survivalStates.findByRoomId(roomId)) {
+            statusByUserId.put(s.getUser().getId(), s.getStatus());
+        }
+        Map<Long, Boolean> shareByUserId = new HashMap<>();
+        for (User u : memberUsers) {
+            visibilityPrefs
+                    .findByUserIdAndRoomId(u.getId(), roomId)
+                    .map(RecordVisibilityPref::isShareOnElimination)
+                    .ifPresent(share -> shareByUserId.put(u.getId(), share));
+        }
+
         return members.stream()
                 .map(rm -> {
                     User u = rm.getUser();
@@ -202,6 +229,19 @@ public class RoomService {
                     List<GrassDay> window = dailyService.grassFromEntries(
                             u, streakFrom, date, streakRows);
                     int streak = dailyService.streakFromGrass(date, window);
+                    boolean redact = !u.getId().equals(viewer.getId())
+                            && statusByUserId.get(u.getId()) == SurvivalStatus.SPECTATOR
+                            && !Boolean.TRUE.equals(shareByUserId.get(u.getId()));
+                    if (redact) {
+                        // Self-name + date stay; every record-derived field is
+                        // suppressed identically to the "no entry yet" path so
+                        // the FE cannot distinguish "redacted" from "not yet
+                        // started" — NFR-9.3.2 forbids an explicit redaction
+                        // flag in the wire shape.
+                        return new MemberTodayDto(
+                                u.getId(), u.getNickname(), date,
+                                "", false, 0, false, 0);
+                    }
                     if (entry == null) {
                         return new MemberTodayDto(
                                 u.getId(), u.getNickname(), date,

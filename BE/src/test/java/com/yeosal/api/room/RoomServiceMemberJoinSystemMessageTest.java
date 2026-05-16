@@ -56,6 +56,8 @@ class RoomServiceMemberJoinSystemMessageTest {
     @Mock private InviteCodeGenerator codeGenerator;
     @Mock private com.yeosal.api.realtime.RealtimePublisher realtime;
     @Mock private SurvivalStateService survivalState;
+    @Mock private com.yeosal.api.survival.SurvivalStateRepository survivalStates;
+    @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -79,7 +81,9 @@ class RoomServiceMemberJoinSystemMessageTest {
                 codeGenerator,
                 clock,
                 realtime,
-                survivalState);
+                survivalState,
+                survivalStates,
+                visibilityPrefs);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         lenient().when(roomMembers.save(any(RoomMember.class)))
