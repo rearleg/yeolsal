@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.RoomMemberRepository;
+import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.SurvivalStateRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -29,7 +31,9 @@ class DailyServiceStreakTest {
                 Clock.systemUTC(),
                 mock(RoomMemberRepository.class),
                 mock(NotificationService.class),
-                mock(com.yeosal.api.room.chat.ChatService.class)
+                mock(com.yeosal.api.room.chat.ChatService.class),
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class)
         );
     }
 

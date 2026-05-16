@@ -6,6 +6,7 @@ import { useAuth } from "../../../src/auth/AuthContext";
 import { useRequireAuth } from "../../../src/auth/useRequireAuth";
 import { Screen } from "../../../src/components/Screen";
 import { RoomMinimumSettings } from "../../../src/components/rooms/RoomMinimumSettings";
+import { RecordVisibilityToggle } from "../../../src/components/survival/RecordVisibilityToggle";
 import { Skeleton } from "../../../src/components/ui/Skeleton";
 import { Text } from "../../../src/components/ui/Text";
 import {
@@ -100,6 +101,7 @@ export default function RoomSettingsScreen() {
           onboarding={onboarding}
           onSubmit={handleSubmit}
         />
+        <RecordVisibilityToggle roomId={roomId} />
       </ScrollView>
     </Screen>
   );

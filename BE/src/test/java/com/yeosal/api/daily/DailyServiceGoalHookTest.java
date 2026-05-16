@@ -16,6 +16,8 @@ import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -69,7 +71,9 @@ class DailyServiceGoalHookTest {
 
         service = new DailyService(
                 entries, todos, reflections, entryDateResolver, gateRule,
-                clock, roomMembers, notifications, chatService);
+                clock, roomMembers, notifications, chatService,
+                mock(RecordVisibilityPrefRepository.class),
+                mock(SurvivalStateRepository.class));
 
         alice = makeUser(1L, "alice@example.com", "Alice");
         room = makeRoom(42L, "기본 방", alice);

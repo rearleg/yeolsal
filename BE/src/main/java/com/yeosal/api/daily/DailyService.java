@@ -7,9 +7,15 @@ import com.yeosal.api.notification.NotificationKind;
 import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.room.Room;
+import com.yeosal.api.room.RoomMember;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.survival.RecordVisibilityPref;
+import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.SurvivalState;
+import com.yeosal.api.survival.SurvivalStateRepository;
+import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.User;
 import java.time.Clock;
 import java.time.Duration;
@@ -18,6 +24,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -45,6 +52,8 @@ public class DailyService {
     private final RoomMemberRepository roomMembers;
     private final NotificationService notifications;
     private final ChatService chatService;
+    private final RecordVisibilityPrefRepository visibilityPrefs;
+    private final SurvivalStateRepository survivalStates;
     private final DailyMissionCalculator calculator = new DailyMissionCalculator();
 
     public DailyService(
@@ -56,7 +65,9 @@ public class DailyService {
             Clock clock,
             RoomMemberRepository roomMembers,
             NotificationService notifications,
-            ChatService chatService
+            ChatService chatService,
+            RecordVisibilityPrefRepository visibilityPrefs,
+            SurvivalStateRepository survivalStates
     ) {
         this.dailyEntries = dailyEntries;
         this.todoItems = todoItems;
@@ -67,6 +78,8 @@ public class DailyService {
         this.roomMembers = roomMembers;
         this.notifications = notifications;
         this.chatService = chatService;
+        this.visibilityPrefs = visibilityPrefs;
+        this.survivalStates = survivalStates;
     }
 
     private LocalDate currentEntryDate(User user) {
@@ -422,6 +435,80 @@ public class DailyService {
                         r.getBody(),
                         r.getSubmittedAt()))
                 .toList();
+    }
+
+    /**
+     * Story 2.3 AC3 — viewer-aware grass. Applies the spectator
+     * record-visibility opt-in: when the {@code target} is SPECTATOR in
+     * every shared room with {@code viewer} AND has not opted-in for any
+     * of those rooms, returns an empty list. Self-view is always full;
+     * any shared room where target is ACTIVE OR target is opted-in
+     * spectator yields the full grass window.
+     */
+    @Transactional(readOnly = true)
+    public List<GrassDay> grassForViewer(User viewer, User target, LocalDate from, LocalDate to) {
+        if (shouldRedactForViewer(viewer, target)) {
+            return List.of();
+        }
+        return grass(target, from, to);
+    }
+
+    /**
+     * Story 2.3 AC3 — viewer-aware reflections. Same redaction rule as
+     * {@link #grassForViewer}: SPECTATOR + opted-out across every shared
+     * room → empty list (not even metadata leaks).
+     */
+    @Transactional(readOnly = true)
+    public List<ReflectionView> recentReflectionsForViewer(User viewer, User target, int limit) {
+        if (shouldRedactForViewer(viewer, target)) {
+            return List.of();
+        }
+        return recentReflections(target, limit);
+    }
+
+    /**
+     * Story 2.3 AC3 algorithm — does {@code viewer} see {@code target}'s
+     * records redacted?
+     *
+     * <ul>
+     *   <li>Self-view → never redact.</li>
+     *   <li>No shared rooms → never redact (the friend-only path already
+     *       passed the {@code friendService.canView} gate; spectator state
+     *       is per-room and irrelevant when no room is shared).</li>
+     *   <li>For each shared room with target ACTIVE → visible (existing
+     *       rules win — Story 2.3 only redacts spectators).</li>
+     *   <li>For each shared room with target SPECTATOR and opted-in
+     *       ({@code share_on_elimination = true}) → visible.</li>
+     *   <li>Else (every shared room redacts) → return true.</li>
+     * </ul>
+     */
+    private boolean shouldRedactForViewer(User viewer, User target) {
+        if (viewer.getId().equals(target.getId())) {
+            return false;
+        }
+        List<RoomMember> viewerRooms = roomMembers.findByUser(viewer);
+        List<RoomMember> targetRooms = roomMembers.findByUser(target);
+        java.util.Set<Long> viewerRoomIds = new java.util.HashSet<>();
+        for (RoomMember rm : viewerRooms) {
+            viewerRoomIds.add(rm.getRoom().getId());
+        }
+        boolean sawAnyShared = false;
+        for (RoomMember tm : targetRooms) {
+            long roomId = tm.getRoom().getId();
+            if (!viewerRoomIds.contains(roomId)) continue;
+            sawAnyShared = true;
+            Optional<SurvivalState> stateOpt =
+                    survivalStates.findByRoomIdAndUserId(roomId, target.getId());
+            if (stateOpt.isEmpty() || stateOpt.get().getStatus() != SurvivalStatus.SPECTATOR) {
+                return false;
+            }
+            Optional<RecordVisibilityPref> pref =
+                    visibilityPrefs.findByUserIdAndRoomId(target.getId(), roomId);
+            if (pref.isPresent() && pref.get().isShareOnElimination()) {
+                return false;
+            }
+        }
+        return sawAnyShared;
     }
 
     public record ReflectionView(java.time.LocalDate date, String body, java.time.Instant submittedAt) {}

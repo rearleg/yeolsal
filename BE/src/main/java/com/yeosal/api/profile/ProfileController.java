@@ -73,7 +73,7 @@ public class ProfileController {
         if (!friendService.canView(viewer, target)) {
             throw new ForbiddenException("잔디 접근 권한이 없습니다.");
         }
-        return ApiResponse.of(dailyService.grass(target, from, to).stream()
+        return ApiResponse.of(dailyService.grassForViewer(viewer, target, from, to).stream()
                 .map(day -> new GrassDayDto(day.date(), day.missionCompleted(), day.completedTodoCount(), day.reflectionSubmitted(), day.intensity()))
                 .toList());
     }
@@ -134,7 +134,7 @@ public class ProfileController {
         }
         boolean canSeeBody = viewer.getId().equals(target.getId())
                 || roomMembers.existsSharedRoom(viewer, target);
-        return ApiResponse.of(dailyService.recentReflections(target, limit).stream()
+        return ApiResponse.of(dailyService.recentReflectionsForViewer(viewer, target, limit).stream()
                 .map(r -> ReflectionDto.from(r, canSeeBody))
                 .toList());
     }
