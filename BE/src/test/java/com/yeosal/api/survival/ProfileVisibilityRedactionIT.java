@@ -1,4 +1,4 @@
-package com.yeosal.api.profile;
+package com.yeosal.api.survival;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -18,12 +18,6 @@ import com.yeosal.api.room.RoomMember;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.room.RoomRole;
-import com.yeosal.api.survival.RecordVisibilityPref;
-import com.yeosal.api.survival.RecordVisibilityPrefRepository;
-import com.yeosal.api.survival.SurvivalState;
-import com.yeosal.api.survival.SurvivalStateRepository;
-import com.yeosal.api.survival.SurvivalStateService;
-import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
@@ -64,7 +58,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @Testcontainers
 @EnabledIfSystemProperty(named = "yeosal.boot-smoke", matches = "true")
-class ProfileVisibilityRedactionTest {
+class ProfileVisibilityRedactionIT {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES =

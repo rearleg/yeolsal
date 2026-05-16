@@ -122,7 +122,7 @@ Epics ref: lines 389–409.
       - `POST /me/visibility-prefs` with valid body → `200` + new value reflected.
       - `POST` with missing `roomId` → `400 VALIDATION`.
       - `POST` for non-member room → `403 FORBIDDEN`.
-    - `BE/src/test/java/com/yeosal/api/profile/ProfileVisibilityRedactionTest.java` — `@SpringBootTest` + Testcontainers PostgreSQL:
+    - `BE/src/test/java/com/yeosal/api/survival/ProfileVisibilityRedactionIT.java` — `@SpringBootTest` + Testcontainers PostgreSQL:
       - Setup: target user is SPECTATOR in room R; viewer is room-mate; target has NO `record_visibility_prefs` row.
       - `GET /profiles/{targetId}/grass` → `200` + empty list (redacted).
       - `GET /profiles/{targetId}/reflections` → `200` + empty list.
@@ -260,7 +260,7 @@ Epics ref: lines 389–409.
 - `BE/src/main/java/com/yeosal/api/survival/UpsertVisibilityPrefRequest.java`
 - `BE/src/test/java/com/yeosal/api/survival/RecordVisibilityServiceTest.java`
 - `BE/src/test/java/com/yeosal/api/survival/RecordVisibilityControllerTest.java`
-- `BE/src/test/java/com/yeosal/api/profile/ProfileVisibilityRedactionTest.java`
+- `BE/src/test/java/com/yeosal/api/survival/ProfileVisibilityRedactionIT.java`
 - `FE/src/components/survival/RecordVisibilityToggle.tsx`
 - `FE/src/lib/query/hooks/visibilityPrefs.ts`
 - `FE/src/components/survival/__tests__/RecordVisibilityToggle.test.tsx`
@@ -390,7 +390,7 @@ claude-opus-4-7[1m] via Claude Code / bmad-dev-story (2026-05-16).
 - `BE/src/main/java/com/yeosal/api/survival/UpsertVisibilityPrefRequest.java`
 - `BE/src/test/java/com/yeosal/api/survival/RecordVisibilityServiceTest.java`
 - `BE/src/test/java/com/yeosal/api/survival/RecordVisibilityControllerTest.java`
-- `BE/src/test/java/com/yeosal/api/profile/ProfileVisibilityRedactionTest.java`
+- `BE/src/test/java/com/yeosal/api/survival/ProfileVisibilityRedactionIT.java`
 
 **Backend — modified files**
 
@@ -404,7 +404,7 @@ claude-opus-4-7[1m] via Claude Code / bmad-dev-story (2026-05-16).
 - `BE/src/test/java/com/yeosal/api/room/RoomServiceTest.java` (constructor mocks — review-patch #2)
 - `BE/src/test/java/com/yeosal/api/room/RoomServiceEvaluationTest.java` (constructor mocks — review-patch #2)
 - `BE/src/test/java/com/yeosal/api/room/RoomServiceMemberJoinSystemMessageTest.java` (constructor mocks — review-patch #2)
-- `BE/src/test/java/com/yeosal/api/profile/ProfileVisibilityRedactionTest.java` (added 2 `todayForRoom` IT scenarios — review-patch #2)
+- `BE/src/test/java/com/yeosal/api/survival/ProfileVisibilityRedactionIT.java` (added 2 `todayForRoom` IT scenarios — review-patch #2)
 
 **Frontend — new files**
 
