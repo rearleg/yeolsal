@@ -58,6 +58,12 @@ describe("routeInvalidation", () => {
     }
   });
 
+  it("SPECTATOR_DIGEST is a passive room summary and invalidates nothing", () => {
+    const { qc, invalidate } = makeQcSpy();
+    routeInvalidation(qc, "SPECTATOR_DIGEST");
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
   it("missing kind falls back to broad invalidation (feed + requests + rooms)", () => {
     const { qc, invalidate } = makeQcSpy();
     routeInvalidation(qc, undefined);
