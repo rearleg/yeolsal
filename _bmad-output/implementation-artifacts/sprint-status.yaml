@@ -42,6 +42,7 @@ last_updated: 2026-05-16
 # 2026-05-16: Story 2.2 review patches landed (half-open window + state-only body) — flipped in-progress → review
 # 2026-05-16: Story 2.2 re-review found integration-test isolation action item — flipped review → in-progress
 # 2026-05-16: Story 2.2 IT isolation patch landed (@Transactional class-level rollback) — flipped in-progress → review
+# 2026-05-16: Story 2.2 merged into main (PR #69, squash 191911e) — flipped review → done
 project: yeolsal
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +63,7 @@ development_status:
   # Epic 2: Spectator Mode
   epic-2: in-progress
   2-1-spectator-mode-fe-routing-branch: done
-  2-2-spectator-daily-digest-push: review
+  2-2-spectator-daily-digest-push: done
   2-3-record-visibility-opt-in-for-eliminated-users: ready-for-dev
   epic-2-retrospective: optional
 
