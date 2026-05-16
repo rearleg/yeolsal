@@ -73,8 +73,10 @@ export function routeInvalidation(qc: QueryClient, kind: string | undefined): vo
       return;
     case "GOAL_NUDGE":
     case "REFLECTION_NUDGE":
-      // Self-nudges don't change shared cache state — the user just got
-      // a reminder. The Today tab refreshes naturally on focus.
+    case "SPECTATOR_DIGEST":
+      // Self-nudges and the spectator daily digest don't change shared
+      // cache state — the user just got a reminder/summary. The room view
+      // refreshes naturally on focus.
       return;
     default:
       // Unknown / missing kind — broad invalidation as a safety net.

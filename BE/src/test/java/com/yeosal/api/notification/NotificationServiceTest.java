@@ -225,6 +225,41 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("sendCron: SPECTATOR_DIGEST routes through event_hooks_enabled — enabled → push fires")
+    void sendCronSpectatorDigestRespectsEventHooksEnabled() {
+        when(prefs.findById(1L)).thenReturn(Optional.of(prefWithDefaults(alice)));
+        when(logs.existsByUserAndKindAndKey(alice, NotificationKind.SPECTATOR_DIGEST, "2026-04-29:1:42"))
+                .thenReturn(false);
+        when(pushTokens.findByUser(alice)).thenReturn(List.of(
+                new PushToken(alice, "ExponentPushToken[abc]", "ios")
+        ));
+        when(pushClient.send(anyList(), anyString(), anyString(), anyMap())).thenReturn(true);
+
+        service.sendCron(alice, NotificationKind.SPECTATOR_DIGEST, "2026-04-29:1:42",
+                "오늘도 우리 방이 함께 살아남고 있어요", "어제 메시지 12개 · 새 글 3개");
+
+        verify(pushClient).send(
+                eq(List.of("ExponentPushToken[abc]")),
+                eq("오늘도 우리 방이 함께 살아남고 있어요"),
+                eq("어제 메시지 12개 · 새 글 3개"),
+                anyMap());
+        verify(logs).save(any(NotificationLog.class));
+    }
+
+    @Test
+    @DisplayName("sendCron: SPECTATOR_DIGEST skipped when event_hooks_enabled=false")
+    void sendCronSpectatorDigestRespectsEventHooksDisabled() {
+        NotificationPref pref = prefWithDefaults(alice);
+        pref.setEventHooksEnabled(false);
+        when(prefs.findById(1L)).thenReturn(Optional.of(pref));
+
+        service.sendCron(alice, NotificationKind.SPECTATOR_DIGEST, "2026-04-29:1:42", "t", "b");
+
+        verify(pushClient, never()).send(anyList(), anyString(), anyString(), anyMap());
+        verify(logs, never()).save(any());
+    }
+
+    @Test
     @DisplayName("isInQuietHours fallback: blank user timezone is treated as Asia/Seoul")
     void quietHoursFallbackForBlankTimezone() {
         // 14:00 UTC == 23:00 KST → inside default quiet window 22-08, so we should skip.

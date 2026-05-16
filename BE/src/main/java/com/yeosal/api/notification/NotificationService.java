@@ -145,6 +145,11 @@ public class NotificationService {
             // misrouted call here silently short-circuits instead of paging
             // users with debug-only payloads.
             case SURVIVAL_STATE -> false;
+            // SPECTATOR_DIGEST is event-shaped (not a cron-essential nudge),
+            // so it rides the event_hooks_enabled toggle alongside friend
+            // pings — one switch silences all spectator/friend pings without
+            // disabling goal/reflection nudges.
+            case SPECTATOR_DIGEST -> pref.isEventHooksEnabled();
         };
     }
 

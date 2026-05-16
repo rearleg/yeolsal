@@ -29,4 +29,23 @@ public interface DailyEntryRepository extends JpaRepository<DailyEntry, Long> {
 
     @Query("select count(e) from DailyEntry e join e.reflection r where e.user = :user and e.date between :from and :to and r.submittedAt is not null")
     long countWithReflectionBetween(@Param("user") User user, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /**
+     * Story 2.2 — count daily entries authored on {@code entryDate} by any member
+     * of {@code roomId}. The join goes through {@code room_members} because
+     * {@code daily_entries} has no {@code room_id} column (entries are
+     * room-agnostic and counted per room only at aggregation time). Powers the
+     * spectator daily-digest aggregator.
+     */
+    @Query("""
+            select count(e) from DailyEntry e
+            where e.date = :entryDate
+              and e.user.id in (
+                select rm.user.id from com.yeosal.api.room.RoomMember rm
+                where rm.room.id = :roomId
+              )
+            """)
+    long countByEntryDateAndRoomId(
+            @Param("entryDate") LocalDate entryDate,
+            @Param("roomId") long roomId);
 }

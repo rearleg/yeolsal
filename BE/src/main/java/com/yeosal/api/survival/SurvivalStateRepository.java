@@ -15,6 +15,20 @@ public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Lo
     List<SurvivalState> findByRoomId(long roomId);
 
     /**
+     * Story 2.2 — count state transitions (YELLOW / RED / SPECTATOR shifts)
+     * in a room within a half-open window {@code [fromInclusive, toExclusive)}.
+     * The explicit {@code GreaterThanEqualAnd...LessThan} keywords emit
+     * {@code >= AND <} — required because Spring Data's {@code Between} is
+     * inclusive on both ends, which would double-count a row at a day-boundary
+     * instant in adjacent digest runs (Story 2.2 review finding #1). Powers
+     * the spectator daily-digest aggregator. {@code last_state_change_at} is
+     * NOT NULL per V11 and indexed for the daily evaluator's room scans,
+     * which this query reuses.
+     */
+    long countByRoomIdAndLastStateChangeAtGreaterThanEqualAndLastStateChangeAtLessThan(
+            long roomId, Instant fromInclusive, Instant toExclusive);
+
+    /**
      * Fetch-join variant used by Story 1.3 AC10 roster — eagerly loads the
      * {@code user} association so the response-shaping loop ({@code
      * SurvivalStateService.roster}) can read {@code s.getUser().getId()} as

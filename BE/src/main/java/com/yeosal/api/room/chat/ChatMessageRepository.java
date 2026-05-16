@@ -1,5 +1,6 @@
 package com.yeosal.api.room.chat;
 
+import java.time.Instant;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,6 +18,20 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      */
     List<ChatMessage> findByRoomIdAndIdLessThanOrderByIdDesc(
             Long roomId, Long beforeId, Pageable pageable);
+
+    /**
+     * Story 2.2 — count chat messages in a room within a half-open window
+     * {@code [fromInclusive, toExclusive)}. The explicit
+     * {@code GreaterThanEqualAnd...LessThan} keywords emit {@code >= AND <}
+     * — required because Spring Data's {@code Between} is inclusive on both
+     * ends, which would double-count a row landing exactly on a day-boundary
+     * instant in adjacent digest runs (Story 2.2 review finding #1).
+     * Powers the spectator daily-digest aggregator; the {@code (room_id, id desc)}
+     * index from V7 also covers this range-scan because {@code created_at} is
+     * monotonic with {@code id} in append-only chat semantics.
+     */
+    long countByRoomIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            Long roomId, Instant fromInclusive, Instant toExclusive);
 
     /**
      * Idempotency check for the MILESTONE publish hook. Returns true if
