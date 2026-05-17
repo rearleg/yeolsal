@@ -20,5 +20,13 @@ public enum NotificationKind {
      * activity yesterday. Idempotent via notification_log
      * (user_id, kind, key='{prior_date_kst}:{userId}:{roomId}').
      */
-    SPECTATOR_DIGEST
+    SPECTATOR_DIGEST,
+    /**
+     * Story 3.5 — invitation-toned push when a friend sends a kudos message.
+     * Rides {@code event_hooks_enabled}, debounce {@code Duration.ZERO}
+     * (the V12 partial unique index is the dedupe authority — kudos are
+     * already at most 1/day/(sender, target) so {@code NotificationLog}
+     * provides audit only).
+     */
+    KUDOS_RECEIVED
 }

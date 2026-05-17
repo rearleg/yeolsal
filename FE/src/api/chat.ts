@@ -1,13 +1,18 @@
 import { apiRequest, type ApiEnvelope } from "./client";
 
-/** Mirrors BE {@code ChatMessageKind}. PR G writes the non-USER variants. */
+/**
+ * Mirrors BE {@code ChatMessageKind}. PR G writes the non-USER system
+ * variants; Story 3.5 adds {@code "KUDOS"} — the only non-USER kind with
+ * a non-null {@code senderUserId} (the donor of the kudos).
+ */
 export type ChatMessageKind =
   | "USER"
   | "SYSTEM"
   | "GOAL"
   | "REFLECTION"
   | "MILESTONE"
-  | "AUTO_LEAVE";
+  | "AUTO_LEAVE"
+  | "KUDOS";
 
 export interface ChatMessageDto {
   id: number;

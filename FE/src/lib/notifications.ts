@@ -71,6 +71,17 @@ export function routeInvalidation(qc: QueryClient, kind: string | undefined): vo
         },
       });
       return;
+    case "KUDOS_RECEIVED":
+      // Story 3.5 — receiver sees the KUDOS chat row appear without
+      // waiting for window-focus refetch. Same predicate the MILESTONE
+      // branch uses since both kinds materialize as chat_messages rows.
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const key = q.queryKey;
+          return Array.isArray(key) && key[0] === "rooms" && key[2] === "messages";
+        },
+      });
+      return;
     case "GOAL_NUDGE":
     case "REFLECTION_NUDGE":
     case "SPECTATOR_DIGEST":

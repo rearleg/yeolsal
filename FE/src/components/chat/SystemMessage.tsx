@@ -41,6 +41,18 @@ function visualFor(kind: ChatMessageKind): Visual {
         textColor: palette.inkDeep,
         emphasized: true,
       };
+    case "KUDOS":
+      // Story 3.5 — postcard-warm variant per UX D4 (lines 1115-1135).
+      // Heart icon + coralSoft pill + inkDeep text + emphasized=true
+      // separate the row from muted grey SYSTEM rows so the chat scroll
+      // reads invitation-toned, not noise.
+      return {
+        icon: "favorite",
+        iconColor: palette.coralDeep,
+        pillBg: palette.coralSoft,
+        textColor: palette.inkDeep,
+        emphasized: true,
+      };
     case "AUTO_LEAVE":
       return {
         icon: "person-remove",
@@ -66,6 +78,7 @@ const KIND_LABEL: Record<ChatMessageKind, string> = {
   REFLECTION: "회고 작성 알림",
   MILESTONE: "월간 달성 알림",
   AUTO_LEAVE: "자동 탈퇴 알림",
+  KUDOS: "응원",
 };
 
 /**

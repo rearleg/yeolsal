@@ -1,7 +1,9 @@
 package com.yeosal.api.room.chat;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -91,4 +93,70 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             @Param("roomId") Long roomId,
             @Param("body") String body,
             @Param("payload") String payload);
+
+    /**
+     * Story 3.5 — atomic at-most-one kudos per (sender, target, KST date)
+     * via the V12 partial unique index {@code ux_kudos_one_per_day}. The
+     * {@code on conflict} predicate {@code where kind = 'KUDOS'} MUST
+     * match the index predicate exactly so the conflict path is invoked
+     * (a mismatched predicate falls back to a generic 23505 outside the
+     * named constraint, which would defeat the typed-exception
+     * translation in {@link KudosService}).
+     *
+     * <p>{@code payload} is a literal JSON object as a String (the same
+     * shape V8/V9 milestone-dedup uses): cast to {@code jsonb} so JSONB
+     * validates it server-side. Both {@code senderUserId} and {@code
+     * targetUserId} are stored as JSON strings — the {@code text->>}
+     * operator returns text regardless of whether the writer used a JSON
+     * string or number, but storing as strings keeps the index stable
+     * against future numeric writers.
+     *
+     * <p>Returns rows actually inserted (0 on same-day duplicate; 1 on
+     * insert). Mirrors {@link #insertMilestoneIfAbsent}.
+     */
+    @Modifying
+    @Query(value = """
+            insert into chat_messages (room_id, sender_user_id, kind, body, payload)
+            values (:roomId, :senderUserId, 'KUDOS', :body, cast(:payload as jsonb))
+            on conflict (
+                sender_user_id,
+                ((payload ->> 'targetUserId')),
+                (((created_at at time zone 'Asia/Seoul')::date))
+            ) where kind = 'KUDOS'
+            do nothing
+            """, nativeQuery = true)
+    int insertKudosIfAbsent(
+            @Param("roomId") Long roomId,
+            @Param("senderUserId") Long senderUserId,
+            @Param("body") String body,
+            @Param("payload") String payload);
+
+    /**
+     * Story 3.5 — read the just-inserted kudos row id so {@code KudosService}
+     * can return a stable {@code KudosDto.kudosId} without depending on a
+     * fragile {@code RETURNING id} (Spring Data's {@code @Modifying} INSERT
+     * returns only the row count). Mirrors the Story 3.1
+     * {@code RevivalEventRepository.findByRoomIdAndUserIdAndEliminatedAt}
+     * post-insert read pattern.
+     *
+     * <p>{@code kstDate} is computed in Java via
+     * {@code LocalDate.now(ZoneId.of("Asia/Seoul"))} and bound directly —
+     * Postgres maps Java's {@code LocalDate} to {@code date} so the
+     * comparison is type-stable with the V12 index expression. Limit 1 is
+     * defence in depth; the partial unique index guarantees at most one
+     * row per triple.
+     */
+    @Query(value = """
+            select id from chat_messages
+            where sender_user_id = :senderUserId
+              and kind = 'KUDOS'
+              and payload->>'targetUserId' = :targetUserId
+              and ((created_at at time zone 'Asia/Seoul')::date) = :kstDate
+            order by id desc
+            limit 1
+            """, nativeQuery = true)
+    Optional<Long> findKudosId(
+            @Param("senderUserId") Long senderUserId,
+            @Param("targetUserId") String targetUserId,
+            @Param("kstDate") LocalDate kstDate);
 }

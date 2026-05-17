@@ -4,6 +4,9 @@ import com.yeosal.api.revival.AlreadyRevivedException;
 import com.yeosal.api.revival.FreeTicketAlreadyUsedException;
 import com.yeosal.api.revival.InsufficientPointsException;
 import com.yeosal.api.revival.NotEliminatedException;
+import com.yeosal.api.room.chat.KudosAlreadySentTodayException;
+import com.yeosal.api.room.chat.KudosTargetNotEligibleException;
+import com.yeosal.api.room.chat.NotFriendsException;
 import org.hibernate.LazyInitializationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,6 +181,48 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> notEliminated(NotEliminatedException exception) {
         return ResponseEntity.badRequest()
                 .body(ApiErrorResponse.of(NotEliminatedException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.5 — same-day duplicate kudos collapsed by the V12 partial
+     * unique index {@code ux_kudos_one_per_day}. The service layer
+     * translates the {@link org.springframework.dao.DataIntegrityViolationException}
+     * caught at the INSERT site into this typed exception so the 409 /
+     * {@link KudosAlreadySentTodayException#CODE} pair is wire-stable
+     * (the generic {@link #dataIntegrity} handler stays out of the kudos
+     * contract).
+     */
+    @ExceptionHandler(KudosAlreadySentTodayException.class)
+    ResponseEntity<ApiErrorResponse> kudosAlreadySentToday(KudosAlreadySentTodayException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(KudosAlreadySentTodayException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.5 — kudos target's {@code survival_state.status} is not in
+     * the eligible {@code {RED, SPECTATOR}} set. Surfaces as 400 /
+     * {@link KudosTargetNotEligibleException#CODE} so the Friend Gift Modal
+     * (Story 3.2 downstream) can show "이 친구는 지금 응원 대상이 아니에요"
+     * without parsing the localized message.
+     */
+    @ExceptionHandler(KudosTargetNotEligibleException.class)
+    ResponseEntity<ApiErrorResponse> kudosTargetNotEligible(KudosTargetNotEligibleException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of(KudosTargetNotEligibleException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.5 — kudos send attempted between two users without an
+     * {@code ACCEPTED} friendship row. Mirrors the
+     * {@link #spectatorWriteForbidden} placement: above the generic
+     * {@link #forbidden} handler so Spring's most-specific-subtype
+     * resolution surfaces the precise 403 / {@link NotFriendsException#CODE}
+     * pair rather than the generic {@code "FORBIDDEN"} bucket.
+     */
+    @ExceptionHandler(NotFriendsException.class)
+    ResponseEntity<ApiErrorResponse> notFriends(NotFriendsException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiErrorResponse.of(NotFriendsException.CODE, exception.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
