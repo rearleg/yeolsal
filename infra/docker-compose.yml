@@ -12,7 +12,13 @@ services:
 
   api:
     build:
-      context: ../BE
+      # Build context is the repo root (not BE/) because BE's Gradle
+      # validateTokens / generateTokens tasks (Story 1.5, Arch §4.16) read
+      # FE/src/theme/tokens.json as the canonical design-system source.
+      # Keeping the context at BE/ leaves tokens.json outside the docker
+      # build sandbox and breaks `./gradlew bootJar` at validateTokens.
+      context: ..
+      dockerfile: BE/Dockerfile
       # Forwarded to BE/Dockerfile so the resulting image carries
       # /app/COMMIT. Set GIT_SHA on the host before
       # `docker compose up -d --build` (e.g. via the deploy.sh wrapper)
