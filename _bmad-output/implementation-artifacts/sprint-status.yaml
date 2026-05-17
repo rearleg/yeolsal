@@ -44,6 +44,8 @@ last_updated: 2026-05-16
 # 2026-05-16: Story 3.1 code review found patch action items — flipped review → in-progress
 # 2026-05-16: Story 3.1 review patches landed — (1) AC3 PERSONAL_POINTS lifetime guard in RevivalService + new unit test; (2) RoomService.create mints room_point_pool row + verify in RoomServiceTest; (3) ApiExceptionHandler maps HttpMessageNotReadableException → 400 VALIDATION + RevivalControllerTest asserts code; (4) JwtChannelInterceptor.ROOM_TOPIC permits /topic/rooms.{id}.points; (5) SelfReviveConfirmModal tracks setTimeout in useRef + clears on unmount/reopen; (6) RevivalConcurrencyIT captures + asserts loser exception type (AlreadyRevived / FreeTicketAlreadyUsed); (7) NEW MeSurvivalFreeTicketIT covers AC1 signup default + atomic check-and-set. FE 256/256 green; BE patches authored, pending CI JDK 21. — flipped in-progress → review
 # 2026-05-17: Story 3.1 self-audit of review patches caught 2 BE bugs introduced by the round and fixed them: (a) RevivalConcurrencyIT.forceRed called SurvivalState package-private setters across packages (revival/ → survival/) — refactored to a reflection helper mirroring SurvivalStateServiceMeAcrossRoomsTest precedent so the IT compiles; (b) FREE_TICKET vs PERSONAL_POINTS race assertion was wrong after Patch 1 — PERSONAL_POINTS can now legitimately fail with BadRequestException when it wins the advisory lock first (lifetime guard); the race test now accepts both AlreadyRevivedException and BadRequestException as valid loser shapes. FE 256/256 still green; BE re-verify pending CI JDK 21.
+# 2026-05-17: Story 3.1 first CI run failed — both new ITs (MeSurvivalFreeTicketIT, RevivalConcurrencyIT PERSONAL_POINTS×2) hit jakarta.persistence.TransactionRequiredException because bare UserRepository.markFreeTicketUsed (a @Modifying @Query) needs an enclosing transaction. Spring Data's SimpleJpaRepository auto-wraps save/find/delete but not custom @Modifying queries. Fixed by wrapping the two test call sites in TransactionTemplate (commit 2de5929). CI re-ran: PASS in 1m32s.
+# 2026-05-17: Story 3.1 merged into main (PR #75, squash d83e130) — flipped review → done.
 # 2026-05-15: Story 2.1 reviewer-approved — flipped review → done
 # 2026-05-16: Story 2.2 code review found patch action items — flipped review → in-progress
 # 2026-05-16: Story 2.2 review patches landed (half-open window + state-only body) — flipped in-progress → review
@@ -84,7 +86,7 @@ development_status:
 
   # Epic 3: Revival Economy
   epic-3: in-progress
-  3-1-free-revival-ticket-self-revival-via-personal-points: review
+  3-1-free-revival-ticket-self-revival-via-personal-points: done
   3-2-friend-gift-revival-push-prompt-friend-gift-modal: backlog
   3-3-wallet-friend-revival-badge-passive-discoverability: backlog
   3-4-wallet-ui-surface: backlog
