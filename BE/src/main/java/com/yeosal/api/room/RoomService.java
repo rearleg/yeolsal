@@ -8,6 +8,8 @@ import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
 import com.yeosal.api.profile.GrassDay;
+import com.yeosal.api.revival.RoomPointPool;
+import com.yeosal.api.revival.RoomPointPoolRepository;
 import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.survival.RecordVisibilityPref;
@@ -55,6 +57,7 @@ public class RoomService {
     private final SurvivalStateService survivalState;
     private final SurvivalStateRepository survivalStates;
     private final RecordVisibilityPrefRepository visibilityPrefs;
+    private final RoomPointPoolRepository roomPointPool;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -76,7 +79,8 @@ public class RoomService {
             com.yeosal.api.realtime.RealtimePublisher realtime,
             SurvivalStateService survivalState,
             SurvivalStateRepository survivalStates,
-            RecordVisibilityPrefRepository visibilityPrefs
+            RecordVisibilityPrefRepository visibilityPrefs,
+            RoomPointPoolRepository roomPointPool
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -93,6 +97,7 @@ public class RoomService {
         this.survivalState = survivalState;
         this.survivalStates = survivalStates;
         this.visibilityPrefs = visibilityPrefs;
+        this.roomPointPool = roomPointPool;
     }
 
     /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
@@ -128,6 +133,11 @@ public class RoomService {
         Room candidate = new Room(name.trim(), owner, min);
         candidate.setMaxMembers((short) maxMembers);
         Room room = rooms.save(candidate);
+        // Story 3.1 — seed the per-room point-pool counter cache. V11 step 15
+        // backfills existing rooms once at migration time, but fresh rooms
+        // created via this method need their pool row minted explicitly so
+        // `RevivalService.selectForUpdate(roomId)` finds it.
+        roomPointPool.save(new RoomPointPool(room.getId(), 0));
         Instant now = clock.instant();
         // AC2 — bind joined_at to the injected Clock so survival_state.grace_ends_at
         // is derived from the SAME instant as the persisted RoomMember.joined_at,

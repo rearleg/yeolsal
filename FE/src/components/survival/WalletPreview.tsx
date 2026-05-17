@@ -14,6 +14,7 @@ import { useMeSurvivalQuery } from "../../lib/query/hooks/survival";
 import { space } from "../../theme/spacing";
 import { palette, surface } from "../../theme/tokens";
 import { Text } from "../ui/Text";
+import { SelfReviveCTA } from "./SelfReviveCTA";
 
 export function WalletPreview() {
   const query = useMeSurvivalQuery();
@@ -26,10 +27,7 @@ export function WalletPreview() {
   const first = entries.length > 0 ? entries[0] : null;
   if (first == null) return null;
 
-  // Story 3.1 will add `user.freeRevivalTicketUsed` on the auth/me DTO.
-  // Until then, render the ticket line unconditionally so the spectator
-  // sees the affordance — the upgrade is additive and copy-stable.
-  const showTicket = true;
+  const showTicket = first.freeRevivalTicketUsed === false;
 
   return (
     <View style={styles.container}>
@@ -56,6 +54,7 @@ export function WalletPreview() {
       >
         {`💚  그룹 포인트 ${first.roomPointPool}`}
       </Text>
+      <SelfReviveCTA roomId={first.roomId} />
     </View>
   );
 }

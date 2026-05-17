@@ -418,6 +418,13 @@ public class SurvivalStateService {
         // and room_point_pool.total for the group counter (V11 backfilled
         // every room with total=0 — null only if the row was somehow
         // deleted, in which case we coalesce to 0 defensively).
+        //
+        // Story 3.1 AC7 — load the user-scoped freeRevivalTicketUsed flag
+        // once per call (not per-row). Missing user → false (defensive;
+        // the auth chain should have already required a valid principal).
+        boolean freeRevivalTicketUsed = users.findById(userId)
+                .map(User::isFreeRevivalTicketUsed)
+                .orElse(false);
         return repository.findByUserIdFetchingRoom(userId).stream()
                 .map(s -> {
                     long roomId = s.getRoom().getId();
@@ -430,7 +437,8 @@ public class SurvivalStateService {
                             s.getRoom().getName(),
                             s.getStatus(),
                             personalPoints,
-                            roomPointPool);
+                            roomPointPool,
+                            freeRevivalTicketUsed);
                 })
                 .toList();
     }

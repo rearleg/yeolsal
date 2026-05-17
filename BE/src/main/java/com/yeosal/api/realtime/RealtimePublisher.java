@@ -1,5 +1,6 @@
 package com.yeosal.api.realtime;
 
+import com.yeosal.api.revival.PointPoolChangePayload;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.survival.SurvivalStateChangePayload;
 import org.slf4j.Logger;
@@ -18,6 +19,8 @@ import org.springframework.stereotype.Component;
  *   <li>{@code /topic/rooms.{roomId}.members} — membership change events</li>
  *   <li>{@code /topic/rooms.{roomId}.survival} — survival-state transitions
  *       (Story 1.2 — same dot-separator convention as chat/members)</li>
+ *   <li>{@code /topic/rooms.{roomId}.points} — group point-pool mutations
+ *       (Story 3.1 self-revival; Story 4.1 will add the FE subscriber)</li>
  *   <li>{@code /user/{userId}/queue/notifications} — per-user fan-in events
  *       (friend requests, accepts, future user-scoped events)</li>
  *   <li>{@code /user/{userId}/queue/private-survival} — immediate private
@@ -73,6 +76,17 @@ public class RealtimePublisher {
         if (!privateOnly) {
             sendTopic("/topic/rooms." + roomId + ".survival", payload);
         }
+    }
+
+    /**
+     * Story 3.1 — group point-pool mutation publish point. Emits to the
+     * room topic so any client subscribed to {@code
+     * /topic/rooms.{roomId}.points} (Story 4.1 wires the FE consumer) sees
+     * the new total. Failures are warn-and-swallowed — a publish hiccup
+     * must never roll back the surrounding revival transaction.
+     */
+    public void publishPointPoolChange(long roomId, PointPoolChangePayload payload) {
+        sendTopic("/topic/rooms." + roomId + ".points", payload);
     }
 
     /**

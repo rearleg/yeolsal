@@ -53,6 +53,7 @@ class RoomServiceEvaluationTest {
     @Mock private SurvivalStateService survivalState;
     @Mock private com.yeosal.api.survival.SurvivalStateRepository survivalStates;
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
+    @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T00:10:00Z"), ZoneId.of("UTC"));
 
@@ -78,7 +79,8 @@ class RoomServiceEvaluationTest {
                 realtime,
                 survivalState,
                 survivalStates,
-                visibilityPrefs);
+                visibilityPrefs,
+                roomPointPool);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         room = makeRoom(42L, "기본 방", alice);

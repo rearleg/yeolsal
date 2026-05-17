@@ -1,5 +1,9 @@
 package com.yeosal.api.common;
 
+import com.yeosal.api.revival.AlreadyRevivedException;
+import com.yeosal.api.revival.FreeTicketAlreadyUsedException;
+import com.yeosal.api.revival.InsufficientPointsException;
+import com.yeosal.api.revival.NotEliminatedException;
 import org.hibernate.LazyInitializationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,6 +11,7 @@ import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -73,12 +78,19 @@ public class ApiExceptionHandler {
 
     /**
      * Missing or unparseable @RequestParam (e.g. {@code ?cursor=not-a-number}).
-     * Without this mapping these surface as the generic 500 path, which the FE
-     * 5xx branch then reports to Sentry as if it were a server bug.
+     * Story 3.1 review finding 3 — {@link HttpMessageNotReadableException}
+     * captures Jackson enum-binding failures on @RequestBody DTOs (e.g.
+     * `{ "source": "INVALID" }` on the revival endpoint) so they surface as
+     * {@code 400 VALIDATION} instead of falling through to the generic 500
+     * handler.
+     *
+     * <p>Without this mapping these surface as the generic 500 path, which
+     * the FE 5xx branch then reports to Sentry as if it were a server bug.
      */
     @ExceptionHandler({
             MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class
     })
     ResponseEntity<ApiErrorResponse> requestParamValidation(Exception exception) {
         return ResponseEntity.badRequest()
@@ -118,6 +130,56 @@ public class ApiExceptionHandler {
      * VALIDATION keeps them out of the FE 5xx branch / Sentry server-bug
      * channel where they don't belong.
      */
+    /**
+     * Story 3.1 — revival lost the advisory-lock race or the partial-unique
+     * index conflict path. Architecture §4.4 — the service layer catches
+     * the {@link DataIntegrityViolationException} from the secondary
+     * defence and rethrows as this typed exception so the generic
+     * {@link #dataIntegrity} handler stays out of the revival contract.
+     */
+    @ExceptionHandler(AlreadyRevivedException.class)
+    ResponseEntity<ApiErrorResponse> alreadyRevived(AlreadyRevivedException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of("ALREADY_REVIVED", exception.getMessage()));
+    }
+
+    /**
+     * Story 3.1 — PERSONAL_POINTS revival attempted with balance below the
+     * 3-point threshold. The balance check runs inside the advisory lock
+     * so the response reflects any in-flight concurrent debits
+     * consistently (FR-8.3.2, epics 445-447).
+     */
+    @ExceptionHandler(InsufficientPointsException.class)
+    ResponseEntity<ApiErrorResponse> insufficientPoints(InsufficientPointsException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of("INSUFFICIENT_POINTS", exception.getMessage()));
+    }
+
+    /**
+     * Story 3.1 — FREE_TICKET revival attempted but the user's lifetime-one
+     * flag is already consumed (parallel session in another room/tab won
+     * the atomic check-and-set). Typed subclass of
+     * {@link BadRequestException} keeps the wire code stable
+     * ({@link FreeTicketAlreadyUsedException#CODE}).
+     */
+    @ExceptionHandler(FreeTicketAlreadyUsedException.class)
+    ResponseEntity<ApiErrorResponse> freeTicketAlreadyUsed(FreeTicketAlreadyUsedException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of(FreeTicketAlreadyUsedException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.1 — revival attempted on a survival_state row whose status
+     * isn't an eliminated lifecycle phase (status ∉ {RED, SPECTATOR}, or
+     * RED/SPECTATOR with null {@code eliminated_at}). Stable wire code
+     * lets the FE surface a precise toast rather than a generic 400.
+     */
+    @ExceptionHandler(NotEliminatedException.class)
+    ResponseEntity<ApiErrorResponse> notEliminated(NotEliminatedException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of(NotEliminatedException.CODE, exception.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> illegalArgument(IllegalArgumentException exception) {
         log.warn("[validation] caller-supplied IllegalArgumentException: {}", exception.getMessage());

@@ -17,6 +17,7 @@ const entry = (
   status,
   personalPoints: 0,
   roomPointPool: 0,
+  freeRevivalTicketUsed: false,
 });
 
 describe("isSpectatorAcrossAllRooms", () => {
