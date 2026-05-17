@@ -305,7 +305,11 @@ class KudosServiceTest {
     }
 
     private SurvivalState stateWithStatus(SurvivalStatus status) {
-        SurvivalState state = new SurvivalState();
+        // 3-arg public constructor — protected no-arg ctor isn't visible from
+        // this package (mirrors the RevivalServiceTest pattern). The Mockito
+        // unit never persists, so null room/user/grace is safe; prePersist
+        // does not touch those fields.
+        SurvivalState state = new SurvivalState(null, null, null);
         setField(state, "status", status);
         setField(state, "lastStateChangeAt", NOW);
         if (status == SurvivalStatus.RED || status == SurvivalStatus.SPECTATOR) {
