@@ -74,8 +74,8 @@ class MeSurvivalControllerTest {
     @WithMockUser
     void mine_returns200WithEnvelope() throws Exception {
         when(survivalStateService.mySurvivalAcrossRooms(VIEWER_USER_ID)).thenReturn(List.of(
-                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE, 6, 0),
-                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR, 0, 0)));
+                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE, 6, 0, false),
+                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR, 0, 0, true)));
 
         mockMvc.perform(get("/api/v1/me/survival"))
                 .andExpect(status().isOk())
@@ -85,10 +85,12 @@ class MeSurvivalControllerTest {
                 .andExpect(jsonPath("$.data[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data[0].personalPoints").value(6))
                 .andExpect(jsonPath("$.data[0].roomPointPool").value(0))
+                .andExpect(jsonPath("$.data[0].freeRevivalTicketUsed").value(false))
                 .andExpect(jsonPath("$.data[1].roomId").value(12))
                 .andExpect(jsonPath("$.data[1].status").value("SPECTATOR"))
                 .andExpect(jsonPath("$.data[1].personalPoints").value(0))
-                .andExpect(jsonPath("$.data[1].roomPointPool").value(0));
+                .andExpect(jsonPath("$.data[1].roomPointPool").value(0))
+                .andExpect(jsonPath("$.data[1].freeRevivalTicketUsed").value(true));
     }
 
     @Test

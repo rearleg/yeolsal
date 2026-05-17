@@ -81,9 +81,13 @@ class SurvivalStateServiceMeAcrossRoomsTest {
 
         List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
 
+        // freeRevivalTicketUsed is false by default — viewer hasn't been
+        // stubbed on `users.findById(...)` so Mockito returns Optional.empty()
+        // and the service path coalesces to false (matches User entity
+        // default for a fresh account).
         assertThat(result).containsExactly(
-                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE, 8, 15),
-                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR, -2, 0));
+                new MeSurvivalEntryDto(11L, "팀 A", SurvivalStatus.ACTIVE, 8, 15, false),
+                new MeSurvivalEntryDto(12L, "팀 B", SurvivalStatus.SPECTATOR, -2, 0, false));
     }
 
     @Test
@@ -126,6 +130,46 @@ class SurvivalStateServiceMeAcrossRoomsTest {
         when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID)).thenReturn(List.of());
 
         assertThat(service.mySurvivalAcrossRooms(VIEWER_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Story 3.1 — freeRevivalTicketUsed reflects users.free_revival_ticket_used; replicated per row")
+    void mySurvivalAcrossRooms_freeTicketUsed_replicatedPerRow() {
+        Room roomA = makeRoom(51L, "팀 A", viewer);
+        Room roomB = makeRoom(52L, "팀 B", viewer);
+        // Flip the viewer's flag to true to assert the read path.
+        try {
+            Field f = User.class.getDeclaredField("freeRevivalTicketUsed");
+            f.setAccessible(true);
+            f.setBoolean(viewer, true);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        when(users.findById(VIEWER_ID)).thenReturn(java.util.Optional.of(viewer));
+        when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID)).thenReturn(List.of(
+                stateOf(roomA, viewer, SurvivalStatus.SPECTATOR),
+                stateOf(roomB, viewer, SurvivalStatus.ACTIVE)));
+        when(personalLedger.sumDeltaByUserIdAndRoomId(anyLong(), anyLong())).thenReturn(0);
+
+        List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
+
+        assertThat(result).extracting(MeSurvivalEntryDto::freeRevivalTicketUsed)
+                .containsExactly(true, true);
+    }
+
+    @Test
+    @DisplayName("Story 3.1 — fresh user (no User row resolved) defaults freeRevivalTicketUsed to false")
+    void mySurvivalAcrossRooms_freshUser_defaultsFreeTicketUsedFalse() {
+        Room roomA = makeRoom(61L, "방 새내기", viewer);
+        when(users.findById(VIEWER_ID)).thenReturn(java.util.Optional.empty());
+        when(survivalRepo.findByUserIdFetchingRoom(VIEWER_ID))
+                .thenReturn(List.of(stateOf(roomA, viewer, SurvivalStatus.ACTIVE)));
+        when(personalLedger.sumDeltaByUserIdAndRoomId(VIEWER_ID, 61L)).thenReturn(0);
+
+        List<MeSurvivalEntryDto> result = service.mySurvivalAcrossRooms(VIEWER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).freeRevivalTicketUsed()).isFalse();
     }
 
     @Test

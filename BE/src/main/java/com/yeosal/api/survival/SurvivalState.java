@@ -114,4 +114,24 @@ public class SurvivalState {
     void setBroadVisibilityAt(Instant broadVisibilityAt) {
         this.broadVisibilityAt = broadVisibilityAt;
     }
+
+    /**
+     * Story 3.1 — revival lifecycle transition. Flips the row back to
+     * {@link SurvivalStatus#ACTIVE} and clears both the elimination
+     * timestamp and the broad-visibility cooldown in one atomic
+     * operation, so the four field writes share a single semantic step
+     * (rather than four loose setters callable from outside the
+     * package).
+     *
+     * <p>Public on the entity (not package-private) because the revival
+     * domain lives in the sibling {@code revival/} package — exposing a
+     * single named operation preserves the "service-mediated mutation"
+     * intent without leaking four cross-package setters.
+     */
+    public void markRevived(Instant now) {
+        this.status = SurvivalStatus.ACTIVE;
+        this.lastStateChangeAt = now;
+        this.eliminatedAt = null;
+        this.broadVisibilityAt = null;
+    }
 }

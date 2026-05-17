@@ -54,6 +54,7 @@ class RoomServiceTest {
     @Mock private SurvivalStateService survivalState;
     @Mock private com.yeosal.api.survival.SurvivalStateRepository survivalStates;
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
+    @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -80,7 +81,8 @@ class RoomServiceTest {
                 realtime,
                 survivalState,
                 survivalStates,
-                visibilityPrefs);
+                visibilityPrefs,
+                roomPointPool);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
@@ -536,6 +538,13 @@ class RoomServiceTest {
         // AC5 — leader-of-record invariant.
         assertThat(roomCaptor.getValue().getOwner().getId()).isEqualTo(alice.getId());
         verify(survivalState, times(1)).initializeOnJoin(roomCaptor.getValue(), alice, now);
+        // Story 3.1 — fresh room must seed its room_point_pool row so
+        // revival flows do not throw on `selectForUpdate(roomId)`.
+        ArgumentCaptor<com.yeosal.api.revival.RoomPointPool> poolCaptor =
+                ArgumentCaptor.forClass(com.yeosal.api.revival.RoomPointPool.class);
+        verify(roomPointPool, times(1)).save(poolCaptor.capture());
+        assertThat(poolCaptor.getValue().getRoomId()).isEqualTo(42L);
+        assertThat(poolCaptor.getValue().getTotal()).isZero();
     }
 
     @Test

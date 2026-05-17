@@ -37,6 +37,17 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /**
+     * Story 3.1 — lifetime-one free revival ticket flag (Architecture §4.12,
+     * V11 step 2). Persisted as {@code users.free_revival_ticket_used
+     * boolean not null default false}. No JPA setter is exposed; the column
+     * is written exclusively through
+     * {@code UserRepository.markFreeTicketUsed}'s atomic check-and-set —
+     * the lifetime invariant is too important to leave to read-modify-write.
+     */
+    @Column(name = "free_revival_ticket_used", nullable = false)
+    private boolean freeRevivalTicketUsed = false;
+
     protected User() {}
 
     public User(String email, String nickname, String passwordHash, AuthProvider authProvider) {
@@ -63,6 +74,7 @@ public class User {
     public AuthProvider getAuthProvider() { return authProvider; }
     public String getTimezone() { return timezone; }
     public Instant getCreatedAt() { return createdAt; }
+    public boolean isFreeRevivalTicketUsed() { return freeRevivalTicketUsed; }
 
     public void setNickname(String nickname) { this.nickname = nickname; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }

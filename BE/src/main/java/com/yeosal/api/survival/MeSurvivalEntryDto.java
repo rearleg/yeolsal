@@ -27,6 +27,12 @@ package com.yeosal.api.survival;
  *       table itself ships with Story 4.1; until then the field is always
  *       {@code 0} so the FE can render the row with a {@code TODO Story 3.4}
  *       placeholder caption rather than failing the contract.</li>
+ *   <li>{@code freeRevivalTicketUsed} (Story 3.1 AC7) — user-scoped
+ *       lifetime-one flag from {@code users.free_revival_ticket_used}.
+ *       The same boolean is replicated across every row for the user (the
+ *       flag is per-account, not per-room — see Architecture §4.12). The
+ *       FE {@code WalletPreview} hides the "🎟 무료 회생권 1매" line
+ *       when this is {@code true}.</li>
  * </ul>
  */
 public record MeSurvivalEntryDto(
@@ -34,4 +40,5 @@ public record MeSurvivalEntryDto(
         String roomName,
         SurvivalStatus status,
         int personalPoints,
-        int roomPointPool) {}
+        int roomPointPool,
+        boolean freeRevivalTicketUsed) {}

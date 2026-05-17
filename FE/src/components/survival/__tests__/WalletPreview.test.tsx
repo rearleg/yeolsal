@@ -33,12 +33,14 @@ const entry = (
   roomId: number,
   personalPoints: number,
   roomPointPool: number,
+  freeRevivalTicketUsed: boolean = false,
 ): MeSurvivalEntry => ({
   roomId,
   roomName: `room-${roomId}`,
   status: "SPECTATOR",
   personalPoints,
   roomPointPool,
+  freeRevivalTicketUsed,
 });
 
 describe("WalletPreview", () => {
@@ -63,6 +65,17 @@ describe("WalletPreview", () => {
       wrapper: makeWrapper(makeClient()),
     });
     expect(toJSON()).toBeNull();
+  });
+
+  it("Story 3.1 AC7 — when freeRevivalTicketUsed=true, the 🎟 line is NOT rendered", async () => {
+    getMeSurvivalMock.mockResolvedValue([entry(13, 3, 9, true)]);
+    render(<WalletPreview />, { wrapper: makeWrapper(makeClient()) });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("개인 포인트 3점")).toBeTruthy(),
+    );
+    expect(screen.queryByLabelText("무료 회생권 1매")).toBeNull();
+    expect(screen.getByLabelText("그룹 포인트 9")).toBeTruthy();
   });
 
   it("brand-voice-lint Rule 2 — accessibility labels do NOT contain any banned word", async () => {

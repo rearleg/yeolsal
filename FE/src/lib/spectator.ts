@@ -15,6 +15,12 @@ import type { SurvivalState } from "../components/survival/types";
  * Story 2.1 AC7 — `personalPoints` and `roomPointPool` power the spectator
  * `WalletPreview` block on the Today tab. Both default to `0` on the BE
  * when source data is missing.
+ *
+ * Story 3.1 — `freeRevivalTicketUsed` powers the WalletPreview ticket line
+ * and gates the primary self-revival CTA. The flag is user-scoped (lifetime
+ * one across the whole account) and replicated identically across every row
+ * for the user — Architecture §4.12 explicitly stores it on `users`, not
+ * per-room.
  */
 export interface MeSurvivalEntry {
   readonly roomId: number;
@@ -22,6 +28,7 @@ export interface MeSurvivalEntry {
   readonly status: SurvivalState;
   readonly personalPoints: number;
   readonly roomPointPool: number;
+  readonly freeRevivalTicketUsed: boolean;
 }
 
 /**
