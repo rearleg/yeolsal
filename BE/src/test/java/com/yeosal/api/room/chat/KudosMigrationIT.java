@@ -78,9 +78,15 @@ class KudosMigrationIT {
 
         assertThat(indexDef).isNotNull();
         // Proves the IMMUTABLE-cast contract — PR #57 trap defended.
-        assertThat(indexDef).contains("at time zone 'Asia/Seoul'");
-        // Predicate is the partial-index gate that matches the ON CONFLICT clause.
-        assertThat(indexDef).containsIgnoringCase("where (kind");
+        // Postgres pg_get_indexdef() renders `at time zone` as `AT TIME ZONE`
+        // (uppercase) in the canonical form, so the match is case-insensitive.
+        assertThat(indexDef).containsIgnoringCase("at time zone 'Asia/Seoul'");
+        // Partial-index predicate — Postgres may render this as
+        // `WHERE kind = 'KUDOS'` or `WHERE ((kind)::text = 'KUDOS'::text)`
+        // depending on cast normalisation. Assert on the literal `'KUDOS'`
+        // which is invariant.
+        assertThat(indexDef).containsIgnoringCase("where");
+        assertThat(indexDef).contains("'KUDOS'");
     }
 
     @Test
