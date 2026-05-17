@@ -155,7 +155,10 @@ class RevivalConcurrencyIT {
         long userId = f.user().getId();
         forceRed(userId, roomId);
         seedLedger(userId, roomId, (short) 6);
-        users.markFreeTicketUsed(userId);
+        // @Modifying JPQL needs an enclosing transaction — Spring Data's
+        // SimpleJpaRepository auto-wraps the framework methods (save, find,
+        // delete) but NOT custom @Modifying queries.
+        tx.executeWithoutResult(t -> users.markFreeTicketUsed(userId));
 
         Outcomes outcomes = race(
                 () -> revivalService.reviveSelf(roomId, userId, RevivalSource.PERSONAL_POINTS),

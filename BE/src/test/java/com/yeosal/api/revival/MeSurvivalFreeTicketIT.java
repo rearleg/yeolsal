@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -52,6 +53,7 @@ class MeSurvivalFreeTicketIT {
 
     @Autowired private UserRepository users;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private TransactionTemplate tx;
 
     @BeforeEach
     void cleanup() {
@@ -88,8 +90,11 @@ class MeSurvivalFreeTicketIT {
         User u = users.save(new User(
                 "ticket@example.com", "Ticket", "hash", AuthProvider.EMAIL));
 
-        int first = users.markFreeTicketUsed(u.getId());
-        int second = users.markFreeTicketUsed(u.getId());
+        // @Modifying JPQL needs an enclosing transaction — Spring Data's
+        // SimpleJpaRepository auto-wraps save/find/delete but NOT custom
+        // @Modifying queries.
+        int first = tx.execute(t -> users.markFreeTicketUsed(u.getId()));
+        int second = tx.execute(t -> users.markFreeTicketUsed(u.getId()));
 
         assertThat(first).isEqualTo(1);
         assertThat(second).isZero();
