@@ -1,6 +1,6 @@
 # Story 3.5: Kudos message endpoint + chat_messages.kind extension
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
