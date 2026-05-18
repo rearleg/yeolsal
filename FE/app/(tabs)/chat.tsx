@@ -144,6 +144,8 @@ const KIND_PREFIX: Record<ChatMessageKind, string> = {
   REFLECTION: "📖 ",
   MILESTONE: "🏆 ",
   AUTO_LEAVE: "🚪 ",
+  // Story 3.5 — matches the kudos push title 🌿 brand-voice convention.
+  KUDOS: "🌿 ",
 };
 
 function previewFor(message: ChatMessageDto | null): string {

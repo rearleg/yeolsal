@@ -150,6 +150,11 @@ public class NotificationService {
             // pings — one switch silences all spectator/friend pings without
             // disabling goal/reflection nudges.
             case SPECTATOR_DIGEST -> pref.isEventHooksEnabled();
+            // Story 3.5 — kudos pushes ride the same event_hooks_enabled
+            // toggle so one switch silences kudos + friend pings + spectator
+            // digest without affecting the user's own goal/reflection
+            // cron nudges.
+            case KUDOS_RECEIVED -> pref.isEventHooksEnabled();
         };
     }
 

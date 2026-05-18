@@ -2,6 +2,7 @@ package com.yeosal.api.realtime;
 
 import com.yeosal.api.revival.PointPoolChangePayload;
 import com.yeosal.api.room.chat.ChatService;
+import com.yeosal.api.room.chat.KudosSentPayload;
 import com.yeosal.api.survival.SurvivalStateChangePayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Component;
  *       (Story 1.2 — same dot-separator convention as chat/members)</li>
  *   <li>{@code /topic/rooms.{roomId}.points} — group point-pool mutations
  *       (Story 3.1 self-revival; Story 4.1 will add the FE subscriber)</li>
+ *   <li>{@code /topic/rooms.{roomId}.kudos} — kudos message events
+ *       (Story 3.5)</li>
  *   <li>{@code /user/{userId}/queue/notifications} — per-user fan-in events
  *       (friend requests, accepts, future user-scoped events)</li>
  *   <li>{@code /user/{userId}/queue/private-survival} — immediate private
@@ -87,6 +90,20 @@ public class RealtimePublisher {
      */
     public void publishPointPoolChange(long roomId, PointPoolChangePayload payload) {
         sendTopic("/topic/rooms." + roomId + ".points", payload);
+    }
+
+    /**
+     * Story 3.5 — kudos sent publish point. Emits to the room topic so
+     * any authenticated member subscribed to {@code
+     * /topic/rooms.{roomId}.kudos} sees the kudos frame in real time.
+     * The {@link com.yeosal.api.room.chat.KudosRealtimeListener} fires this
+     * post-commit so a rolled-back kudos write never lights up the
+     * realtime fan-out. Failures are warn-and-swallowed via
+     * {@link #sendTopic} — a broker hiccup must NEVER roll back the
+     * surrounding kudos transaction.
+     */
+    public void publishKudos(long roomId, KudosSentPayload payload) {
+        sendTopic("/topic/rooms." + roomId + ".kudos", payload);
     }
 
     /**

@@ -50,6 +50,18 @@ describe("routeInvalidation", () => {
     expect(arg.predicate({ queryKey: ["rooms", 42, "members"] })).toBe(false);
   });
 
+  // Story 3.5 — KUDOS_RECEIVED uses the same predicate as MILESTONE so the
+  // receiver's chat list refreshes when the kudos push arrives.
+  it("KUDOS_RECEIVED invalidates room messages by predicate", () => {
+    const { qc, invalidate } = makeQcSpy();
+    routeInvalidation(qc, "KUDOS_RECEIVED");
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    const arg = invalidate.mock.calls[0][0];
+    expect(arg.predicate({ queryKey: ["rooms", 42, "messages"] })).toBe(true);
+    expect(arg.predicate({ queryKey: ["feed", "2026-05-03"] })).toBe(false);
+    expect(arg.predicate({ queryKey: ["rooms", 42, "members"] })).toBe(false);
+  });
+
   it("GOAL_NUDGE / REFLECTION_NUDGE are self-nudges and invalidate nothing", () => {
     for (const kind of ["GOAL_NUDGE", "REFLECTION_NUDGE"] as const) {
       const { qc, invalidate } = makeQcSpy();
