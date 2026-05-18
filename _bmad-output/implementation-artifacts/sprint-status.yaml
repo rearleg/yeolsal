@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-11
-last_updated: 2026-05-17
+last_updated: 2026-05-18
 # (epic-2 done; epic-3 in-progress — story 3.5 context engineered 2026-05-17, picked per locked execution order 3.1 → 3.5 → 3.2 → 3.3 → 3.4)
 # (epic-2 done; epic-3 in-progress — story 3.1 context engineered 2026-05-16)
 # 2026-05-16: Story 3.1 dev-story start — flipped ready-for-dev → in-progress
@@ -63,6 +63,8 @@ last_updated: 2026-05-17
 # 2026-05-17: Story 3.5 context engineered (Kudos endpoint + V12 chat_messages.kind extension). Picked per epics line 1192 locked execution order (3.1 → 3.5 → 3.2 → 3.3 → 3.4) — story 3.2 has dependency on Story 3.5's POST /api/v1/rooms/{id}/kudos endpoint + chat_messages.kind='KUDOS' enum. Flipped 3-5 backlog → ready-for-dev. Story file noted two critical deviations from PRD/epics text: (1) V11 already shipped without KUDOS — new V12__chat_kudos.sql required (smallest free integer); (2) PRD's date_part('day', …) dedupe formula is wrong (month-spanning collisions) — V12 uses ((created_at at time zone 'Asia/Seoul')::date) IMMUTABLE expression per PR #57 precedent.
 # 2026-05-17: Story 3.5 dev-story start — flipped ready-for-dev → in-progress.
 # 2026-05-17: Story 3.5 implementation complete (BE kudos module — V12__chat_kudos.sql (CHECK widened + ux_kudos_one_per_day IMMUTABLE Asia/Seoul ::date expression) + ChatMessageKind.KUDOS + ChatMessageRepository.insertKudosIfAbsent/findKudosId native queries + KudosRequest/KudosDto/KudosSentEvent/KudosSentPayload records + KudosService (member→self→target-member→sender-spectator→target-eligibility→friendship→message-trim→INSERT→DIVE-translation flow) + KudosController @PostMapping(/{id}/kudos) @ResponseStatus(CREATED) + KudosAlreadySentTodayException/KudosTargetNotEligibleException/NotFriendsException + 3 ApiExceptionHandler mappings + NotificationKind.KUDOS_RECEIVED + isCronEnabled branch + RealtimePublisher.publishKudos + JwtChannelInterceptor regex |kudos + KudosRealtimeListener AFTER_COMMIT (push + WS) + 4 BE test files (KudosServiceTest 16 cases, KudosControllerTest 10 cases, KudosMigrationIT 5 cases, KudosConcurrencyIT race) + FE api/kudos.ts + chat.ts union "KUDOS" + useSendKudos hook + SystemMessage KUDOS visual (heart + coralSoft + emphasized) + KIND_LABEL["KUDOS"]="응원" + chat tab KIND_PREFIX["KUDOS"]="🌿 " + notifications.routeInvalidation KUDOS_RECEIVED → roomMessages predicate + 3 FE test files (SystemMessage 4 cases, useSendKudos 5 cases, notifications +1 case). FE 266/266 green, BE tests pending CI JDK 21, brand-voice-lint 0 HARD.) — flipped in-progress → review.
+# 2026-05-17: Story 3.5 first CI run failed — KudosServiceTest.stateWithStatus called the protected no-arg `new SurvivalState()` from com.yeosal.api.room.chat (not accessible across packages). Fixed by switching to the public 3-arg ctor `new SurvivalState(null, null, null)` mirroring the RevivalServiceTest precedent (commit 300f2b7). Second CI run failed on two assertions: V11MigrationIT.v11_appliesCleanly asserted topVersion="11" but V12 now exists (bumped to "12"); KudosMigrationIT.indexExistsWithKstExpression used case-sensitive `contains("at time zone 'Asia/Seoul'")` but Postgres pg_get_indexdef() renders the operator uppercase (switched to containsIgnoringCase; WHERE predicate simplified to `'KUDOS'` literal). Both landed in commit ffa54d8. CI re-ran: PASS in 1m46s.
+# 2026-05-18: Story 3.5 merged into main (PR #78, squash e5fdea7) — flipped review → done.
 project: yeolsal
 project_key: NOKEY
 tracking_system: file-system
@@ -93,7 +95,7 @@ development_status:
   3-2-friend-gift-revival-push-prompt-friend-gift-modal: backlog
   3-3-wallet-friend-revival-badge-passive-discoverability: backlog
   3-4-wallet-ui-surface: backlog
-  3-5-kudos-message-endpoint-chat-messages-kind-extension: in-progress
+  3-5-kudos-message-endpoint-chat-messages-kind-extension: done
   epic-3-retrospective: optional
 
   # Epic 4: Group Point Pool & Future Redemption Promise
