@@ -1,6 +1,8 @@
 package com.yeosal.api.revival;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -84,4 +86,76 @@ public interface RevivalEventRepository extends JpaRepository<RevivalEvent, Long
      */
     Optional<RevivalEvent> findByRoomIdAndUserIdAndEliminatedAt(
             long roomId, long userId, Instant eliminatedAt);
+
+    /**
+     * Story 3.2 AC1 step 17 — lifetime-1 M3.5 marker pre-check. Returns
+     * {@code true} iff the giver has at least one prior FRIEND_GIFT row
+     * in {@code revival_events} EXCLUDING the row whose id is
+     * {@code excludeRevivalEventId}.
+     *
+     * <p>The EXCLUDING-self semantics is what makes the lifetime-1 check
+     * race-free inside the friend-gift transaction: the freshly-inserted
+     * row IS visible to a SELECT inside the same transaction (PostgreSQL
+     * sees its own writes), so the caller must pass the just-inserted row
+     * id to exclude itself from the "any prior gift" question.
+     *
+     * <p>Pass {@code -1L} as {@code excludeRevivalEventId} from any caller
+     * that does NOT need to exclude a row (e.g. the
+     * {@code GET /me/has-given-friend-gift} endpoint at BE-12, where the
+     * answer is purely retrospective). No row has id {@code -1L}, so the
+     * exclude clause becomes a no-op.
+     *
+     * <p>Native query (not JPQL) so the cross-package call from
+     * {@code RevivalService.reviveFriend} reads as the precise SQL we
+     * intend, with no Hibernate dialect quirks around the {@code id <>}
+     * comparison on an autoincrement column.
+     */
+    @Query(value = """
+            select exists(
+                select 1 from revival_events
+                where giver_user_id = :giverId
+                  and source = 'FRIEND_GIFT'
+                  and succeeded = true
+                  and id <> :excludeId
+            )
+            """, nativeQuery = true)
+    boolean existsFriendGiftSendByGiver(
+            @Param("giverId") long giverUserId,
+            @Param("excludeId") long excludeRevivalEventId);
+
+    /**
+     * Story 3.2 AC7 — 7-day FRIEND_GIFT receive window for the receiver
+     * (epics 501-503, UX line 1334). The KST day-level predicate uses the
+     * IMMUTABLE {@code (occurred_at at time zone 'Asia/Seoul')::date} cast
+     * shape consistent with the V12 partial-unique-index expression Story
+     * 3.5 shipped (PR #57 precedent — the cast is required by partial-
+     * unique-index expressions and applied here for codebase consistency
+     * even though the SELECT WHERE clause does not strictly need
+     * IMMUTABLE).
+     *
+     * <p>Caller (the {@code MeFriendGiftController}) passes
+     * {@code kstToday = LocalDate.now(ZoneId.of("Asia/Seoul"))} and
+     * {@code kstWindowStart = kstToday.minusDays(6)} for inclusive 0..6 day
+     * coverage. A 7-day-old row falls outside the {@code >=} window and is
+     * naturally excluded (story CRITICAL note 5).
+     *
+     * <p>Filters {@code user_id = :receiverUserId} — the receiver is the
+     * {@code user_id} column for FRIEND_GIFT rows; {@code giver_user_id} is
+     * the donor. AC9 privacy requires this query NEVER return rows where
+     * the calling user is the {@code giver_user_id} (the donor's wallet
+     * history is a separate surface owned by Story 3.4).
+     */
+    @Query(value = """
+            select * from revival_events
+            where user_id = :receiverUserId
+              and source = 'FRIEND_GIFT'
+              and succeeded = true
+              and ((occurred_at at time zone 'Asia/Seoul')::date) >= :kstWindowStart
+              and ((occurred_at at time zone 'Asia/Seoul')::date) <= :kstToday
+            order by occurred_at desc
+            """, nativeQuery = true)
+    List<RevivalEvent> findFriendGiftReceiptsWithin7Days(
+            @Param("receiverUserId") long receiverUserId,
+            @Param("kstWindowStart") LocalDate kstWindowStart,
+            @Param("kstToday") LocalDate kstToday);
 }

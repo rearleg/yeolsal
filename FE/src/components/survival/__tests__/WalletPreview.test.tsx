@@ -10,9 +10,19 @@ import { WalletPreview } from "../WalletPreview";
 jest.mock("../../../api/survival", () => ({
   getMeSurvival: jest.fn(),
 }));
+jest.mock("../../../api/friendGiftTargets", () => ({
+  getFriendGiftTargets: jest.fn(),
+}));
 
 const getMeSurvivalMock =
   survivalApi.getMeSurvival as jest.MockedFunction<typeof survivalApi.getMeSurvival>;
+// Lazy require so the import order stays clean while letting the jest.mock
+// above hoist correctly.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const targetsApi = require("../../../api/friendGiftTargets") as {
+  getFriendGiftTargets: jest.MockedFunction<() => Promise<unknown>>;
+};
+const getTargetsMock = targetsApi.getFriendGiftTargets;
 
 function makeClient() {
   return new QueryClient({
@@ -46,6 +56,8 @@ const entry = (
 describe("WalletPreview", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default — no eligible badge targets. Each Story 3.3 case overrides.
+    getTargetsMock.mockResolvedValue([]);
   });
 
   it("renders all three lines with the first room's data when entries exist", async () => {
@@ -102,5 +114,40 @@ describe("WalletPreview", () => {
         expect(label).not.toContain(b);
       }
     }
+  });
+
+  it("Story 3.3 — when useFriendGiftTargets has one eligible target, the badge renders", async () => {
+    getMeSurvivalMock.mockResolvedValue([entry(11, 10, 18)]);
+    getTargetsMock.mockResolvedValue([
+      {
+        roomId: 11,
+        roomName: "room-11",
+        eligibleCount: 1,
+        friends: [
+          {
+            userId: 99,
+            nickname: "FFF",
+            status: "RED",
+            eliminatedAt: "2026-05-18T03:14:15Z",
+          },
+        ],
+      },
+    ]);
+    render(<WalletPreview />, { wrapper: makeWrapper(makeClient()) });
+
+    await waitFor(() =>
+      expect(screen.getByText("친구 회생 대기 (1)")).toBeTruthy(),
+    );
+  });
+
+  it("Story 3.3 — when useFriendGiftTargets is empty, the badge does NOT render", async () => {
+    getMeSurvivalMock.mockResolvedValue([entry(11, 10, 18)]);
+    getTargetsMock.mockResolvedValue([]);
+    render(<WalletPreview />, { wrapper: makeWrapper(makeClient()) });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("개인 포인트 10점")).toBeTruthy(),
+    );
+    expect(screen.queryByText(/친구 회생 대기/)).toBeNull();
   });
 });

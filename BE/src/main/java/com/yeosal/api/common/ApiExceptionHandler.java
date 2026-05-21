@@ -2,8 +2,10 @@ package com.yeosal.api.common;
 
 import com.yeosal.api.revival.AlreadyRevivedException;
 import com.yeosal.api.revival.FreeTicketAlreadyUsedException;
+import com.yeosal.api.revival.InsufficientGiftPointsException;
 import com.yeosal.api.revival.InsufficientPointsException;
 import com.yeosal.api.revival.NotEliminatedException;
+import com.yeosal.api.revival.NotFriendsForGiftException;
 import com.yeosal.api.room.chat.KudosAlreadySentTodayException;
 import com.yeosal.api.room.chat.KudosTargetNotEligibleException;
 import com.yeosal.api.room.chat.NotFriendsException;
@@ -223,6 +225,36 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> notFriends(NotFriendsException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiErrorResponse.of(NotFriendsException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.2 — friend-gift attempted with personal-points balance below
+     * the 5-point threshold (FR-8.3.3). Distinct wire code from Story 3.1's
+     * {@link #insufficientPoints} so the FE friend-gift modal can show the
+     * precise threshold ("5점 필요") in its toast / disabled-state copy.
+     */
+    @ExceptionHandler(InsufficientGiftPointsException.class)
+    ResponseEntity<ApiErrorResponse> insufficientGiftPoints(InsufficientGiftPointsException exception) {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorResponse.of(InsufficientGiftPointsException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 3.2 — friend-gift attempted between two users without an
+     * {@code ACCEPTED} friendship row. Distinct wire code from Story 3.5's
+     * {@link #notFriends} ({@code NOT_FRIENDS}) so the Friend Gift Modal can
+     * branch on the precise gate that failed — the kudos secondary CTA may
+     * still emit {@code NOT_FRIENDS}, while the primary friend-gift CTA
+     * emits {@code NOT_FRIENDS_FOR_GIFT}.
+     *
+     * <p>Placed above the generic {@link #forbidden} handler for human
+     * readability — Spring's most-specific-subtype resolution surfaces the
+     * precise handler regardless of source order.
+     */
+    @ExceptionHandler(NotFriendsForGiftException.class)
+    ResponseEntity<ApiErrorResponse> notFriendsForGift(NotFriendsForGiftException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiErrorResponse.of(NotFriendsForGiftException.CODE, exception.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

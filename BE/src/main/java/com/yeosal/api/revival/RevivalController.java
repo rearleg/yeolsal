@@ -56,4 +56,29 @@ public class RevivalController {
         return ApiResponse.of(
                 revivalService.reviveSelf(id, me.getId(), body.source()));
     }
+
+    /**
+     * Story 3.2 AC1 — friend-gift revival endpoint (FR-8.3.3).
+     *
+     * <p>Returns 200 OK (not 201 Created) to match Story 3.1 self-revival
+     * convention — the resource isn't a new RESTful resource, it's a
+     * state transition. Membership precheck is the same cheap fence as
+     * {@link #revive}; the service layer enforces every other gate
+     * (self-target / target-membership / friendship / spectator /
+     * balance) inside its @Transactional boundary so direct service
+     * callers get the same defence.
+     */
+    @PostMapping("/{id}/revivals/gifts")
+    public ApiResponse<FriendGiftRevivalDto> reviveFriend(
+            Authentication auth,
+            @PathVariable long id,
+            @Valid @RequestBody FriendGiftRequest body) {
+        User me = currentUser.require(auth);
+        if (!roomMembers.existsByRoomIdAndUserId(id, me.getId())) {
+            throw new ForbiddenException("방 멤버만 회생권을 선물할 수 있어요.");
+        }
+        return ApiResponse.of(
+                revivalService.reviveFriend(
+                        id, me, body.targetUserId(), body.sourceSubtype()));
+    }
 }
