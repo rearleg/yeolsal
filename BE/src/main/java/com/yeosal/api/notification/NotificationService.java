@@ -155,6 +155,11 @@ public class NotificationService {
             // digest without affecting the user's own goal/reflection
             // cron nudges.
             case KUDOS_RECEIVED -> pref.isEventHooksEnabled();
+            // Story 3.2 — friend-gift prompt fan-out (eligible givers) and
+            // receiver donor-confirmation share the event_hooks_enabled
+            // toggle. Same rationale as KUDOS_RECEIVED — one switch silences
+            // all friend-revival pings without affecting self-nudges.
+            case FRIEND_GIFT_PROMPT, FRIEND_GIFT_RECEIVED -> pref.isEventHooksEnabled();
         };
     }
 

@@ -9,16 +9,32 @@
 // the 8 banned words. The emoji prefixes (🎟 / 🌿 / 💚) carry the dignity
 // tone; pure RED is banned on spectator surfaces (UX A11 v2 guard).
 
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useMeSurvivalQuery } from "../../lib/query/hooks/survival";
 import { space } from "../../theme/spacing";
 import { palette, surface } from "../../theme/tokens";
 import { Text } from "../ui/Text";
+import {
+  FriendGiftBadge,
+  type FriendGiftBadgeTapTarget,
+} from "../revival/FriendGiftBadge";
+import { FriendGiftModal } from "../revival/FriendGiftModal";
+import { FriendGiftPickerSheet } from "../revival/FriendGiftPickerSheet";
+import type {
+  FriendGiftTargetSummaryDto,
+} from "../../api/friendGiftTargets";
 import { SelfReviveCTA } from "./SelfReviveCTA";
 
 export function WalletPreview() {
   const query = useMeSurvivalQuery();
   const entries = query.data ?? [];
+
+  // Story 3.3 — local state for the badge tap flow (N=1 → modal direct;
+  // N>1 → picker → modal). Lifted to WalletPreview because the badge,
+  // picker, and modal need to coordinate around the same room context.
+  const [pickerRoom, setPickerRoom] = useState<FriendGiftTargetSummaryDto | null>(null);
+  const [modalTarget, setModalTarget] = useState<FriendGiftBadgeTapTarget | null>(null);
 
   // v1 — read from the FIRST entry (multi-room aggregation lands in Story 3.4).
   // Fall through to null when the viewer has no rooms (the parent screen
@@ -54,7 +70,38 @@ export function WalletPreview() {
       >
         {`💚  그룹 포인트 ${first.roomPointPool}`}
       </Text>
+      <FriendGiftBadge
+        roomId={first.roomId}
+        onTap={setModalTarget}
+        onTapMulti={setPickerRoom}
+      />
       <SelfReviveCTA roomId={first.roomId} />
+
+      <FriendGiftPickerSheet
+        open={pickerRoom != null}
+        room={pickerRoom}
+        onSelect={(friend) => {
+          if (pickerRoom == null) return;
+          setModalTarget({
+            roomId: pickerRoom.roomId,
+            receiverUserId: friend.userId,
+            receiverNickname: friend.nickname,
+          });
+          setPickerRoom(null);
+        }}
+        onCancel={() => setPickerRoom(null)}
+      />
+
+      {modalTarget != null ? (
+        <FriendGiftModal
+          open
+          onClose={() => setModalTarget(null)}
+          roomId={modalTarget.roomId}
+          receiverUserId={modalTarget.receiverUserId}
+          receiverNickname={modalTarget.receiverNickname}
+          sourceSubtype="WALLET_INITIATED"
+        />
+      ) : null}
     </View>
   );
 }

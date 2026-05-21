@@ -6,7 +6,10 @@ import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { useWantedSans } from "../src/lib/fonts";
 import { useIsSpectatorEverywhere } from "../src/lib/query/hooks/survival";
 import { registerForPushAsync } from "../src/lib/push";
-import { useNotificationInvalidation } from "../src/lib/notifications";
+import {
+  useNotificationInvalidation,
+  useNotificationResponseDeepLink,
+} from "../src/lib/notifications";
 import { setupReactQueryFocus } from "../src/lib/query/focus";
 import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
 import { QueryProvider } from "../src/providers/QueryProvider";
@@ -88,6 +91,10 @@ export default function RootLayout() {
  */
 function NotificationInvalidationBootstrap() {
   useNotificationInvalidation();
+  // Story 3.2 FE-11 — push-tap deep-link handler. Branches on data.kind to
+  // push the room route and write the SecureStore pending slot the room
+  // screen reads on mount.
+  useNotificationResponseDeepLink();
   return null;
 }
 

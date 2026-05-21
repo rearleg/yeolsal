@@ -13,7 +13,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.friend.FriendshipRepository;
 import com.yeosal.api.room.Room;
+import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateRepository;
@@ -77,6 +79,8 @@ class RevivalServiceTest {
     @Mock private RevivalEventRepository revivalEvents;
     @Mock private PersonalPointsLedgerRepository personalLedger;
     @Mock private RoomPointPoolRepository roomPointPool;
+    @Mock private FriendshipRepository friendships;
+    @Mock private RoomMemberRepository roomMembers;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private EntityManager entityManager;
     @Mock private Query advisoryLockQuery;
@@ -90,7 +94,8 @@ class RevivalServiceTest {
     void setUp() {
         service = new RevivalService(
                 survivalStates, rooms, users, revivalEvents, personalLedger,
-                roomPointPool, eventPublisher, entityManager, CLOCK);
+                roomPointPool, friendships, roomMembers,
+                eventPublisher, entityManager, CLOCK);
 
         user = makeUser(USER_ID, "user@example.com", "User");
         owner = makeUser(OWNER_ID, "owner@example.com", "Owner");

@@ -1,5 +1,20 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { routeInvalidation } from "../notifications";
+import {
+  PENDING_FRIEND_GIFT_PROMPT_KEY,
+  PENDING_REVIVAL_SEQUENCE_KEY,
+  routeInvalidation,
+} from "../notifications";
+import { qk } from "../query/keys";
+
+jest.mock("expo-secure-store", () => ({
+  setItemAsync: jest.fn(),
+  getItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}));
+
+const SecureStore = jest.requireMock("expo-secure-store") as {
+  setItemAsync: jest.Mock;
+};
 
 function makeQcSpy(): {
   qc: QueryClient;
@@ -88,5 +103,54 @@ describe("routeInvalidation", () => {
     const { qc, invalidate } = makeQcSpy();
     routeInvalidation(qc, "WHATEVER_NEW_KIND");
     expect(invalidate).toHaveBeenCalledTimes(3);
+  });
+
+  // Story 3.2 AC10 — FRIEND_GIFT_PROMPT invalidates meSurvival + writes the
+  // SecureStore pending slot so the room screen can deep-link to the modal.
+  it("FRIEND_GIFT_PROMPT invalidates meSurvival and writes pending prompt slot", async () => {
+    SecureStore.setItemAsync.mockClear();
+    const { qc, invalidate } = makeQcSpy();
+    const data = {
+      kind: "FRIEND_GIFT_PROMPT",
+      roomId: 42,
+      receiverUserId: 11,
+      receiverNickname: "수진",
+      revivalEliminationKey: 1747555200000,
+    };
+    routeInvalidation(qc, "FRIEND_GIFT_PROMPT", data);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.meSurvival });
+    // SecureStore write is async-fired-and-forgot; flush microtasks.
+    await Promise.resolve();
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      PENDING_FRIEND_GIFT_PROMPT_KEY,
+      expect.stringContaining("\"roomId\":42"),
+    );
+  });
+
+  // Story 3.2 AC10 — FRIEND_GIFT_RECEIVED invalidates meSurvival +
+  // friendGiftReceipts + room-messages predicate + writes the sequence slot.
+  it("FRIEND_GIFT_RECEIVED invalidates meSurvival + friendGiftReceipts + messages + writes sequence slot", async () => {
+    SecureStore.setItemAsync.mockClear();
+    const { qc, invalidate } = makeQcSpy();
+    const data = {
+      kind: "FRIEND_GIFT_RECEIVED",
+      roomId: 42,
+      revivalEventId: 9002,
+      giverNickname: "정민",
+    };
+    routeInvalidation(qc, "FRIEND_GIFT_RECEIVED", data);
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toEqual(expect.arrayContaining([
+      JSON.stringify(qk.meSurvival),
+      JSON.stringify(qk.friendGiftReceipts),
+    ]));
+    // Plus one predicate call for room messages.
+    const predicateCall = invalidate.mock.calls.find((c) => c[0]?.predicate != null);
+    expect(predicateCall).toBeDefined();
+    await Promise.resolve();
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      PENDING_REVIVAL_SEQUENCE_KEY,
+      expect.stringContaining("\"revivalEventId\":9002"),
+    );
   });
 });

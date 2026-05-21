@@ -27,6 +27,10 @@ export function useSelfRevival(roomId: number) {
     mutationFn: (source) => postSelfRevival(roomId, source),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.meSurvival });
+      // Story 3.3 — self-revival flips caller ACTIVE → defensively
+      // invalidate the targets cache (which is keyed on the caller as
+      // GIVER, so this scrubs any stale per-room snapshot).
+      queryClient.invalidateQueries({ queryKey: qk.friendGiftTargets });
     },
     onError: (error) => {
       if (error instanceof ApiError) {
@@ -35,6 +39,7 @@ export function useSelfRevival(roomId: number) {
           error.code === "FREE_TICKET_ALREADY_USED"
         ) {
           queryClient.invalidateQueries({ queryKey: qk.meSurvival });
+          queryClient.invalidateQueries({ queryKey: qk.friendGiftTargets });
         }
       }
     },

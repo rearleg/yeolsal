@@ -1,8 +1,14 @@
 package com.yeosal.api.revival;
 
 import com.yeosal.api.common.BadRequestException;
+import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.common.SpectatorWriteForbiddenException;
+import com.yeosal.api.friend.Friendship;
+import com.yeosal.api.friend.FriendshipRepository;
+import com.yeosal.api.friend.FriendshipStatus;
 import com.yeosal.api.room.Room;
+import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateRepository;
@@ -13,6 +19,7 @@ import com.yeosal.api.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -61,6 +68,9 @@ public class RevivalService {
     static final short FREE_TICKET_POOL_DELTA = 5;
     static final short PERSONAL_POINTS_COST = 3;
     static final short PERSONAL_POINTS_POOL_DELTA = 3;
+    /** Story 3.2 — donor pays 5 personal points; pool gains the same +5. */
+    static final short FRIEND_GIFT_COST = 5;
+    static final short FRIEND_GIFT_POOL_DELTA = 5;
     private static final String DEDUP_CONSTRAINT = "ux_revival_events_one_per_elimination";
 
     private final SurvivalStateRepository survivalStates;
@@ -69,6 +79,8 @@ public class RevivalService {
     private final RevivalEventRepository revivalEvents;
     private final PersonalPointsLedgerRepository personalLedger;
     private final RoomPointPoolRepository roomPointPool;
+    private final FriendshipRepository friendships;
+    private final RoomMemberRepository roomMembers;
     private final ApplicationEventPublisher eventPublisher;
     private final EntityManager entityManager;
     private final Clock clock;
@@ -80,6 +92,8 @@ public class RevivalService {
             RevivalEventRepository revivalEvents,
             PersonalPointsLedgerRepository personalLedger,
             RoomPointPoolRepository roomPointPool,
+            FriendshipRepository friendships,
+            RoomMemberRepository roomMembers,
             ApplicationEventPublisher eventPublisher,
             EntityManager entityManager,
             Clock clock) {
@@ -89,6 +103,8 @@ public class RevivalService {
         this.revivalEvents = revivalEvents;
         this.personalLedger = personalLedger;
         this.roomPointPool = roomPointPool;
+        this.friendships = friendships;
+        this.roomMembers = roomMembers;
         this.eventPublisher = eventPublisher;
         this.entityManager = entityManager;
         this.clock = clock;
@@ -205,6 +221,202 @@ public class RevivalService {
         }
         return new RevivalEventDto(
                 revivalEventId, source.name(), pointsSpent, newTotal, now);
+    }
+
+    /**
+     * Story 3.2 — friend-gift orchestrator (FR-8.3.3, AC1 17-step sequence).
+     *
+     * <p>Shares the advisory-lock + partial-unique-index defence with
+     * {@link #reviveSelf}: the lock key is byte-identical to the
+     * self-revival key with {@code userId = targetUserId}, so a
+     * self-revival attempt and a friend-gift attempt on the same
+     * elimination contend on the SAME lock — the index treats them as
+     * the same row tuple. Drift defeats the defence (CRITICAL note 1 in
+     * the story file).
+     *
+     * <p>Throws (each mapped by {@code ApiExceptionHandler}):
+     * <ul>
+     *   <li>{@link ForbiddenException} — giver not a room member.</li>
+     *   <li>{@link BadRequestException} — self-target.</li>
+     *   <li>{@link NotFoundException} — target not a room member.</li>
+     *   <li>{@link NotEliminatedException} — target status not in
+     *       {RED, SPECTATOR} or {@code eliminated_at == null}.</li>
+     *   <li>{@link SpectatorWriteForbiddenException} — giver is
+     *       SPECTATOR in this room.</li>
+     *   <li>{@link NotFriendsForGiftException} — no ACCEPTED friendship.</li>
+     *   <li>{@link AlreadyRevivedException} — race loser (advisory lock
+     *       or partial unique index conflict).</li>
+     *   <li>{@link InsufficientGiftPointsException} — giver's balance
+     *       below the 5-point threshold (checked inside the lock).</li>
+     * </ul>
+     */
+    @Transactional
+    public FriendGiftRevivalDto reviveFriend(
+            long roomId,
+            User giver,
+            long targetUserId,
+            RevivalSourceSubtype sourceSubtype) {
+        long giverUserId = giver.getId();
+        // Story 3.3 AC3 — null defaults to PUSH_INITIATED so Story 3.2 callers
+        // that don't send the field stay non-null in revival_events (the
+        // semantic contract is "every FRIEND_GIFT row carries a subtype").
+        String resolvedSubtype = (sourceSubtype == null
+                ? RevivalSourceSubtype.PUSH_INITIATED.name()
+                : sourceSubtype.name());
+
+        // (1) Cheap precheck — giver must be a room member. Mirrors the
+        //     controller-layer precheck but defends direct service calls
+        //     (tests, future internal callers).
+        if (!roomMembers.existsByRoomIdAndUserId(roomId, giverUserId)) {
+            throw new ForbiddenException("방 멤버만 회생권을 선물할 수 있어요.");
+        }
+        // (2) Self-target rejection.
+        if (giverUserId == targetUserId) {
+            throw new BadRequestException(
+                    "자기 자신에게는 회생권을 선물할 수 없어요. 무료 회생권이나 개인 포인트를 사용해주세요.");
+        }
+        // (3) Target must also be a room member.
+        if (!roomMembers.existsByRoomIdAndUserId(roomId, targetUserId)) {
+            throw new NotFoundException("대상 멤버를 찾을 수 없어요.");
+        }
+
+        // (4) Target survival state — must be eliminated.
+        SurvivalState targetState = survivalStates.findByRoomIdAndUserId(roomId, targetUserId)
+                .orElseThrow(() -> new NotEliminatedException("회생 가능한 상태가 아닙니다."));
+        SurvivalStatus targetPreStatus = targetState.getStatus();
+        if (targetPreStatus != SurvivalStatus.RED && targetPreStatus != SurvivalStatus.SPECTATOR) {
+            throw new NotEliminatedException("회생 가능한 상태가 아닙니다.");
+        }
+        Instant eliminatedAt = targetState.getEliminatedAt();
+        if (eliminatedAt == null) {
+            throw new NotEliminatedException("회생 가능한 상태가 아닙니다.");
+        }
+
+        // (5) Giver-spectator gate. Reuses the canonical 403 wire code.
+        SurvivalState giverState = survivalStates
+                .findByRoomIdAndUserId(roomId, giverUserId)
+                .orElse(null);
+        if (giverState != null && giverState.getStatus() == SurvivalStatus.SPECTATOR) {
+            throw new SpectatorWriteForbiddenException();
+        }
+
+        // (6) Friendship gate — must have an ACCEPTED row in either direction.
+        User target = users.findById(targetUserId)
+                .orElseThrow(() -> new NotFoundException("대상 멤버를 찾을 수 없어요."));
+        Optional<Friendship> friendship = friendships.findBetween(giver, target)
+                .filter(f -> f.getStatus() == FriendshipStatus.ACCEPTED);
+        if (friendship.isEmpty()) {
+            throw new NotFriendsForGiftException(
+                    "친구가 된 멤버에게만 회생권을 선물할 수 있어요.");
+        }
+
+        // (7) Advisory-lock acquisition. CRITICAL — byte-identical key to
+        //     reviveSelf with userId substituted by targetUserId so the
+        //     two flows contend on the SAME lock for the same elimination.
+        acquireAdvisoryLock(roomId, targetUserId, eliminatedAt.toEpochMilli());
+
+        // (8) Re-read after the lock — the race winner may have committed
+        //     between our pre-lock read and our lock acquisition.
+        entityManager.refresh(targetState);
+        if (targetState.getStatus() == SurvivalStatus.ACTIVE) {
+            throw new AlreadyRevivedException("이미 회생되었습니다.");
+        }
+
+        // (9) Giver balance — checked INSIDE the lock so any in-flight
+        //     concurrent debit (parallel friend-gift to a different
+        //     target, parallel self-revival) is observed consistently.
+        Integer summed = personalLedger.sumDeltaByUserIdAndRoomId(giverUserId, roomId);
+        int balance = summed == null ? 0 : summed;
+        if (balance < FRIEND_GIFT_COST) {
+            throw new InsufficientGiftPointsException(
+                    "회생권 선물에 필요한 포인트가 부족해요.");
+        }
+
+        // (10) SELECT room_point_pool FOR UPDATE — Architecture §4.6.
+        RoomPointPool pool = roomPointPool.selectForUpdate(roomId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "room_point_pool row missing for roomId=" + roomId));
+        int newTotal = pool.getTotal() + FRIEND_GIFT_POOL_DELTA;
+        Instant now = clock.instant();
+
+        // (11) INSERT revival_events via the existing ON CONFLICT writer.
+        try {
+            int inserted = revivalEvents.insertOnConflictDoNothing(
+                    roomId, targetUserId, giverUserId,
+                    RevivalSource.FRIEND_GIFT.name(),
+                    resolvedSubtype,
+                    FRIEND_GIFT_COST, newTotal, eliminatedAt, now);
+            if (inserted == 0) {
+                throw new AlreadyRevivedException("이미 회생되었습니다.");
+            }
+        } catch (DataIntegrityViolationException ex) {
+            if (isRevivalDedupConflict(ex)) {
+                throw new AlreadyRevivedException("이미 회생되었습니다.");
+            }
+            throw ex;
+        }
+
+        // (12) Read back the just-inserted row id (FK target for ledger +
+        //      payload for FriendGiftSentEvent).
+        long revivalEventId = revivalEvents
+                .findByRoomIdAndUserIdAndEliminatedAt(roomId, targetUserId, eliminatedAt)
+                .map(RevivalEvent::getId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "revival_events row missing after insert: roomId=" + roomId
+                                + " targetUserId=" + targetUserId));
+
+        // (13) Append-only ledger row on the donor side.
+        personalLedger.save(new PersonalPointsLedger(
+                giverUserId, roomId, (short) -FRIEND_GIFT_COST,
+                LedgerReason.FRIEND_GIFT_SPEND, now, revivalEventId));
+
+        // (14) Bump the room pool.
+        int updatedPool = roomPointPool.incrementTotal(roomId, FRIEND_GIFT_POOL_DELTA);
+        if (updatedPool == 0) {
+            throw new IllegalStateException(
+                    "room_point_pool row vanished mid-transaction: roomId=" + roomId);
+        }
+
+        // (15) Flip the target's survival_state to ACTIVE.
+        SurvivalStatus fromStatus = targetState.getStatus();
+        targetState.markRevived(now);
+
+        // (16) Lifetime-1 snapshot — AFTER the INSERT has committed in
+        //      the same transaction (PostgreSQL sees its own writes), and
+        //      BEFORE the event publish so the response DTO carries the
+        //      precise boolean. The EXCLUDING-self clause is what makes
+        //      the check race-free against the just-inserted row.
+        boolean isFirstEverFriendGiftSend = !revivalEvents
+                .existsFriendGiftSendByGiver(giverUserId, revivalEventId);
+
+        // (17) Publish AFTER_COMMIT-driven fan-out events.
+        Room room = rooms.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+        Long ownerUserId = room.getOwner().getId();
+        eventPublisher.publishEvent(new SurvivalStateTransitionEvent(
+                roomId, targetUserId, ownerUserId,
+                fromStatus, SurvivalStatus.ACTIVE,
+                now, /* broadVisibilityAt */ null));
+        eventPublisher.publishEvent(new PointPoolChangeEvent(
+                roomId, FRIEND_GIFT_POOL_DELTA, newTotal, revivalEventId, now));
+        eventPublisher.publishEvent(new FriendGiftSentEvent(
+                roomId, giverUserId, targetUserId, revivalEventId, now));
+
+        if (log.isInfoEnabled()) {
+            log.info(
+                    "[friend-gift] roomId={} giverUserId={} targetUserId={} pointsSpent={} newPool={} eventId={} lifetimeOne={}",
+                    roomId, giverUserId, targetUserId, FRIEND_GIFT_COST, newTotal,
+                    revivalEventId, isFirstEverFriendGiftSend);
+        }
+
+        return new FriendGiftRevivalDto(
+                revivalEventId,
+                RevivalSource.FRIEND_GIFT.name(),
+                FRIEND_GIFT_COST,
+                newTotal,
+                now,
+                isFirstEverFriendGiftSend,
+                target.getNickname());
     }
 
     private static void validatePreLockStatus(SurvivalState state) {

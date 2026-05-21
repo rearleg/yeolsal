@@ -28,5 +28,23 @@ public enum NotificationKind {
      * already at most 1/day/(sender, target) so {@code NotificationLog}
      * provides audit only).
      */
-    KUDOS_RECEIVED
+    KUDOS_RECEIVED,
+    /**
+     * Story 3.2 — invitation-toned push fan-out to eligible givers when a
+     * friend transitions to RED (FR-8.3.4). Rides {@code event_hooks_enabled}.
+     * Per-giver dedup key:
+     * {@code "{roomId}:{receiverUserId}:{eliminatedAtEpochMillis}"} so the
+     * same RED elimination never fires two pushes to the same giver
+     * (idempotent on listener retry / app restart / multi-instance deploy
+     * — {@code notification_log} is the source of truth).
+     */
+    FRIEND_GIFT_PROMPT,
+    /**
+     * Story 3.2 — receiver donor-confirmation push when a friend successfully
+     * gifts the receiver a revival (FR-8.3.5). Rides
+     * {@code event_hooks_enabled}. Dedup key {@code "revival:{revivalEventId}"}
+     * — a single revival can only be friend-gifted by one donor at a time
+     * (partial-unique-index defence) so the key is naturally unique.
+     */
+    FRIEND_GIFT_RECEIVED
 }

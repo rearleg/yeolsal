@@ -41,8 +41,11 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     // Story 2.1 AC6 — SurvivalStateChange (revival, RED → SPECTATOR, etc.)
     // invalidates the cross-room aggregation so the spectator branch flips
     // back to ACTIVE in < 1s without an app restart.
+    // Story 3.3 — the same transitions flip badge eligibility (a friend
+    // entering RED becomes a candidate target; their revival removes them).
     const survivalSub = client.subscribe("/user/queue/private-survival", () => {
       qc.invalidateQueries({ queryKey: qk.meSurvival });
+      qc.invalidateQueries({ queryKey: qk.friendGiftTargets });
     });
     return () => {
       sub.unsubscribe();

@@ -36,6 +36,7 @@ import { space } from "../../src/theme/spacing";
 import { palette, pickRoomAccent, roomHues, semantic } from "../../src/theme/tokens";
 import { SubModeProvider } from "../../src/providers/SubModeProvider";
 import { shouldShowWelcomeWindow, WelcomeWindow } from "../../src/components/welcome";
+import { FriendGiftSurfaces } from "../../src/components/revival/FriendGiftSurfaces";
 
 export default function RoomDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -289,6 +290,13 @@ export default function RoomDetailScreen() {
         </View>
 
         <Button label="그룹 나가기" tone="ghost" size="md" fullWidth onPress={handleLeave} />
+
+        {/* Story 3.2 — friend-gift surfaces: modal deep-link, RevivalSequence,
+            7-day echo footnote. The wrapper reads SecureStore pending slots on
+            mount and decides what to render. */}
+        {Number.isFinite(roomId) && roomId > 0 ? (
+          <FriendGiftSurfaces roomId={roomId} />
+        ) : null}
       </ScrollView>
 
       <InviteCodeSheet

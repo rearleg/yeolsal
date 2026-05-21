@@ -25,4 +25,16 @@ export const qk = {
   // shared across per-room Settings screens; each toggle derives its row by
   // filtering the list locally so the FE never has to default-construct.
   recordVisibilityPrefs: ["recordVisibilityPrefs"] as const,
+  // Story 3.2 — receiver-scoped 7-day FRIEND_GIFT receipts cache. User-
+  // scoped (no parameter) because the BE response is filtered by
+  // `me.user_id`. Powers the `<SevenDayFootnote>` daily-entry caption.
+  friendGiftReceipts: ["friendGiftReceipts"] as const,
+  // Story 3.2 — lifetime-1 fallback. Pure boolean cache; staleTime matches
+  // meSurvival so the M3.5 fallback path can read without a fresh request
+  // every render.
+  hasGivenFriendGift: ["hasGivenFriendGift"] as const,
+  // Story 3.3 — eligible friend-gift TARGETS (caller is the giver). User-
+  // scoped; BE filters by `me.user_id`. Invalidated alongside qk.meSurvival
+  // so a friend's RED/SPECTATOR transition flips badge state.
+  friendGiftTargets: ["friendGiftTargets"] as const,
 };
