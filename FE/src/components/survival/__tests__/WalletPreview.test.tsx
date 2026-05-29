@@ -7,6 +7,9 @@ import * as survivalApi from "../../../api/survival";
 import type { MeSurvivalEntry } from "../../../lib/spectator";
 import { WalletPreview } from "../WalletPreview";
 
+jest.mock("expo-router", () => ({
+  router: { push: jest.fn() },
+}));
 jest.mock("../../../api/survival", () => ({
   getMeSurvival: jest.fn(),
 }));

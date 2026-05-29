@@ -1,5 +1,6 @@
 package com.yeosal.api.revival;
 
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,5 +34,35 @@ public interface PersonalPointsLedgerRepository
             where l.userId = :userId and l.roomId = :roomId
             """)
     Integer sumDeltaByUserIdAndRoomId(
+            @Param("userId") long userId, @Param("roomId") long roomId);
+
+    /**
+     * Story 3.4 AC2 — chronological listing (DESC) of every ledger row for
+     * the {@code (user, room)} pair. Powers the
+     * {@code GET /api/v1/me/personal-points-ledger?roomId={id}} endpoint.
+     *
+     * <p>Tie-breaks on {@code id DESC} for rows that share an
+     * {@code occurred_at} timestamp — the SURVIVAL evaluator job is
+     * idempotent at the (user, room, date) level (see
+     * {@link #countByUserIdAndRoomIdAndReason}), but an emergency operator
+     * ADJUSTMENT row could collide with a SURVIVAL row to the millisecond.
+     * The stable id-DESC tiebreaker keeps response ordering deterministic
+     * for the FE.
+     *
+     * <p>Native query (not JPQL) so the row shape matches the entity column
+     * mapping byte-for-byte without Hibernate translating the
+     * {@code order by} into a less obvious form across dialect upgrades.
+     * Returns the full entity — the controller maps to {@link LedgerEntryDto}.
+     *
+     * <p>v1 ships no pagination; the AC2 cap of 365 rows / user / room /
+     * year fits a single GET response budget.
+     */
+    @Query(value = """
+            select id, user_id, room_id, delta, reason, occurred_at, revival_event_id
+            from personal_points_ledger
+            where user_id = :userId and room_id = :roomId
+            order by occurred_at desc, id desc
+            """, nativeQuery = true)
+    List<PersonalPointsLedger> findByUserIdAndRoomIdOrderByOccurredAtDesc(
             @Param("userId") long userId, @Param("roomId") long roomId);
 }

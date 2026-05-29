@@ -37,4 +37,17 @@ export const qk = {
   // scoped; BE filters by `me.user_id`. Invalidated alongside qk.meSurvival
   // so a friend's RED/SPECTATOR transition flips badge state.
   friendGiftTargets: ["friendGiftTargets"] as const,
+  // Story 3.4 — per-room personal-points ledger (caller-scoped). Powers the
+  // Wallet ledger drill-in. Invalidated on every event that appends a
+  // ledger row: useSelfRevival (REVIVAL_SPEND), useSendFriendGift
+  // (FRIEND_GIFT_SPEND). The daily SURVIVAL evaluator rows propagate via
+  // the next window-focus refetch — too noisy for live invalidation.
+  personalPointsLedger: (roomId: number) =>
+    ["personalPointsLedger", roomId] as const,
+  // Story 3.4 — per-room lifetime received-revival history (all 3 sources;
+  // caller-scoped). Powers the Wallet received-revivals drill-in.
+  // Invalidated on FRIEND_GIFT_RECEIVED notifications (Story 3.2 receiver
+  // path) and on useSelfRevival success (caller's own self-revival).
+  receivedRevivals: (roomId: number) =>
+    ["receivedRevivals", roomId] as const,
 };

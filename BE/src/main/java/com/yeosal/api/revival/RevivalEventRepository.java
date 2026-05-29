@@ -158,4 +158,32 @@ public interface RevivalEventRepository extends JpaRepository<RevivalEvent, Long
             @Param("receiverUserId") long receiverUserId,
             @Param("kstWindowStart") LocalDate kstWindowStart,
             @Param("kstToday") LocalDate kstToday);
+
+    /**
+     * Story 3.4 AC3 — lifetime received-revival history for one
+     * {@code (receiverUserId, roomId)} pair, covering all three sources
+     * (FREE_TICKET, PERSONAL_POINTS, FRIEND_GIFT). DESC by
+     * {@code occurred_at} with {@code id DESC} as tiebreaker so the
+     * response is deterministic.
+     *
+     * <p>{@code where user_id = :receiverUserId} keys on the RECEIVER
+     * column. FRIEND_GIFT rows where the caller is the donor
+     * ({@code giver_user_id}) are NOT returned — that is the donor's
+     * wallet history (a separate v1.5 surface per UX line 1334). AC9
+     * privacy invariant from Story 3.2 carried forward.
+     *
+     * <p>{@code succeeded = true} filter is defensive — Story 3.1 / 3.2
+     * services never write {@code succeeded = false} rows, but the
+     * defence keeps the contract honest if a future writer slips.
+     */
+    @Query(value = """
+            select * from revival_events
+            where user_id = :receiverUserId
+              and room_id = :roomId
+              and succeeded = true
+            order by occurred_at desc, id desc
+            """, nativeQuery = true)
+    List<RevivalEvent> findReceivedRevivalsByRoom(
+            @Param("receiverUserId") long receiverUserId,
+            @Param("roomId") long roomId);
 }

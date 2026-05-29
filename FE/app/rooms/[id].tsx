@@ -226,6 +226,25 @@ export default function RoomDetailScreen() {
           </Card>
         </Pressable>
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="이 그룹의 Wallet 열기"
+          onPress={() => router.push(`/wallet/${roomId}`)}
+        >
+          <Card tone="raised" size="md">
+            <View style={styles.chatRow}>
+              <MaterialIcons name="account-balance-wallet" size={20} color={palette.coralDeep} />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyStrong">Wallet</Text>
+                <Text variant="caption" color={palette.inkMute}>
+                  무료 회생권, 개인 포인트, 그룹 포인트를 한곳에서 확인하세요.
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={palette.inkMute} />
+            </View>
+          </Card>
+        </Pressable>
+
         {me ? (
           <Pressable
             accessibilityRole="button"
