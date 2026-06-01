@@ -27,7 +27,12 @@ const mockHandlerRegistry: Array<{
   handler: (payload: PointPoolFrame) => void;
 }> = [];
 
+// Patch 3 — useRealtimeStatus is now consumed too. A jest.fn() lets tests
+// override the return value per case (e.g., simulate disconnected→connected).
+const mockUseRealtimeStatus = jest.fn(() => "connected");
+
 jest.mock("../../../realtime/client", () => ({
+  useRealtimeStatus: () => mockUseRealtimeStatus(),
   useRealtimeSubscription: jest.fn(
     (destination: string | null, handler: (p: PointPoolFrame) => void) => {
       mockHandlerRegistry.push({ destination, handler });
@@ -71,6 +76,7 @@ describe("useRoomPoints", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockHandlerRegistry.length = 0;
+    mockUseRealtimeStatus.mockReturnValue("connected");
   });
 
   it("loads initial pool snapshot via REST", async () => {
@@ -169,6 +175,100 @@ describe("useRoomPoints", () => {
 
     // The pool value stays at the REST snapshot's value.
     expect(result.current.total).toBe(4);
+  });
+
+  it("Patch 1 — rejects an older frame (occurredAt regression) so cache doesn't drift back", async () => {
+    getRoomPointsMock.mockResolvedValue({
+      roomId: ROOM_ID,
+      total: 0,
+      lastEventAt: null,
+    });
+    const { result } = renderHook(() => useRoomPoints(ROOM_ID), {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Newer frame lands first.
+    act(() => {
+      lastHandler()({
+        roomId: ROOM_ID,
+        delta: 5,
+        newTotal: 15,
+        sourceRevivalEventId: 200,
+        occurredAt: "2026-06-01T05:00:00Z",
+      });
+    });
+    await waitFor(() => expect(result.current.total).toBe(15));
+
+    // An older frame (a different event id, but occurredAt strictly less
+    // than the cached lastEventAt) MUST NOT regress the cache.
+    act(() => {
+      lastHandler()({
+        roomId: ROOM_ID,
+        delta: 3,
+        newTotal: 8,
+        sourceRevivalEventId: 199,
+        occurredAt: "2026-06-01T04:00:00Z",
+      });
+    });
+
+    expect(result.current.total).toBe(15);
+    expect(result.current.lastEventAt).toBe("2026-06-01T05:00:00Z");
+  });
+
+  it("Patch 2 — cancels in-flight REST query when a STOMP frame is merged", async () => {
+    getRoomPointsMock.mockResolvedValue({
+      roomId: ROOM_ID,
+      total: 4,
+      lastEventAt: null,
+    });
+    const client = makeClient();
+    const cancelSpy = jest.spyOn(client, "cancelQueries");
+    const { result } = renderHook(() => useRoomPoints(ROOM_ID), {
+      wrapper: makeWrapper(client),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    cancelSpy.mockClear();
+
+    act(() => {
+      lastHandler()({
+        roomId: ROOM_ID,
+        delta: 5,
+        newTotal: 9,
+        sourceRevivalEventId: 300,
+        occurredAt: OCCURRED_AT,
+      });
+    });
+
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ["roomPoints", ROOM_ID] });
+  });
+
+  it("Patch 3 — refetches on realtime reconnect (disconnected → connected)", async () => {
+    getRoomPointsMock.mockResolvedValue({
+      roomId: ROOM_ID,
+      total: 2,
+      lastEventAt: null,
+    });
+    mockUseRealtimeStatus.mockReturnValue("disconnected");
+    const client = makeClient();
+    const invalidateSpy = jest.spyOn(client, "invalidateQueries");
+
+    const { rerender, result } = renderHook(() => useRoomPoints(ROOM_ID), {
+      wrapper: makeWrapper(client),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    invalidateSpy.mockClear();
+
+    // Flip the realtime status to connected and trigger a rerender so the
+    // status-tracking effect observes the transition.
+    mockUseRealtimeStatus.mockReturnValue("connected");
+    rerender(undefined);
+
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["roomPoints", ROOM_ID],
+      }),
+    );
   });
 
   it("disables the query AND skips the subscription for invalid roomId", () => {

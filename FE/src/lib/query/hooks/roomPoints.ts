@@ -13,13 +13,17 @@
 // "All data fetching goes through domain hooks in src/lib/query/hooks/*").
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   getRoomPoints,
   type RoomPointPoolDto,
 } from "../../../api/roomPoints";
 import { qk } from "../keys";
-import { useRealtimeSubscription } from "../../realtime/client";
+import {
+  useRealtimeStatus,
+  useRealtimeSubscription,
+  type RealtimeStatus,
+} from "../../realtime/client";
 
 export interface PointPoolFrame {
   readonly roomId: number;
@@ -39,6 +43,7 @@ export interface UseRoomPointsResult {
 export function useRoomPoints(roomId: number): UseRoomPointsResult {
   const qc = useQueryClient();
   const enabled = Number.isFinite(roomId) && roomId > 0;
+  const realtimeStatus = useRealtimeStatus();
 
   const query = useQuery<RoomPointPoolDto>({
     queryKey: qk.roomPoints(roomId),
@@ -59,11 +64,30 @@ export function useRoomPoints(roomId: number): UseRoomPointsResult {
   // an LRU — YAGNI per the story Dev Notes Trap #4.
   const seenEventIds = useRef<Set<number>>(new Set());
 
+  // Patch 3 — reconnect-recovery. Track the previous realtime status
+  // (across rerenders) so a disconnected→connected transition can refresh
+  // the cache. Pool events emitted by other clients during the WS gap
+  // would otherwise be lost; invalidating triggers a REST refetch that
+  // re-seeds with the BE's authoritative current total.
+  const prevStatusRef = useRef<RealtimeStatus>(realtimeStatus);
+
+  useEffect(() => {
+    if (
+      enabled
+      && prevStatusRef.current === "disconnected"
+      && realtimeStatus === "connected"
+    ) {
+      qc.invalidateQueries({ queryKey: qk.roomPoints(roomId) });
+    }
+    prevStatusRef.current = realtimeStatus;
+  }, [realtimeStatus, qc, roomId, enabled]);
+
   const destination = enabled ? `/topic/rooms.${roomId}.points` : null;
 
   useRealtimeSubscription<PointPoolFrame>(destination, (frame) => {
     if (!frame || typeof frame.sourceRevivalEventId !== "number") return;
     if (typeof frame.newTotal !== "number") return;
+    if (typeof frame.occurredAt !== "string") return;
     // Defence-in-depth: the topic is room-scoped server-side, but pin the
     // consumer to roomId so a broker fanout misconfig or a race during
     // roomId change never spends a setQueryData on a foreign room.
@@ -71,9 +95,26 @@ export function useRoomPoints(roomId: number): UseRoomPointsResult {
     if (seenEventIds.current.has(frame.sourceRevivalEventId)) return;
     seenEventIds.current.add(frame.sourceRevivalEventId);
 
+    // Patch 2 — abort any in-flight REST refetch before applying the
+    // STOMP frame. Without this, a delayed REST response would land
+    // after the newer setQueryData below and silently regress the cache
+    // back to the older `total` snapshot. fire-and-forget Promise — the
+    // setQueryData below is the source of truth.
+    qc.cancelQueries({ queryKey: qk.roomPoints(roomId) });
+
     qc.setQueryData<RoomPointPoolDto | undefined>(
       qk.roomPoints(roomId),
       (prev) => {
+        // Patch 1 — out-of-order rejection. A delayed older frame
+        // (newer in event-id but older in occurredAt — possible when
+        // two events race on different brokers, or when a slow listener
+        // emits its frame after a faster downstream one) would
+        // otherwise regress `total` past a value that has already been
+        // observed. Reject when the incoming frame's occurredAt is
+        // strictly less than the cached `lastEventAt`.
+        if (prev?.lastEventAt && frame.occurredAt < prev.lastEventAt) {
+          return prev;
+        }
         // The WS payload is authoritative — BE computed newTotal inside
         // the row-level FOR UPDATE lock. Never do `total + delta`
         // arithmetic on the FE; it drifts on out-of-order delivery,

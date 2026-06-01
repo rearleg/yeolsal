@@ -53,6 +53,10 @@ jest.mock("../../../lib/realtime/client", () => ({
   // tests don't drive STOMP frames through the Wallet surface (roomPoints
   // hook has its own dedicated test file).
   useRealtimeSubscription: jest.fn(),
+  // Story 4.1 Patch 3 — useRoomPoints now also reads useRealtimeStatus
+  // for reconnect-recovery. Default to "connected" so the status-change
+  // effect is a no-op in WalletScreen test paths.
+  useRealtimeStatus: jest.fn(() => "connected"),
 }));
 // Replace FriendGiftBadge with a marker view so the pool-section
 // assertion can verify the badge slot mounts independent of the badge's
@@ -213,6 +217,36 @@ describe("WalletScreen", () => {
     await waitFor(() =>
       expect(screen.getByText("잠시 후 다시 시도해주세요")).toBeTruthy(),
     );
+  });
+
+  it("Story 4.1 Patch 5 — pool falls back to survival.roomPointPool when roomPoints is loading", async () => {
+    // Hold the roomPoints REST query pending so the hook stays in
+    // isLoading=true. The Wallet should render survival.roomPointPool
+    // (the meSurvival snapshot) instead of a false zero.
+    getRoomPointsMock.mockReturnValueOnce(new Promise(() => undefined));
+    getMeSurvivalMock.mockResolvedValue([survival({ roomPointPool: 42 })]);
+
+    const { getByTestId } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(getByTestId("wallet-section-pool")).toBeTruthy());
+
+    // Pool section displays the fallback value `42` (not `0`).
+    expect(screen.getByText("42")).toBeTruthy();
+  });
+
+  it("Story 4.1 Patch 5 — pool falls back to survival.roomPointPool when roomPoints errors", async () => {
+    // REST fails → useRoomPoints returns isError=true. Wallet renders
+    // survival.roomPointPool fallback rather than a false zero.
+    getRoomPointsMock.mockRejectedValue(new Error("network down"));
+    getMeSurvivalMock.mockResolvedValue([survival({ roomPointPool: 7 })]);
+
+    const { getByTestId } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(getByTestId("wallet-section-pool")).toBeTruthy());
+
+    await waitFor(() => expect(screen.getByText("7")).toBeTruthy());
   });
 
   it("not-a-member state shows the dedicated copy (not the error retry)", async () => {

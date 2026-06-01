@@ -147,7 +147,15 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
 
   const ticketUsed = survival.freeRevivalTicketUsed;
   const personalPoints = survival.personalPoints;
-  const pool = roomPoints.total;
+  // Story 4.1 Patch 5 — fall back to the cross-room aggregation when the
+  // dedicated per-room query is still loading or has errored. Otherwise
+  // the user sees a false `0` for the seconds between mount and the
+  // first REST response (or indefinitely on network failure), even
+  // though `survival.roomPointPool` already carries a usable snapshot
+  // from the meSurvival cache.
+  const pool = roomPoints.isLoading || roomPoints.isError
+    ? survival.roomPointPool
+    : roomPoints.total;
   const received = receivedQuery.data ?? [];
   const receivedCount = received.length;
   const mostRecentReceivedAt = receivedCount > 0

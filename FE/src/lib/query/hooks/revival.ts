@@ -37,6 +37,11 @@ export function useSelfRevival(roomId: number) {
       // Wallet detail surfaces drill in off these caches.
       queryClient.invalidateQueries({ queryKey: qk.personalPointsLedger(roomId) });
       queryClient.invalidateQueries({ queryKey: qk.receivedRevivals(roomId) });
+      // Story 4.1 Patch 4 — pool gained 5 (FREE_TICKET) or 3
+      // (PERSONAL_POINTS). Invalidate the dedicated per-room snapshot so
+      // the Wallet route recovers even when realtime delivery is
+      // unavailable (WS down, listener race, etc.).
+      queryClient.invalidateQueries({ queryKey: qk.roomPoints(roomId) });
     },
     onError: (error) => {
       if (error instanceof ApiError) {
