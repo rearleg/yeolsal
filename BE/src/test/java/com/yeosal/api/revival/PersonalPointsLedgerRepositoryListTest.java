@@ -98,12 +98,18 @@ class PersonalPointsLedgerRepositoryListTest {
         long roomId = seedRoomDirect(u);
 
         tx.executeWithoutResult(t -> {
+            // V11 step 6 declares
+            //   `revival_event_id bigint references revival_events(id)`
+            // so passing arbitrary literals (100L/101L) would violate the FK
+            // and explode with ConstraintViolationException. This test
+            // verifies ordering + reasons only; the FK value isn't asserted
+            // on, so null is the cheapest path (matches AC8-1/3/4/5).
             ledger.save(new PersonalPointsLedger(u.getId(), roomId, (short) 1,
                     LedgerReason.SURVIVAL, T0, null));
             ledger.save(new PersonalPointsLedger(u.getId(), roomId, (short) -3,
-                    LedgerReason.REVIVAL_SPEND, T1, 100L));
+                    LedgerReason.REVIVAL_SPEND, T1, null));
             ledger.save(new PersonalPointsLedger(u.getId(), roomId, (short) -5,
-                    LedgerReason.FRIEND_GIFT_SPEND, T2, 101L));
+                    LedgerReason.FRIEND_GIFT_SPEND, T2, null));
         });
 
         List<PersonalPointsLedger> rows =
