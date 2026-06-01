@@ -14,6 +14,7 @@ import type { PropsWithChildren } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as walletApi from "../../../api/wallet";
 import * as survivalApi from "../../../api/survival";
+import * as roomPointsApi from "../../../api/roomPoints";
 import * as targetsApi from "../../../api/friendGiftTargets";
 import type { MeSurvivalEntry } from "../../../lib/spectator";
 import { WalletScreen } from "../WalletScreen";
@@ -36,10 +37,22 @@ jest.mock("../../../api/survival", () => ({
 jest.mock("../../../api/friendGiftTargets", () => ({
   getFriendGiftTargets: jest.fn(),
 }));
+// Story 4.1 — WalletScreen now reads `pool` via useRoomPoints(roomId) →
+// getRoomPoints REST call. Stub the api boundary so existing cases stay
+// green without a real fetch. lastEventAt left null; consumers don't
+// surface it in the per-room Wallet route.
+jest.mock("../../../api/roomPoints", () => ({
+  getRoomPoints: jest.fn(),
+}));
 jest.mock("../../../lib/realtime/client", () => ({
   getRealtimeClient: jest.fn(() => ({
     subscribe: jest.fn(() => ({ unsubscribe: jest.fn() })),
   })),
+  // Story 4.1 — useRoomPoints (mounted by WalletScreen) calls
+  // useRealtimeSubscription. Stub so the hook is a no-op realtime-wise;
+  // tests don't drive STOMP frames through the Wallet surface (roomPoints
+  // hook has its own dedicated test file).
+  useRealtimeSubscription: jest.fn(),
 }));
 // Replace FriendGiftBadge with a marker view so the pool-section
 // assertion can verify the badge slot mounts independent of the badge's
@@ -64,6 +77,9 @@ const getReceivedMock = walletApi.getReceivedRevivals as jest.MockedFunction<
 >;
 const getTargetsMock = targetsApi.getFriendGiftTargets as jest.MockedFunction<
   typeof targetsApi.getFriendGiftTargets
+>;
+const getRoomPointsMock = roomPointsApi.getRoomPoints as jest.MockedFunction<
+  typeof roomPointsApi.getRoomPoints
 >;
 
 function makeClient() {
@@ -108,6 +124,13 @@ describe("WalletScreen", () => {
     mockRouterPush.mockReset();
     getReceivedMock.mockResolvedValue([]);
     getTargetsMock.mockResolvedValue([]);
+    // Default — mirrors the survival fixture's roomPointPool=0. Individual
+    // cases override when they care about the pool number's display.
+    getRoomPointsMock.mockResolvedValue({
+      roomId: ROOM_ID,
+      total: 0,
+      lastEventAt: null,
+    });
   });
 
   it("renders 4 sections in correct order via testIDs", async () => {

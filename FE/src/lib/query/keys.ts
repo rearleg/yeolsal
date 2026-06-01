@@ -37,6 +37,12 @@ export const qk = {
   // scoped; BE filters by `me.user_id`. Invalidated alongside qk.meSurvival
   // so a friend's RED/SPECTATOR transition flips badge state.
   friendGiftTargets: ["friendGiftTargets"] as const,
+  // Story 4.1 AC6 — per-room live point-pool snapshot (room-member scoped;
+  // BE filters by membership). Seeded from GET /api/v1/rooms/{id}/points
+  // and merged from `/topic/rooms.{id}.points` STOMP frames (dedupe-by-
+  // sourceRevivalEventId via the useRoomPoints hook). staleTime is set
+  // to 30s in the hook so it stays in lock-step with qk.meSurvival.
+  roomPoints: (roomId: number) => ["roomPoints", roomId] as const,
   // Story 3.4 — per-room personal-points ledger (caller-scoped). Powers the
   // Wallet ledger drill-in. Invalidated on every event that appends a
   // ledger row: useSelfRevival (REVIVAL_SPEND), useSendFriendGift

@@ -24,6 +24,7 @@ import {
 import { Screen } from "../Screen";
 import { Text } from "../ui/Text";
 import { useCurrentRoomSurvivalState, useMeSurvivalQuery } from "../../lib/query/hooks/survival";
+import { useRoomPoints } from "../../lib/query/hooks/roomPoints";
 import { useReceivedRevivals } from "../../lib/query/hooks/wallet";
 import { FriendGiftBadge } from "../revival/FriendGiftBadge";
 import { PoolBar } from "../revival/PoolBar";
@@ -83,6 +84,12 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
   const meSurvivalQuery = useMeSurvivalQuery();
   const survival = useCurrentRoomSurvivalState(roomId);
   const receivedQuery = useReceivedRevivals(roomId);
+  // Story 4.1 AC9 — live per-room pool total via dedicated REST + STOMP hook.
+  // `survival.roomPointPool` (the cross-room aggregation from /me/survival)
+  // is preserved on MeSurvivalEntry for spectator surfaces; the per-room
+  // Wallet route reads from the hook so the value updates from STOMP frames
+  // without re-fetching the cross-room aggregation per pool event.
+  const roomPoints = useRoomPoints(roomId);
   const theme = useTheme();
 
   const headerTitle = useMemo(() => {
@@ -140,7 +147,7 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
 
   const ticketUsed = survival.freeRevivalTicketUsed;
   const personalPoints = survival.personalPoints;
-  const pool = survival.roomPointPool;
+  const pool = roomPoints.total;
   const received = receivedQuery.data ?? [];
   const receivedCount = received.length;
   const mostRecentReceivedAt = receivedCount > 0
@@ -191,7 +198,7 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
             {pool}
           </Text>
           <View style={styles.poolBarSpacer}>
-            <PoolBar roomId={roomId} total={pool} max={POOL_MAX_V1} />
+            <PoolBar total={pool} max={POOL_MAX_V1} />
           </View>
           <FriendGiftBadge
             roomId={roomId}

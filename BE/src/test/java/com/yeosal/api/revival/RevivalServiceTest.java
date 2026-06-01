@@ -79,6 +79,7 @@ class RevivalServiceTest {
     @Mock private RevivalEventRepository revivalEvents;
     @Mock private PersonalPointsLedgerRepository personalLedger;
     @Mock private RoomPointPoolRepository roomPointPool;
+    @Mock private RoomPointPoolService roomPointPoolService;
     @Mock private FriendshipRepository friendships;
     @Mock private RoomMemberRepository roomMembers;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -94,7 +95,7 @@ class RevivalServiceTest {
     void setUp() {
         service = new RevivalService(
                 survivalStates, rooms, users, revivalEvents, personalLedger,
-                roomPointPool, friendships, roomMembers,
+                roomPointPool, roomPointPoolService, friendships, roomMembers,
                 eventPublisher, entityManager, CLOCK);
 
         user = makeUser(USER_ID, "user@example.com", "User");
@@ -143,17 +144,21 @@ class RevivalServiceTest {
         verify(users).markFreeTicketUsed(USER_ID);
         verify(personalLedger, never()).save(any());
 
+        // Story 4.1 — RevivalService now publishes only the survival
+        // transition event; PointPoolChangeEvent emission moved into
+        // RoomPointPoolService.applyDelta (covered by RoomPointPoolServiceTest).
         ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
-        verify(eventPublisher, times(2)).publishEvent(events.capture());
+        verify(eventPublisher, times(1)).publishEvent(events.capture());
         assertThat(events.getAllValues().get(0)).isInstanceOf(SurvivalStateTransitionEvent.class);
         SurvivalStateTransitionEvent transition =
                 (SurvivalStateTransitionEvent) events.getAllValues().get(0);
         assertThat(transition.toStatus()).isEqualTo(SurvivalStatus.ACTIVE);
         assertThat(transition.broadVisibilityAt()).isNull();
-        assertThat(events.getAllValues().get(1)).isInstanceOf(PointPoolChangeEvent.class);
-        PointPoolChangeEvent pool = (PointPoolChangeEvent) events.getAllValues().get(1);
-        assertThat(pool.delta()).isEqualTo((int) RevivalService.FREE_TICKET_POOL_DELTA);
-        assertThat(pool.newTotal()).isEqualTo((int) RevivalService.FREE_TICKET_POOL_DELTA);
+
+        // Pool mutation is delegated to the chokepoint service.
+        verify(roomPointPoolService).applyDelta(
+                ROOM_ID, (int) RevivalService.FREE_TICKET_POOL_DELTA,
+                REVIVAL_EVENT_ID, NOW);
     }
 
     @Test

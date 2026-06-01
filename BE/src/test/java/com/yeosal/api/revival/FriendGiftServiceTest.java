@@ -72,6 +72,7 @@ class FriendGiftServiceTest {
     @Mock private RevivalEventRepository revivalEvents;
     @Mock private PersonalPointsLedgerRepository personalLedger;
     @Mock private RoomPointPoolRepository roomPointPool;
+    @Mock private RoomPointPoolService roomPointPoolService;
     @Mock private FriendshipRepository friendships;
     @Mock private RoomMemberRepository roomMembers;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -88,7 +89,7 @@ class FriendGiftServiceTest {
     void setUp() {
         service = new RevivalService(
                 survivalStates, rooms, users, revivalEvents, personalLedger,
-                roomPointPool, friendships, roomMembers,
+                roomPointPool, roomPointPoolService, friendships, roomMembers,
                 eventPublisher, entityManager, CLOCK);
 
         giver = makeUser(GIVER_ID, "giver@example.com", "Giver");
@@ -125,19 +126,25 @@ class FriendGiftServiceTest {
         assertThat(dto.isFirstEverFriendGiftSend()).isTrue();
         assertThat(dto.receiverNickname()).isEqualTo("Receiver");
 
+        // Story 4.1 — RevivalService publishes survival + friend-gift events;
+        // PointPoolChangeEvent emission moved into RoomPointPoolService.
         ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
-        verify(eventPublisher, times(3)).publishEvent(events.capture());
+        verify(eventPublisher, times(2)).publishEvent(events.capture());
         assertThat(events.getAllValues().get(0)).isInstanceOf(SurvivalStateTransitionEvent.class);
         SurvivalStateTransitionEvent transition =
                 (SurvivalStateTransitionEvent) events.getAllValues().get(0);
         assertThat(transition.userId()).isEqualTo(RECEIVER_ID);
         assertThat(transition.toStatus()).isEqualTo(SurvivalStatus.ACTIVE);
-        assertThat(events.getAllValues().get(1)).isInstanceOf(PointPoolChangeEvent.class);
-        assertThat(events.getAllValues().get(2)).isInstanceOf(FriendGiftSentEvent.class);
-        FriendGiftSentEvent sent = (FriendGiftSentEvent) events.getAllValues().get(2);
+        assertThat(events.getAllValues().get(1)).isInstanceOf(FriendGiftSentEvent.class);
+        FriendGiftSentEvent sent = (FriendGiftSentEvent) events.getAllValues().get(1);
         assertThat(sent.giverUserId()).isEqualTo(GIVER_ID);
         assertThat(sent.receiverUserId()).isEqualTo(RECEIVER_ID);
         assertThat(sent.revivalEventId()).isEqualTo(REVIVAL_EVENT_ID);
+
+        // Pool mutation is delegated to the chokepoint service.
+        verify(roomPointPoolService).applyDelta(
+                ROOM_ID, (int) RevivalService.FRIEND_GIFT_POOL_DELTA,
+                REVIVAL_EVENT_ID, NOW);
 
         ArgumentCaptor<PersonalPointsLedger> ledgerCap =
                 ArgumentCaptor.forClass(PersonalPointsLedger.class);
@@ -281,7 +288,11 @@ class FriendGiftServiceTest {
                 .isInstanceOf(AlreadyRevivedException.class);
 
         verify(personalLedger, never()).save(any());
-        verify(roomPointPool, never()).incrementTotal(anyLong(), anyInt());
+        // Story 4.1 — pool mutation now routes through RoomPointPoolService;
+        // the original `roomPointPool.incrementTotal never` assertion has
+        // moved to the chokepoint service.
+        verify(roomPointPoolService, never()).applyDelta(
+                anyLong(), anyInt(), anyLong(), any());
         verify(eventPublisher, never()).publishEvent(any());
     }
 
