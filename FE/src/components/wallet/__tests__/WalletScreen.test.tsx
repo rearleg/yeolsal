@@ -263,4 +263,41 @@ describe("WalletScreen", () => {
       expect(screen.getByText("이 방에 더 이상 속해 있지 않아요")).toBeTruthy(),
     );
   });
+
+  it("Story 4.2 AC1 — pool section renders the phase-2 promise copy", async () => {
+    getMeSurvivalMock.mockResolvedValue([survival()]);
+    const { getByTestId } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(getByTestId("wallet-section-pool")).toBeTruthy());
+    expect(
+      screen.getByText("다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다."),
+    ).toBeTruthy();
+  });
+
+  it("Story 4.2 AC4 — promise copy passes brand-voice Rule 2 (no AVOID lexicon)", async () => {
+    getMeSurvivalMock.mockResolvedValue([survival()]);
+    render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByText("다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다."),
+      ).toBeTruthy(),
+    );
+    const banned = [
+      "벌금",
+      "잃었다",
+      "떨어졌다",
+      "실패",
+      "자책",
+      "부담",
+      "패배",
+      "죄책감",
+    ];
+    const promise = "다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다.";
+    for (const b of banned) {
+      expect(promise).not.toContain(b);
+    }
+  });
 });

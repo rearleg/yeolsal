@@ -27,6 +27,9 @@ import type {
 } from "../../api/friendGiftTargets";
 import { SelfReviveCTA } from "./SelfReviveCTA";
 
+const POOL_PROMISE_COPY =
+  "다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다." as const;
+
 export function WalletPreview() {
   const query = useMeSurvivalQuery();
   const entries = query.data ?? [];
@@ -70,6 +73,9 @@ export function WalletPreview() {
         accessibilityLabel={`그룹 포인트 ${first.roomPointPool}`}
       >
         {`💚  그룹 포인트 ${first.roomPointPool}`}
+      </Text>
+      <Text variant="caption" color={palette.inkMute}>
+        {POOL_PROMISE_COPY}
       </Text>
       <FriendGiftBadge
         roomId={first.roomId}
