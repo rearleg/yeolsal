@@ -45,6 +45,7 @@ const COPY = {
   freeTicketUsedCaption: "다음 시즌에 새로 받아요",
   personalPointsLabel: "개인 포인트",
   poolLabel: "그룹 포인트",
+  poolPromise: "다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다.",
   receivedLabel: "받은 회생권",
   receivedEmpty: "아직 없어요",
   errorRetry: "잠시 후 다시 시도해주세요",
@@ -208,6 +209,9 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
           <View style={styles.poolBarSpacer}>
             <PoolBar total={pool} max={POOL_MAX_V1} />
           </View>
+          <Text variant="caption" color={palette.inkMute}>
+            {COPY.poolPromise}
+          </Text>
           <FriendGiftBadge
             roomId={roomId}
             onTap={() => {

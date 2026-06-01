@@ -153,4 +153,41 @@ describe("WalletPreview", () => {
     );
     expect(screen.queryByText(/친구 회생 대기/)).toBeNull();
   });
+
+  it("Story 4.2 AC2 — pool promise copy renders below the 그룹 포인트 line", async () => {
+    getMeSurvivalMock.mockResolvedValue([entry(11, 6, 18)]);
+    render(<WalletPreview />, { wrapper: makeWrapper(makeClient()) });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("그룹 포인트 18")).toBeTruthy(),
+    );
+    expect(
+      screen.getByText("다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다."),
+    ).toBeTruthy();
+  });
+
+  it("Story 4.2 AC4 — promise copy passes brand-voice Rule 2 (no AVOID lexicon)", async () => {
+    getMeSurvivalMock.mockResolvedValue([entry(11, 6, 18)]);
+    render(<WalletPreview />, { wrapper: makeWrapper(makeClient()) });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다."),
+      ).toBeTruthy(),
+    );
+    const banned = [
+      "벌금",
+      "잃었다",
+      "떨어졌다",
+      "실패",
+      "자책",
+      "부담",
+      "패배",
+      "죄책감",
+    ];
+    const promise = "다음 시즌, 그룹 포인트는 함께 마실 커피로 교환됩니다.";
+    for (const b of banned) {
+      expect(promise).not.toContain(b);
+    }
+  });
 });
