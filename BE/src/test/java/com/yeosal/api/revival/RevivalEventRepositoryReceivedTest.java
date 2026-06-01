@@ -152,7 +152,7 @@ class RevivalEventRepositoryReceivedTest {
 
     private long seedRoomDirect(User owner) {
         jdbc.update(
-                "insert into rooms(name, owner_id, member_cap) values (?, ?, ?)",
+                "insert into rooms(name, owner_id, max_members) values (?, ?, ?)",
                 "Room-" + Math.random(), owner.getId(), 5);
         return jdbc.queryForObject(
                 "select id from rooms where owner_id = ? order by id desc limit 1",
