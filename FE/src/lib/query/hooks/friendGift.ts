@@ -51,6 +51,13 @@ export function useSendFriendGift(roomId: number) {
       // Story 3.3 — receiver is no longer RED/SPECTATOR, so the badge
       // eligibility list shrinks. Co-invalidate.
       queryClient.invalidateQueries({ queryKey: qk.friendGiftTargets });
+      // Story 3.4 — the donor (caller) gains a FRIEND_GIFT_SPEND row in
+      // their personal-points ledger for this room; invalidate so the
+      // ledger drill-in mounts fresh. The receiver's received-revivals
+      // cache lives on the receiver's device and is invalidated there by
+      // the FRIEND_GIFT_RECEIVED push handler — the donor's own
+      // received-revivals never changes from sending, so don't churn it.
+      queryClient.invalidateQueries({ queryKey: qk.personalPointsLedger(roomId) });
     },
     onError: (error) => {
       if (error instanceof ApiError) {

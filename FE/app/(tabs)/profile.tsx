@@ -1,6 +1,14 @@
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActionSheetIOS,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import type { GrassDayDto } from "../../src/api/types";
 import { useRequireAuth } from "../../src/auth/useRequireAuth";
 import { Screen } from "../../src/components/Screen";
@@ -16,6 +24,7 @@ import {
   useMonthlyStatsQuery,
   useProfileQuery,
 } from "../../src/lib/query/hooks/profile";
+import { useMeSurvivalQuery } from "../../src/lib/query/hooks/survival";
 import { palette, surface } from "../../src/theme/tokens";
 import { space } from "../../src/theme/spacing";
 
@@ -46,6 +55,51 @@ export default function ProfileScreen() {
   const profileQuery = useProfileQuery();
   const grassQuery = useGrassQuery(from, to);
   const monthlyStatsQuery = useMonthlyStatsQuery(month);
+  const meSurvivalQuery = useMeSurvivalQuery();
+
+  // Wallet entry — N=1 room → direct push; N>1 → platform-native picker
+  // per Story 3.4 AC6. iOS native Alert truncates with 4+ buttons; for any
+  // room count >1 use ActionSheetIOS on iOS, and the (vertical-stacking)
+  // Alert dialog on Android where >3 buttons still render cleanly.
+  function handleOpenWallet() {
+    const rooms = meSurvivalQuery.data ?? [];
+    if (rooms.length === 0) {
+      Alert.alert("Wallet", "Wallet을 열려면 먼저 그룹에 들어가야 해요.");
+      return;
+    }
+    if (rooms.length === 1) {
+      router.push(`/wallet/${rooms[0].roomId}`);
+      return;
+    }
+    if (Platform.OS === "ios") {
+      const labels = rooms.map((r) => r.roomName);
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: "Wallet 그룹 선택",
+          message: "어느 그룹의 Wallet을 열까요?",
+          options: [...labels, "취소"],
+          cancelButtonIndex: labels.length,
+        },
+        (buttonIndex) => {
+          if (buttonIndex < labels.length) {
+            router.push(`/wallet/${rooms[buttonIndex].roomId}`);
+          }
+        },
+      );
+      return;
+    }
+    Alert.alert(
+      "Wallet 그룹 선택",
+      "어느 그룹의 Wallet을 열까요?",
+      [
+        ...rooms.map((r) => ({
+          text: r.roomName,
+          onPress: () => router.push(`/wallet/${r.roomId}`),
+        })),
+        { text: "취소", style: "cancel" as const },
+      ],
+    );
+  }
   const profile = profileQuery.data ?? null;
   const grass = useMemo(() => grassQuery.data ?? [], [grassQuery.data]);
   const loading = profileQuery.isLoading || grassQuery.isLoading;
@@ -187,6 +241,13 @@ export default function ProfileScreen() {
         <DayDetailCard day={selected} />
 
         <View style={{ gap: space[2] }}>
+          <Button
+            label="Wallet"
+            tone="secondary"
+            size="md"
+            fullWidth
+            onPress={handleOpenWallet}
+          />
           <Button
             label="알림 설정"
             tone="secondary"

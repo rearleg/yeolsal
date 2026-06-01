@@ -9,8 +9,9 @@
 // the 8 banned words. The emoji prefixes (🎟 / 🌿 / 💚) carry the dignity
 // tone; pure RED is banned on spectator surfaces (UX A11 v2 guard).
 
+import { router } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useMeSurvivalQuery } from "../../lib/query/hooks/survival";
 import { space } from "../../theme/spacing";
 import { palette, surface } from "../../theme/tokens";
@@ -76,6 +77,16 @@ export function WalletPreview() {
         onTapMulti={setPickerRoom}
       />
       <SelfReviveCTA roomId={first.roomId} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Wallet 자세히 보기"
+        onPress={() => router.push(`/wallet/${first.roomId}`)}
+        style={styles.walletDetailLink}
+      >
+        <Text variant="bodySmall" color={palette.coralDeep}>
+          Wallet 자세히 보기 →
+        </Text>
+      </Pressable>
 
       <FriendGiftPickerSheet
         open={pickerRoom != null}
@@ -114,5 +125,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: surface.border,
     backgroundColor: surface.sunken,
+  },
+  walletDetailLink: {
+    paddingTop: space[2],
+    minHeight: 44,
+    justifyContent: "center",
   },
 });

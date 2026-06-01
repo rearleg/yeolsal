@@ -31,6 +31,12 @@ export function useSelfRevival(roomId: number) {
       // invalidate the targets cache (which is keyed on the caller as
       // GIVER, so this scrubs any stale per-room snapshot).
       queryClient.invalidateQueries({ queryKey: qk.friendGiftTargets });
+      // Story 3.4 — the caller gains a REVIVAL_SPEND ledger row (for
+      // PERSONAL_POINTS revivals) AND a received-revival row in this
+      // room's history (for both FREE_TICKET and PERSONAL_POINTS). Both
+      // Wallet detail surfaces drill in off these caches.
+      queryClient.invalidateQueries({ queryKey: qk.personalPointsLedger(roomId) });
+      queryClient.invalidateQueries({ queryKey: qk.receivedRevivals(roomId) });
     },
     onError: (error) => {
       if (error instanceof ApiError) {

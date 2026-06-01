@@ -144,6 +144,22 @@ export function routeInvalidation(
       // Story 3.3 — receiver flipped ACTIVE; any in-cache target entry
       // for that user is now stale (they're no longer RED/SPECTATOR).
       qc.invalidateQueries({ queryKey: qk.friendGiftTargets });
+      // Story 3.4 — the receiver's per-room received-revivals list gained
+      // a FRIEND_GIFT row. When the push payload includes the room id,
+      // narrow the invalidation to that room so a user in N rooms doesn't
+      // refetch all N receivedRevivals caches. Fall back to the broad
+      // predicate only when roomId is missing.
+      const targetRoomId = toFiniteNumber(data?.roomId);
+      if (targetRoomId != null) {
+        qc.invalidateQueries({ queryKey: qk.receivedRevivals(targetRoomId) });
+      } else {
+        qc.invalidateQueries({
+          predicate: (q) => {
+            const key = q.queryKey;
+            return Array.isArray(key) && key[0] === "receivedRevivals";
+          },
+        });
+      }
       qc.invalidateQueries({
         predicate: (q) => {
           const key = q.queryKey;

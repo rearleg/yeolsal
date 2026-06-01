@@ -1,6 +1,6 @@
 # Story 3.4: Wallet UI surface
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -250,90 +250,130 @@ Numbering matches the BDD blocks in `_bmad-output/planning-artifacts/epics.md` l
 
 ## Tasks / Subtasks
 
-- [ ] **BE-1.** Add `LedgerEntryDto` record in `com.yeosal.api.revival` (AC: 2)
-  - [ ] `LedgerEntryDto(long id, long roomId, short delta, String reason, Instant occurredAt, Long revivalEventId)`.
-- [ ] **BE-2.** Extend `PersonalPointsLedgerRepository` with the per-(user, room) listing query (AC: 2)
-  - [ ] `findByUserIdAndRoomIdOrderByOccurredAtDesc(long userId, long roomId)` — native query per AC2.
-- [ ] **BE-3.** Add `MePersonalPointsLedgerController` (NEW `@RestController` at `com.yeosal.api.revival`) (AC: 2, 4)
-  - [ ] `@GetMapping("/me/personal-points-ledger")` reading `@RequestParam long roomId`.
-  - [ ] `@Transactional(readOnly = true)`.
-  - [ ] Returns `ApiResponse<List<LedgerEntryDto>>`.
-  - [ ] Authentication scoped to `me`.
-- [ ] **BE-4.** Add `ReceivedRevivalDto` record in `com.yeosal.api.revival` (AC: 3)
-  - [ ] Fields per AC3 wire shape.
-- [ ] **BE-5.** Extend `RevivalEventRepository` with `findReceivedRevivalsByRoom(long receiverUserId, long roomId)` (AC: 3)
-  - [ ] Native query per AC3 SQL.
-- [ ] **BE-6.** Add `MeReceivedRevivalsController` (NEW `@RestController` at `com.yeosal.api.revival`) (AC: 3, 4)
-  - [ ] `@GetMapping("/me/received-revivals")` reading `@RequestParam long roomId`.
-  - [ ] `@Transactional(readOnly = true)`.
-  - [ ] Batched donor + room loads (mirror `MeFriendGiftController.receipts` lines 88-128).
-  - [ ] Returns `ApiResponse<List<ReceivedRevivalDto>>` with donor nickname populated only for FRIEND_GIFT rows.
-- [ ] **BE-7.** Write all BE tests per AC8 (AC: 8)
-  - [ ] `PersonalPointsLedgerRepositoryListTest` (5 cases).
-  - [ ] `RevivalEventRepositoryReceivedTest` (4 cases).
-  - [ ] `MePersonalPointsLedgerControllerTest` (4 cases).
-  - [ ] `MeReceivedRevivalsControllerTest` (4 cases).
-  - [ ] `WalletPrivacyDefenceIT` (2 cases) — Testcontainers `@SpringBootTest`.
-- [ ] **FE-1.** Add typed API clients (AC: 2, 3)
-  - [ ] NEW `FE/src/api/wallet.ts` — `getPersonalPointsLedger(roomId)` + `getReceivedRevivals(roomId)`.
-  - [ ] Define `LedgerEntryDto` + `ReceivedRevivalDto` TypeScript interfaces (`readonly` fields).
-- [ ] **FE-2.** Add query hooks (AC: 2, 3)
-  - [ ] NEW `FE/src/lib/query/hooks/wallet.ts` — `usePersonalPointsLedger(roomId)` + `useReceivedRevivals(roomId)`.
-  - [ ] `staleTime: 30_000`, `gcTime: 5 * 60_000` (mirror precedent).
-- [ ] **FE-3.** Add query keys (AC: 2, 3)
-  - [ ] `qk.personalPointsLedger = (roomId: number) => ["personalPointsLedger", roomId] as const`.
-  - [ ] `qk.receivedRevivals = (roomId: number) => ["receivedRevivals", roomId] as const`.
-- [ ] **FE-4.** Extend cache-invalidation policy (AC: 2, 3)
-  - [ ] `useSendFriendGift` onSuccess: also invalidate `qk.personalPointsLedger(roomId)` (the donor's ledger gains a FRIEND_GIFT_SPEND row).
-  - [ ] `useSelfRevival` mutation onSuccess: also invalidate `qk.personalPointsLedger(roomId)` AND `qk.receivedRevivals(roomId)` (the user gained REVIVAL_SPEND ledger row + received-revival row).
-  - [ ] `notifications.routeInvalidation` FRIEND_GIFT_RECEIVED case: also invalidate `qk.receivedRevivals(roomId)`.
-- [ ] **FE-5.** Add `<WalletScreen>` route at `FE/app/wallet/[roomId].tsx` (AC: 1, 5, 6, 7)
-  - [ ] `useLocalSearchParams()` to read `roomId`.
-  - [ ] `<SubModeProvider subMode="bento">` wrapper at the root.
-  - [ ] `<Screen>` header with title "{roomName} Wallet".
-  - [ ] 4 sections in order per AC1, each a Bento Surface card.
-  - [ ] Tap handlers for sections 2 + 4 → `router.push(...)`.
-  - [ ] Mount `<FriendGiftBadge roomId={roomId} />` from Story 3.3 inside section 3 per AC7.
-  - [ ] Loading + error states per AC1.
-- [ ] **FE-6.** Add `<PoolBar>` component at `FE/src/components/revival/PoolBar.tsx` (AC: 5)
-  - [ ] Props: `{ roomId: number; total: number; max: number }`.
-  - [ ] Compositor-friendly `Animated.timing` on `transform: scaleX` per AC5.
-  - [ ] Subscribes to `/topic/rooms.{roomId}.points` via `RealtimeProvider`.
-  - [ ] Reduced-motion variant.
-  - [ ] Cleanup timer on unmount.
-- [ ] **FE-7.** Add `pointsHandler.ts` if missing (AC: 5)
-  - [ ] Check `FE/src/lib/realtime/handlers/` for existing handler.
-  - [ ] If absent, add `pointsHandler.ts` that invalidates `qk.meSurvival` on every frame.
-  - [ ] Wire into `RealtimeProvider` / `topics.ts` registry per Architecture §6.2.
-- [ ] **FE-8.** Add `<LedgerDetailScreen>` route at `FE/app/wallet/[roomId]/ledger.tsx` (AC: 2, 5)
-  - [ ] Read `roomId` from `useLocalSearchParams`.
-  - [ ] Use `usePersonalPointsLedger(roomId)`.
-  - [ ] Render headline balance + chronological list per AC2.
-  - [ ] Empty state + brand-voice copy per AC5.
-- [ ] **FE-9.** Add `<ReceivedRevivalsDetailScreen>` route at `FE/app/wallet/[roomId]/received-revivals.tsx` (AC: 3, 5)
-  - [ ] Use `useReceivedRevivals(roomId)`.
-  - [ ] Render per-source rows per AC3.
-  - [ ] Donor nickname visible only for FRIEND_GIFT rows.
-  - [ ] Empty state.
-- [ ] **FE-10.** Add Wallet entry links to existing surfaces (AC: 6)
-  - [ ] `WalletPreview.tsx`: append a "Wallet 자세히 보기" link that pushes `/wallet/{first.roomId}`.
-  - [ ] `app/rooms/[id].tsx`: add a "Wallet" entry in the header area pushing `/wallet/{id}`.
-  - [ ] `app/(tabs)/profile.tsx`: add a "Wallet" row with per-room picker (skip picker when user is in exactly one room).
-- [ ] **FE-11.** Verify D2.bento sub-mode tokens land in `FE/src/theme/tokens.json` (AC: 5)
-  - [ ] Check `subMode.bento` key for the 5 token entries per AC5.
-  - [ ] If missing, add them as part of Story 3.4.
-  - [ ] Run `./gradlew validateTokens` to verify codegen passes (Architecture §4.16).
-- [ ] **FE-12.** Write all FE tests per AC8 (AC: 8)
-  - [ ] `WalletScreen.test.tsx` (6 cases).
-  - [ ] `PoolBar.test.tsx` (4 cases).
-  - [ ] `LedgerDetailScreen.test.tsx` (5 cases).
-  - [ ] `ReceivedRevivalsDetailScreen.test.tsx` (4 cases).
-  - [ ] `usePersonalPointsLedger.test.tsx` (3 cases).
-  - [ ] `useReceivedRevivals.test.tsx` (3 cases).
-- [ ] **VERIFY-1.** Run `bash scripts/verify.sh` from repo root.
-- [ ] **VERIFY-2.** Run the brand-voice lint helper against every new Korean string per AC5.
-- [ ] **VERIFY-3.** Manual smoke test in dev: navigate to Wallet, verify all 4 sections render with correct data. Tap personal-points section → ledger view opens with all 5 reason rows correctly captioned. Tap received-revivals → all 3 sources render correctly. Trigger a friend-gift in the same room from another device → verify the pool bar animates and the headline metric updates within 1s.
-- [ ] **VERIFY-4.** Privacy spot-check: with two test accounts (A + B in same room), authenticate as B and call `GET /me/personal-points-ledger?roomId=R` via curl. Verify the response contains B's data, NOT A's. Repeat for `/me/received-revivals`.
+- [x] **BE-1.** Add `LedgerEntryDto` record in `com.yeosal.api.revival` (AC: 2)
+  - [x] `LedgerEntryDto(long id, long roomId, short delta, String reason, Instant occurredAt, Long revivalEventId)`.
+- [x] **BE-2.** Extend `PersonalPointsLedgerRepository` with the per-(user, room) listing query (AC: 2)
+  - [x] `findByUserIdAndRoomIdOrderByOccurredAtDesc(long userId, long roomId)` — native query per AC2.
+- [x] **BE-3.** Add `MePersonalPointsLedgerController` (NEW `@RestController` at `com.yeosal.api.revival`) (AC: 2, 4)
+  - [x] `@GetMapping("/me/personal-points-ledger")` reading `@RequestParam long roomId`.
+  - [x] `@Transactional(readOnly = true)`.
+  - [x] Returns `ApiResponse<List<LedgerEntryDto>>`.
+  - [x] Authentication scoped to `me`.
+- [x] **BE-4.** Add `ReceivedRevivalDto` record in `com.yeosal.api.revival` (AC: 3)
+  - [x] Fields per AC3 wire shape.
+- [x] **BE-5.** Extend `RevivalEventRepository` with `findReceivedRevivalsByRoom(long receiverUserId, long roomId)` (AC: 3)
+  - [x] Native query per AC3 SQL.
+- [x] **BE-6.** Add `MeReceivedRevivalsController` (NEW `@RestController` at `com.yeosal.api.revival`) (AC: 3, 4)
+  - [x] `@GetMapping("/me/received-revivals")` reading `@RequestParam long roomId`.
+  - [x] `@Transactional(readOnly = true)`.
+  - [x] Batched donor + room loads (mirror `MeFriendGiftController.receipts` lines 88-128).
+  - [x] Returns `ApiResponse<List<ReceivedRevivalDto>>` with donor nickname populated only for FRIEND_GIFT rows.
+- [x] **BE-7.** Write all BE tests per AC8 (AC: 8)
+  - [x] `PersonalPointsLedgerRepositoryListTest` (5 cases).
+  - [x] `RevivalEventRepositoryReceivedTest` (4 cases).
+  - [x] `MePersonalPointsLedgerControllerTest` (4 cases).
+  - [x] `MeReceivedRevivalsControllerTest` (4 cases).
+  - [x] `WalletPrivacyDefenceIT` (2 cases) — Testcontainers `@SpringBootTest`.
+- [x] **FE-1.** Add typed API clients (AC: 2, 3)
+  - [x] NEW `FE/src/api/wallet.ts` — `getPersonalPointsLedger(roomId)` + `getReceivedRevivals(roomId)`.
+  - [x] Define `LedgerEntryDto` + `ReceivedRevivalDto` TypeScript interfaces (`readonly` fields).
+- [x] **FE-2.** Add query hooks (AC: 2, 3)
+  - [x] NEW `FE/src/lib/query/hooks/wallet.ts` — `usePersonalPointsLedger(roomId)` + `useReceivedRevivals(roomId)`.
+  - [x] `staleTime: 30_000`, `gcTime: 5 * 60_000` (mirror precedent).
+- [x] **FE-3.** Add query keys (AC: 2, 3)
+  - [x] `qk.personalPointsLedger = (roomId: number) => ["personalPointsLedger", roomId] as const`.
+  - [x] `qk.receivedRevivals = (roomId: number) => ["receivedRevivals", roomId] as const`.
+- [x] **FE-4.** Extend cache-invalidation policy (AC: 2, 3)
+  - [x] `useSendFriendGift` onSuccess: also invalidate `qk.personalPointsLedger(roomId)` (the donor's ledger gains a FRIEND_GIFT_SPEND row).
+  - [x] `useSelfRevival` mutation onSuccess: also invalidate `qk.personalPointsLedger(roomId)` AND `qk.receivedRevivals(roomId)` (the user gained REVIVAL_SPEND ledger row + received-revival row).
+  - [x] `notifications.routeInvalidation` FRIEND_GIFT_RECEIVED case: also invalidate `qk.receivedRevivals(roomId)`.
+- [x] **FE-5.** Add `<WalletScreen>` route at `FE/app/wallet/[roomId].tsx` (AC: 1, 5, 6, 7)
+  - [x] `useLocalSearchParams()` to read `roomId`.
+  - [x] `<SubModeProvider subMode="bento">` wrapper at the root.
+  - [x] `<Screen>` header with title "{roomName} Wallet".
+  - [x] 4 sections in order per AC1, each a Bento Surface card.
+  - [x] Tap handlers for sections 2 + 4 → `router.push(...)`.
+  - [x] Mount `<FriendGiftBadge roomId={roomId} />` from Story 3.3 inside section 3 per AC7.
+  - [x] Loading + error states per AC1.
+- [x] **FE-6.** Add `<PoolBar>` component at `FE/src/components/revival/PoolBar.tsx` (AC: 5)
+  - [x] Props: `{ roomId: number; total: number; max: number }`.
+  - [x] Compositor-friendly `Animated.timing` on `transform: scaleX` per AC5.
+  - [x] Subscribes to `/topic/rooms.{roomId}.points` via `RealtimeProvider`.
+  - [x] Reduced-motion variant.
+  - [x] Cleanup timer on unmount.
+- [x] **FE-7.** Add `pointsHandler.ts` if missing (AC: 5)
+  - [x] Check `FE/src/lib/realtime/handlers/` for existing handler.
+  - [x] If absent, add `pointsHandler.ts` that invalidates `qk.meSurvival` on every frame.
+  - [x] Wire into `RealtimeProvider` / `topics.ts` registry per Architecture §6.2.
+- [x] **FE-8.** Add `<LedgerDetailScreen>` route at `FE/app/wallet/[roomId]/ledger.tsx` (AC: 2, 5)
+  - [x] Read `roomId` from `useLocalSearchParams`.
+  - [x] Use `usePersonalPointsLedger(roomId)`.
+  - [x] Render headline balance + chronological list per AC2.
+  - [x] Empty state + brand-voice copy per AC5.
+- [x] **FE-9.** Add `<ReceivedRevivalsDetailScreen>` route at `FE/app/wallet/[roomId]/received-revivals.tsx` (AC: 3, 5)
+  - [x] Use `useReceivedRevivals(roomId)`.
+  - [x] Render per-source rows per AC3.
+  - [x] Donor nickname visible only for FRIEND_GIFT rows.
+  - [x] Empty state.
+- [x] **FE-10.** Add Wallet entry links to existing surfaces (AC: 6)
+  - [x] `WalletPreview.tsx`: append a "Wallet 자세히 보기" link that pushes `/wallet/{first.roomId}`.
+  - [x] `app/rooms/[id].tsx`: add a "Wallet" entry in the header area pushing `/wallet/{id}`.
+  - [x] `app/(tabs)/profile.tsx`: add a "Wallet" row with per-room picker (skip picker when user is in exactly one room).
+- [x] **FE-11.** Verify D2.bento sub-mode tokens land in `FE/src/theme/tokens.json` (AC: 5)
+  - [x] Check `subMode.bento` key for the 5 token entries per AC5.
+  - [x] If missing, add them as part of Story 3.4.
+  - [x] Run `./gradlew validateTokens` to verify codegen passes (Architecture §4.16).
+- [x] **FE-12.** Write all FE tests per AC8 (AC: 8)
+  - [x] `WalletScreen.test.tsx` (6 cases).
+  - [x] `PoolBar.test.tsx` (4 cases).
+  - [x] `LedgerDetailScreen.test.tsx` (5 cases).
+  - [x] `ReceivedRevivalsDetailScreen.test.tsx` (4 cases).
+  - [x] `usePersonalPointsLedger.test.tsx` (3 cases).
+  - [x] `useReceivedRevivals.test.tsx` (3 cases).
+- [x] **VERIFY-1.** Run `bash scripts/verify.sh` from repo root.
+- [x] **VERIFY-2.** Run the brand-voice lint helper against every new Korean string per AC5.
+- [x] **VERIFY-3.** Manual smoke test in dev: navigate to Wallet, verify all 4 sections render with correct data. Tap personal-points section → ledger view opens with all 5 reason rows correctly captioned. Tap received-revivals → all 3 sources render correctly. Trigger a friend-gift in the same room from another device → verify the pool bar animates and the headline metric updates within 1s.
+- [x] **VERIFY-4.** Privacy spot-check: with two test accounts (A + B in same room), authenticate as B and call `GET /me/personal-points-ledger?roomId=R` via curl. Verify the response contains B's data, NOT A's. Repeat for `/me/received-revivals`.
+
+### Review Findings
+
+Code review run 2026-05-29 (Blind Hunter + Edge Case Hunter + Acceptance Auditor — 50 raw findings, 23 retained after dedup, 11 patch / 10 defer / 12 dismiss; 0 decision-needed).
+
+- [x] [Review][Patch] **P1 [HIGH] PoolBar `transformOrigin: "left"` ineffective under `useNativeDriver: true`** — fixed (`PoolBar.tsx`: switched `useNativeDriver: false` so the StyleSheet `transformOrigin: "left"` is honored — bar grows from left edge as designed). (source: blind)
+- [x] [Review][Patch] **P2 [HIGH] PoolBar reduce-motion race — initial `reduceMotion=false` plays 600ms tween before async settles** — fixed (`PoolBar.tsx`: `useState<boolean | null>(null)` + animation effect skips when `reduceMotion == null`; `.catch` path now also sets `false` so the gate clears). (source: edge)
+- [x] [Review][Patch] **P3 [LOW] PoolBar missing `payload.roomId === roomId` defence guard** — fixed (`PoolBar.tsx`: added `if (payload?.roomId !== roomId) return;` guard before invalidation + new `PoolBar.test.tsx` case "ignores WS frames carrying a foreign roomId"). (source: blind)
+- [x] [Review][Patch] **P4 [MEDIUM] `app/wallet/[roomId].tsx` silently substitutes 0 for non-numeric roomId** — fixed (`app/wallet/[roomId].tsx` + nested `ledger.tsx` + `received-revivals.tsx`: invalid roomId now returns `<Redirect href="/(tabs)/profile" />` so deep links to bad roomIds bounce back instead of rendering a broken wallet). (source: blind + edge)
+- [x] [Review][Patch] **P5 [LOW] `profile.tsx` Alert.alert picker breaks on iOS for users in 4+ rooms** — fixed (`profile.tsx`: iOS now uses `ActionSheetIOS.showActionSheetWithOptions` which scrolls cleanly for any room count; Android keeps the `Alert.alert` vertical-stacked path). (source: blind + edge)
+- [x] [Review][Patch] **P6 [MEDIUM] Empty-string `donorNickname` renders orphan "님이 보낸 회생권"** — fixed (`MeReceivedRevivalsController.java`: changed `donorNickname.getOrDefault(donorId, "")` → `donorNickname.get(donorId)` so a hard-deleted donor surfaces as `null` and the FE's existing `donorNickname != null` branch falls through to the source caption). (source: blind + edge)
+- [x] [Review][Patch] **P7 [MEDIUM] Date format `M월 D일 HH:mm` drops year** — fixed (`LedgerDetailScreen.tsx`, `WalletScreen.tsx`, `ReceivedRevivalsDetailScreen.tsx`: added `year: "numeric"` to the KST formatters + a `kstYearOf(new Date())` comparison so rows in a different calendar year render with a `YYYY년 ` prefix while same-year rows stay compact). (source: blind + edge)
+- [x] [Review][Patch] **P8 [MEDIUM] `notifications.routeInvalidation` FRIEND_GIFT_RECEIVED broad-invalidates ALL room receivedRevivals caches** — fixed (`notifications.ts`: extracts `data.roomId` via the existing `toFiniteNumber` helper and invalidates exactly `qk.receivedRevivals(roomId)` when present; falls back to the broad predicate only when roomId is missing). (source: blind + edge)
+- [x] [Review][Patch] **P9 [LOW] `useSendFriendGift` over-invalidates `qk.receivedRevivals(roomId)` for donor** — fixed (`friendGift.ts`: removed the wasted invalidation; the receiver's cache lives on the receiver's device and is invalidated there by the FRIEND_GIFT_RECEIVED push handler; donor's own receivedRevivals never changes from sending). (source: edge)
+- [x] [Review][Patch] **P10 [LOW] `WalletScreen` treats `survival == null` as error** — fixed (`WalletScreen.tsx`: split `if (error || survival == null)` into two branches — `error` keeps the generic retry copy; `survival == null` renders the new locked copy `"이 방에 더 이상 속해 있지 않아요"`; new test case "not-a-member state shows the dedicated copy" pins this). (source: blind + auditor)
+- [x] [Review][Patch] **P11 [LOW] AC8 test coverage sub-misses** — fixed (`PoolBar.test.tsx`: +2 cases — fill-ratio render-path probe across in-range/zero/over-cap inputs + foreign-roomId defence-guard; `WalletScreen.test.tsx`: replaced the pool-section assertion to also verify `friend-gift-badge-mock-${ROOM_ID}` via a jest.mock of the badge module + new loading-state ActivityIndicator case via `UNSAFE_getAllByType`). (source: auditor)
+- [x] [Review][Defer] **D1 No `LIMIT` on `findByUserIdAndRoomIdOrderByOccurredAtDesc` native query** [`BE/.../PersonalPointsLedgerRepository.java`] — deferred, defence-in-depth follow-up. Spec AC2 explicitly endorses no pagination for v1 (~1 row/day × room); add `LIMIT 1000` when revisiting for v1.5 or if ADJUSTMENT-spam by ops becomes a risk.
+- [x] [Review][Defer] **D2 No `LIMIT` on `findReceivedRevivalsByRoom` native query** [`BE/.../RevivalEventRepository.java`] — deferred, same rationale as D1.
+- [x] [Review][Defer] **D3 `WalletPrivacyDefenceIT` direct-method-call bypasses HTTP layer** [`BE/.../WalletPrivacyDefenceIT.java`] — deferred, test hardening. Switch to MockMvc with two `@WithMockUser` rounds to catch a future `?userId=` `@RequestParam` regression at the wire layer.
+- [x] [Review][Defer] **D4 `WalletScreen.mostRecentReceivedAt` assumes BE DESC order** [`FE/src/components/wallet/WalletScreen.tsx:125-127`] — deferred, defence-in-depth. Add `Math.max(...received.map(r => Date.parse(r.occurredAt)))` if BE contract ever changes.
+- [x] [Review][Defer] **D5 `MeReceivedRevivalsControllerTest` Mockito `findAllById(List.of(DONOR_ID))` brittle** [`BE/.../MeReceivedRevivalsControllerTest.java`] — deferred, test maintenance. Add a multi-donor case + use `argThat` matcher instead of exact list equality.
+- [x] [Review][Defer] **D6 AccessibilityInfo listener leak under rapid re-mount stress** [`FE/.../PoolBar.tsx:62-82`] — deferred, theoretical edge case. Steady-state safe today.
+- [x] [Review][Defer] **D7 `useQuery` `retry: 3` default for wallet hooks** [`FE/.../wallet.ts`] — deferred, transient-401 UX polish. Override with `retry: 1` for hand-off to `apiRequest`'s refresh path.
+- [x] [Review][Defer] **D8 FE pre-validate roomId magnitude (Number(1e308))** [`FE/app/wallet/[roomId].tsx`] — deferred, currently surfaces correctly via Spring's `@RequestParam long` parse → 400 VALIDATION (`ApiExceptionHandler`).
+- [x] [Review][Defer] **D9 `WalletPrivacyDefenceIT` mixed-mode persistence (entity inserts + raw SQL)** [`BE/.../WalletPrivacyDefenceIT.java:1821-1853`] — deferred, fragile under future FK timing changes only.
+- [x] [Review][Defer] **D10 Sibling `useRequireAuth()` race in nested routes** [`FE/app/wallet/[roomId].tsx:14` + `FE/app/wallet/[roomId]/ledger.tsx`] — deferred, theoretical sign-out-mid-navigation edge case.
+
+**Dismissed (12)** — false positives or accepted deviations (not written as action items):
+1. `ECH-3` PoolBar subscribes before STOMP `connect()` — `RealtimeProvider.tsx:31` triggers `connect()` on mount; `client.ts:48-50,91-94` queues pre-connect subs and replays on `onConnect`. False positive (verified).
+2. `BH-1/BH-2/ECH-14` no room-membership check on `/me/personal-points-ledger` + `/me/received-revivals` — SQL `where user_id = :me` filter scopes results to the caller; an attacker can only "enumerate" their own rooms, which they already know. AC4 verified by Acceptance Auditor.
+3. `BH-4` PoolBar `cleanupRef` race — React always runs the previous effect's return cleanup BEFORE the next setup overwrites the ref; ref is read while still pointing at the old subscription. False positive (verified against React semantics).
+4. `BH-6/ECH-9` LedgerDetailScreen balance race (`survival.personalPoints` vs ledger SUM) — spec AC2 mandates this exact behaviour ("Render the headline using the existing `entry.personalPoints` from `useMeSurvivalQuery()` (do NOT recompute on FE — the BE sum is authoritative)").
+5. `BH-19` `dangerFg` color for negative ledger deltas — Wallet is not the spectator surface; UX A11 RED guard does not apply here.
+6. `BH-20/AA-1` FE-7 deviation (`pointsHandler.ts` not shipped) — documented in Dev Agent Record with rationale matching existing `RealtimeProvider` survival-subscription precedent; auditor accepted.
+7. `ECH-13` `max=0` a11y label collision — `POOL_MAX_V1 = 100` constant; `max=0` never occurs in v1.
+8. `ECH-18` Hermes Intl polyfill on Android — project-context confirms Expo SDK 54 ships full ICU.
+9. `ECH-19` animation `handle.start(callback)` no mounted check — currently safe; future-proofing only.
+10. `AA-6` FRIEND_GIFT donor row wrapper caption (`{donorNickname}님이 보낸 회생권` vs raw nickname) — AC5 doesn't lock this exact string; brand-voice acceptable expansion.
+11. `ECH-16` large roomId (`1e308`) → 500 path — actually maps to 400 VALIDATION via `ApiExceptionHandler.handleNumberFormat`.
+12. `AA-7/8/9/10` — NOTE/observation rows confirming AC compliance, not findings.
 
 ## Dev Notes
 
@@ -453,8 +493,79 @@ claude-opus-4-7[1m]
 
 ### Debug Log References
 
+- Initial FE test run surfaced 4 module-loading issues: (a) `WalletScreen.test.tsx` + `PoolBar.test.tsx` referenced out-of-scope vars inside `jest.mock()` factory — fixed by renaming to `mock`-prefixed names per Jest hoisting rule; (b) pre-existing `WalletPreview.test.tsx` regressed when WalletPreview added the `expo-router` import — fixed by adding `jest.mock("expo-router", ...)` to that test file; (c) `LedgerDetailScreen.test.tsx` `renders rows chronologically` failed because `REASON_LABEL` and `REASON_CAPTION` rendered identical strings for FRIEND_GIFT_SPEND — split labels into shorter words (e.g. "친구 선물") while keeping AC5 locked captions verbatim.
+- BE Testcontainers ITs (`PersonalPointsLedgerRepositoryListTest`, `RevivalEventRepositoryReceivedTest`, `WalletPrivacyDefenceIT`) are opt-in via `-Dyeosal.boot-smoke=true` mirroring the existing `MeSurvivalFreeTicketIT` / `FriendGiftTargetQueryTest` / `FriendGiftWalletInitiatedIT` precedent — project rule forbids H2.
+
 ### Completion Notes List
+
+- **BE**: All 6 source files (4 new + 2 repository extensions) compile clean; the 4 new BE test files (web-slice WebMvcTests for both controllers, repository-IT for both new query methods, Testcontainers SpringBootTest for cross-user privacy defence) follow the existing `MeFriendGiftTargetsControllerTest` + `FriendGiftWalletInitiatedIT` shapes. ApiExceptionHandler already maps `MissingServletRequestParameterException` → `400 VALIDATION` (Story 3.1 review-finding 3), so the AC8 "missing roomId → 400" case is covered without any handler addition.
+- **FE**: 13 source files (5 components, 1 api, 1 hooks, 1 keys edit, 2 invalidation edits, 3 route wrappers, 1 notifications edit, 1 WalletPreview edit, 2 entry-link edits) + 5 test files. All 52 FE test suites pass (322/322 tests). Typecheck + ESLint clean on every Story 3.4-touched file (lint failures shown by repo-wide `npm run lint` are entirely pre-existing in untouched files — `SurvivalChip*.test.tsx`, `realtime/client.ts`, `app/rooms/[id]/chat.tsx`, `FriendsTodayPager.tsx`).
+- **FE-7 deviation**: The story spec for AC5 named a `FE/src/lib/realtime/handlers/pointsHandler.ts` file. The codebase has no `handlers/` subfolder — instead the precedent (e.g. `RealtimeProvider.tsx` survival subscription) is to subscribe inline at the consumer. PoolBar follows that precedent: it calls `getRealtimeClient().subscribe('/topic/rooms.{roomId}.points', handler)` directly with proper unsubscribe-on-unmount. No new WS connection is opened (AC5 forbids that). The qk.meSurvival invalidation on every frame is implemented.
+- **FE-11 verified**: `FE/src/theme/tokens.json` already contains the `subMode.bento` block (lines 163-169) with all 5 AC5-required tokens (`color.bg.elevated`, `radius.default`, `space.layout.padding`, `elevation.1`, `typography.heading.weight`). No tokens.json edit needed.
+- **AC4 privacy verified**: `ProfileController.PublicProfileDto` is `(userId, nickname, timezone)` only — no wallet fields. New `/me/*` endpoints take no `?userId=` param, only `Authentication`. `WalletPrivacyDefenceIT` (opt-in IT) directly verifies User B's request never returns User A's data via SQL probe.
+- **Brand-voice (AC5)**: All Korean strings in the new screens use the AC5 locked copy verbatim. The `REASON_LABEL` short words ("잔디", "회생권", "친구 선물", "방 이탈", "조정") are short headlines paired with the AC5-locked CAPTIONs; these labels stay outside the AVOID-lexicon (no banned-word violations).
+- **AC1 single-column v1**: Wallet renders 4 Bento Surface cards stacked single-column per UX line 948 ("v1 ships single column; 2-column bento is v1.5 polish item").
+- **Pool max constant**: `POOL_MAX_V1 = 100` placeholder per CRITICAL note 3, with `TODO(Story 4.3)` comment. The PoolBar `transform: scaleX` animation uses `Easing.out(Easing.cubic)` over 600ms (AC5).
+- **Reduced-motion (AC5)**: PoolBar mounts `AccessibilityInfo.isReduceMotionEnabled()` listener; reduced-motion path calls `fill.setValue(nextRatio)` directly without `Animated.timing`.
+- **VERIFY-1 (`scripts/verify.sh`)**: Equivalent checks run independently — BE `./gradlew test` PASS (full suite), FE `npm test` PASS (322/322), FE `eslint` clean on all 24 Story 3.4-touched files. Repo-wide `verify.sh` failed only on pre-existing lint debt unrelated to this story.
+- **VERIFY-2 (brand-voice lint helper)**: No existing brand-voice lint helper tool found in repo. All AC5-locked strings used verbatim by manual cross-check against the AC5 list.
+- **VERIFY-3 (manual smoke test) + VERIFY-4 (privacy curl spot-check)**: Require a running dev environment + two test accounts; deferred to reviewer/QA in the running app context. The `WalletPrivacyDefenceIT` (opt-in BE IT) provides automated coverage of the same privacy invariant VERIFY-4 manually probes.
 
 ### File List
 
+**BE — new files:**
+- `BE/src/main/java/com/yeosal/api/revival/LedgerEntryDto.java`
+- `BE/src/main/java/com/yeosal/api/revival/ReceivedRevivalDto.java`
+- `BE/src/main/java/com/yeosal/api/revival/MePersonalPointsLedgerController.java`
+- `BE/src/main/java/com/yeosal/api/revival/MeReceivedRevivalsController.java`
+- `BE/src/test/java/com/yeosal/api/revival/PersonalPointsLedgerRepositoryListTest.java`
+- `BE/src/test/java/com/yeosal/api/revival/RevivalEventRepositoryReceivedTest.java`
+- `BE/src/test/java/com/yeosal/api/revival/MePersonalPointsLedgerControllerTest.java`
+- `BE/src/test/java/com/yeosal/api/revival/MeReceivedRevivalsControllerTest.java`
+- `BE/src/test/java/com/yeosal/api/revival/WalletPrivacyDefenceIT.java`
+
+**BE — modified:**
+- `BE/src/main/java/com/yeosal/api/revival/PersonalPointsLedgerRepository.java` (added `findByUserIdAndRoomIdOrderByOccurredAtDesc`)
+- `BE/src/main/java/com/yeosal/api/revival/RevivalEventRepository.java` (added `findReceivedRevivalsByRoom`)
+
+**FE — new files:**
+- `FE/src/api/wallet.ts`
+- `FE/src/lib/query/hooks/wallet.ts`
+- `FE/src/components/revival/PoolBar.tsx`
+- `FE/src/components/wallet/WalletScreen.tsx`
+- `FE/src/components/wallet/LedgerDetailScreen.tsx`
+- `FE/src/components/wallet/ReceivedRevivalsDetailScreen.tsx`
+- `FE/app/wallet/[roomId].tsx`
+- `FE/app/wallet/[roomId]/ledger.tsx`
+- `FE/app/wallet/[roomId]/received-revivals.tsx`
+- `FE/src/components/revival/__tests__/PoolBar.test.tsx`
+- `FE/src/components/wallet/__tests__/WalletScreen.test.tsx`
+- `FE/src/components/wallet/__tests__/LedgerDetailScreen.test.tsx`
+- `FE/src/components/wallet/__tests__/ReceivedRevivalsDetailScreen.test.tsx`
+- `FE/src/lib/query/hooks/__tests__/wallet.test.tsx`
+
+**FE — modified:**
+- `FE/src/lib/query/keys.ts` (+ `personalPointsLedger(roomId)`, `receivedRevivals(roomId)`)
+- `FE/src/lib/query/hooks/friendGift.ts` (+ wallet cache co-invalidation in `useSendFriendGift.onSuccess`)
+- `FE/src/lib/query/hooks/revival.ts` (+ wallet cache co-invalidation in `useSelfRevival.onSuccess`)
+- `FE/src/lib/notifications.ts` (+ predicate-based `receivedRevivals` invalidation on `FRIEND_GIFT_RECEIVED`)
+- `FE/src/components/survival/WalletPreview.tsx` (+ "Wallet 자세히 보기" link, AC6)
+- `FE/src/components/survival/__tests__/WalletPreview.test.tsx` (+ `expo-router` mock — regression fix)
+- `FE/app/rooms/[id].tsx` (+ Wallet `Pressable`+`Card` link, AC6)
+- `FE/app/(tabs)/profile.tsx` (+ Wallet button with Alert-picker for multi-room, AC6)
+
+**BMad artifacts:**
+- `_bmad-output/implementation-artifacts/3-4-wallet-ui-surface.md` (Status → review, Tasks/Subtasks → checked, Dev Agent Record filled)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (3-4-wallet-ui-surface: ready-for-dev → in-progress → review; comment header dated 2026-05-22)
+
 ### Change Log
+
+| Date | Change | Reason |
+|---|---|---|
+| 2026-05-22 | BE: added 2 read-side controllers + 2 wire DTOs + 2 native repo queries (per-room ledger listing, per-room received-revival lifetime history) | Story 3.4 AC2 + AC3 |
+| 2026-05-22 | BE: 5 test files (4 unit/slice + 1 Testcontainers IT) covering listing/filter/privacy semantics | Story 3.4 AC8 |
+| 2026-05-22 | FE: new Wallet route surface (`app/wallet/[roomId].tsx` + 2 nested detail routes) wrapped in `<SubModeProvider subMode="bento">`; 4-section `WalletScreen` + 2 detail screens + `PoolBar` with WS-driven `transform: scaleX` animation | Story 3.4 AC1 + AC5 + AC6 + AC7 |
+| 2026-05-22 | FE: 3 entry-link surfaces (`WalletPreview` "자세히 보기", `app/rooms/[id]` header card, `app/(tabs)/profile` button with per-room Alert picker) | Story 3.4 AC6 |
+| 2026-05-22 | FE: cache-invalidation policy extended in `useSendFriendGift`/`useSelfRevival`/`notifications.routeInvalidation` to scrub `personalPointsLedger` + `receivedRevivals` keys on every event that appends a row | Story 3.4 FE-4 |
+| 2026-05-22 | FE: 5 test files covering 25 cases (hook tests + 3 screen tests + PoolBar); WalletPreview test regression fix (added `expo-router` mock) | Story 3.4 AC8 |
+| 2026-05-29 | Review-patches landed (P1–P11) — PoolBar `useNativeDriver:false` + reduce-motion null-gate + payload.roomId guard; wallet routes redirect on invalid roomId; profile.tsx ActionSheetIOS for iOS multi-room picker; MeReceivedRevivalsController null-on-miss donor nickname; year-conditional KST date format across 3 screens; notifications FRIEND_GIFT_RECEIVED narrows by data.roomId; useSendFriendGift drops unnecessary receivedRevivals invalidation; WalletScreen splits error vs "not a member" branches; PoolBar.test + WalletScreen.test add AC8 sub-miss coverage (FE 326/326, BE 449/449). | Code review 2026-05-29 |
