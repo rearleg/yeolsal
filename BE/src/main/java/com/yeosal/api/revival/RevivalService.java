@@ -79,6 +79,7 @@ public class RevivalService {
     private final RevivalEventRepository revivalEvents;
     private final PersonalPointsLedgerRepository personalLedger;
     private final RoomPointPoolRepository roomPointPool;
+    private final RoomPointPoolService roomPointPoolService;
     private final FriendshipRepository friendships;
     private final RoomMemberRepository roomMembers;
     private final ApplicationEventPublisher eventPublisher;
@@ -92,6 +93,7 @@ public class RevivalService {
             RevivalEventRepository revivalEvents,
             PersonalPointsLedgerRepository personalLedger,
             RoomPointPoolRepository roomPointPool,
+            RoomPointPoolService roomPointPoolService,
             FriendshipRepository friendships,
             RoomMemberRepository roomMembers,
             ApplicationEventPublisher eventPublisher,
@@ -102,7 +104,13 @@ public class RevivalService {
         this.users = users;
         this.revivalEvents = revivalEvents;
         this.personalLedger = personalLedger;
+        // Story 4.1 — roomPointPool stays as a pre-INSERT lock/preview source
+        // for the pool_after column (selectForUpdate inside the same tx),
+        // but all WRITE-side concerns (incrementTotal + PointPoolChangeEvent
+        // publish + negative-delta guard) now route through the dedicated
+        // RoomPointPoolService chokepoint.
         this.roomPointPool = roomPointPool;
+        this.roomPointPoolService = roomPointPoolService;
         this.friendships = friendships;
         this.roomMembers = roomMembers;
         this.eventPublisher = eventPublisher;
@@ -195,11 +203,10 @@ public class RevivalService {
                     LedgerReason.REVIVAL_SPEND, now, revivalEventId));
         }
 
-        int updatedPool = roomPointPool.incrementTotal(roomId, poolDelta);
-        if (updatedPool == 0) {
-            throw new IllegalStateException(
-                    "room_point_pool row vanished mid-transaction: roomId=" + roomId);
-        }
+        // Story 4.1 — pool UPDATE + PointPoolChangeEvent publish moved into
+        // RoomPointPoolService.applyDelta (negative-delta guard at the
+        // chokepoint, single owner of incrementTotal/publish ordering).
+        roomPointPoolService.applyDelta(roomId, poolDelta, revivalEventId, now);
 
         SurvivalStatus fromStatus = state.getStatus();
         state.markRevived(now);
@@ -212,8 +219,6 @@ public class RevivalService {
                 roomId, userId, ownerUserId,
                 fromStatus, SurvivalStatus.ACTIVE,
                 now, /* broadVisibilityAt */ null));
-        eventPublisher.publishEvent(new PointPoolChangeEvent(
-                roomId, poolDelta, newTotal, revivalEventId, now));
 
         if (log.isInfoEnabled()) {
             log.info("[revival] roomId={} userId={} source={} pointsSpent={} newPool={} eventId={}",
@@ -370,12 +375,11 @@ public class RevivalService {
                 giverUserId, roomId, (short) -FRIEND_GIFT_COST,
                 LedgerReason.FRIEND_GIFT_SPEND, now, revivalEventId));
 
-        // (14) Bump the room pool.
-        int updatedPool = roomPointPool.incrementTotal(roomId, FRIEND_GIFT_POOL_DELTA);
-        if (updatedPool == 0) {
-            throw new IllegalStateException(
-                    "room_point_pool row vanished mid-transaction: roomId=" + roomId);
-        }
+        // (14) Story 4.1 — bump the room pool + publish PointPoolChangeEvent
+        //      through the dedicated chokepoint (negative-delta guard,
+        //      incrementTotal, publish all in one transactional unit).
+        roomPointPoolService.applyDelta(
+                roomId, FRIEND_GIFT_POOL_DELTA, revivalEventId, now);
 
         // (15) Flip the target's survival_state to ACTIVE.
         SurvivalStatus fromStatus = targetState.getStatus();
@@ -390,6 +394,9 @@ public class RevivalService {
                 .existsFriendGiftSendByGiver(giverUserId, revivalEventId);
 
         // (17) Publish AFTER_COMMIT-driven fan-out events.
+        //      PointPoolChangeEvent is published from RoomPointPoolService
+        //      (step 14) — Story 4.1 moved it there to keep pool-mutation
+        //      ordering owned by a single component.
         Room room = rooms.findById(roomId)
                 .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
         Long ownerUserId = room.getOwner().getId();
@@ -397,8 +404,6 @@ public class RevivalService {
                 roomId, targetUserId, ownerUserId,
                 fromStatus, SurvivalStatus.ACTIVE,
                 now, /* broadVisibilityAt */ null));
-        eventPublisher.publishEvent(new PointPoolChangeEvent(
-                roomId, FRIEND_GIFT_POOL_DELTA, newTotal, revivalEventId, now));
         eventPublisher.publishEvent(new FriendGiftSentEvent(
                 roomId, giverUserId, targetUserId, revivalEventId, now));
 

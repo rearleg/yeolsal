@@ -58,6 +58,9 @@ describe("useSelfRevival", () => {
 
     expect(postSelfRevivalMock).toHaveBeenCalledWith(ROOM_ID, "FREE_TICKET");
     expect(spy).toHaveBeenCalledWith({ queryKey: qk.meSurvival });
+    // Story 4.1 Patch 4 — qk.roomPoints(roomId) must also invalidate so
+    // the Wallet recovers when WS delivery is unavailable.
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.roomPoints(ROOM_ID) });
   });
 
   it("409 ALREADY_REVIVED → still invalidates qk.meSurvival (state must be re-read)", async () => {

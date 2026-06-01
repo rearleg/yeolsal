@@ -1,11 +1,16 @@
-// PoolBar (Story 3.4 AC1 §3 + AC5 — D2.bento Wallet "room point pool").
+// PoolBar (Story 3.4 AC1 §3 + AC5; Story 4.1 AC8 refactor).
 //
 // Renders the room point pool fill ratio as a compositor-friendly
 // `transform: scaleX` animation (project-context web/performance rule —
-// animate transform NOT width). Subscribes to `/topic/rooms.{roomId}.points`
-// via the singleton RealtimeClient so live increments (Story 3.1 self-
-// revival, Story 3.2 friend-gift) animate the bar without a full screen
-// re-mount.
+// animate transform NOT width).
+//
+// Story 4.1 AC8 — the inline `/topic/rooms.{id}.points` subscribe + the
+// per-frame `qk.meSurvival` invalidate were both moved out of this leaf
+// component into the `useRoomPoints(roomId)` domain hook
+// (`FE/src/lib/query/hooks/roomPoints.ts`). The parent now owns the
+// subscription + dedupe-by-sourceRevivalEventId merge into `qk.roomPoints`
+// and passes the latest `total` down as a prop. PoolBar stays purely
+// presentational — `total` change drives the fill animation, nothing more.
 //
 // Lives in `components/revival/` (alongside FriendGiftBadge) — the pool
 // is a revival-economy concern that the Wallet surface mounts but other
@@ -19,24 +24,14 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { useQueryClient } from "@tanstack/react-query";
-import { getRealtimeClient } from "../../lib/realtime/client";
-import { qk } from "../../lib/query/keys";
 import { useTheme } from "../../theme/useTheme";
 import { palette } from "../../theme/tokens";
 
 export interface PoolBarProps {
-  readonly roomId: number;
   readonly total: number;
   /** v1 placeholder threshold per Story 3.4 critical note 3. Story 4.3 wires
    *  the real per-room threshold table; until then callers pass a constant. */
   readonly max: number;
-}
-
-interface PointPoolChangePayload {
-  readonly roomId: number;
-  readonly totalAfter: number;
-  readonly lastEventAt?: string;
 }
 
 const ANIMATION_DURATION_MS = 600;
@@ -48,9 +43,8 @@ function clampRatio(total: number, max: number): number {
   return total / max;
 }
 
-export function PoolBar({ roomId, total, max }: PoolBarProps) {
+export function PoolBar({ total, max }: PoolBarProps) {
   const theme = useTheme();
-  const qc = useQueryClient();
   // null = not yet resolved; gating the animation effect on a settled
   // value prevents a reduce-motion user from seeing the first 600ms tween
   // before the async AccessibilityInfo lookup flips the state.
@@ -112,32 +106,6 @@ export function PoolBar({ roomId, total, max }: PoolBarProps) {
       animationRef.current = null;
     });
   }, [total, max, reduceMotion, fill]);
-
-  // STOMP subscription via the singleton — Story 3.4 AC5 explicitly
-  // forbids opening a new WS from inside the leaf component.
-  useEffect(() => {
-    if (!Number.isFinite(roomId) || roomId <= 0) return;
-    const client = getRealtimeClient();
-    const sub = client.subscribe(`/topic/rooms.${roomId}.points`, (frame) => {
-      try {
-        const payload = JSON.parse(frame.body) as PointPoolChangePayload;
-        // Defence guard: the topic is room-scoped server-side, but pin
-        // the consumer to our roomId so a broker fanout misconfig or a
-        // race during roomId change does not spend a BE round-trip on a
-        // foreign room.
-        if (payload?.roomId !== roomId) return;
-        if (typeof payload?.totalAfter === "number") {
-          // Invalidate the cross-room aggregation so the headline metric on
-          // the Wallet refreshes from the BE. The local `total` prop updates
-          // on the next render; the animation hook above handles the tween.
-          qc.invalidateQueries({ queryKey: qk.meSurvival });
-        }
-      } catch {
-        // Malformed payload — broker will retry on next event.
-      }
-    });
-    return () => sub.unsubscribe();
-  }, [roomId, qc]);
 
   // Cancel in-flight animation on unmount to avoid stranded timers.
   useEffect(() => {

@@ -72,6 +72,8 @@ describe("useSendFriendGift", () => {
         JSON.stringify(qk.roomMessages(ROOM_ID)),
         JSON.stringify(qk.friendGiftReceipts),
         JSON.stringify(qk.hasGivenFriendGift),
+        // Story 4.1 Patch 4 — qk.roomPoints recovery when WS is down.
+        JSON.stringify(qk.roomPoints(ROOM_ID)),
       ]),
     );
   });

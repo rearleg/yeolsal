@@ -14,3 +14,7 @@ Findings deferred during BMad code-review runs. Pick these up when the originati
 - **D8 [FE-LOW]** Wallet route accepts `Number("1e308")` (Infinity-adjacent magnitudes pass `Number.isFinite`). Currently handled by Spring `@RequestParam long` parse → 400 VALIDATION via `ApiExceptionHandler`. Could pre-validate magnitude on FE before sending.
 - **D9 [BE-test]** `WalletPrivacyDefenceIT` mixes entity-managed inserts (`tx.executeWithoutResult`) with raw SQL (`jdbc.update`) inside the same `@Transactional` test method. Fragile under future FK timing changes (e.g., `INITIALLY DEFERRED` migrations). Pick one persistence mode.
 - **D10 [FE-LOW]** `app/wallet/[roomId].tsx` and nested `ledger.tsx` / `received-revivals.tsx` each call `useRequireAuth()`. On sign-out mid-navigation, parent and child each trigger `router.replace` in the same tick. Theoretical race; no known reproduction.
+
+## Deferred from: code review of 4-1-room-point-pool-counter-cache (2026-06-01)
+
+- **FE verification baseline** Repair the pre-existing repository verification failures: `src/components/today/FriendsTodayPager.tsx` cannot resolve `react-native-pager-view` and has an implicit-`any` callback parameter; unrelated lint failures also remain outside Story 4.1 touched files.

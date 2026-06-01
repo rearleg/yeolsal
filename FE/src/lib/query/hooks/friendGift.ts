@@ -58,6 +58,10 @@ export function useSendFriendGift(roomId: number) {
       // the FRIEND_GIFT_RECEIVED push handler — the donor's own
       // received-revivals never changes from sending, so don't churn it.
       queryClient.invalidateQueries({ queryKey: qk.personalPointsLedger(roomId) });
+      // Story 4.1 Patch 4 — pool gained 5 from the friend-gift. Invalidate
+      // the dedicated per-room snapshot so the Wallet route recovers even
+      // when realtime delivery is unavailable.
+      queryClient.invalidateQueries({ queryKey: qk.roomPoints(roomId) });
     },
     onError: (error) => {
       if (error instanceof ApiError) {

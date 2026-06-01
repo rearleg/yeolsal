@@ -70,6 +70,7 @@ class RevivalServiceSourceSubtypeTest {
     @Mock private RevivalEventRepository revivalEvents;
     @Mock private PersonalPointsLedgerRepository personalLedger;
     @Mock private RoomPointPoolRepository roomPointPool;
+    @Mock private RoomPointPoolService roomPointPoolService;
     @Mock private FriendshipRepository friendships;
     @Mock private RoomMemberRepository roomMembers;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -85,7 +86,7 @@ class RevivalServiceSourceSubtypeTest {
     void setUp() {
         service = new RevivalService(
                 survivalStates, rooms, users, revivalEvents, personalLedger,
-                roomPointPool, friendships, roomMembers,
+                roomPointPool, roomPointPoolService, friendships, roomMembers,
                 eventPublisher, entityManager, CLOCK);
 
         giver = makeUser(GIVER_ID, "giver@example.com", "Giver");
