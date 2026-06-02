@@ -3,7 +3,7 @@
 // Per-room wallet surface with four sections in fixed top-to-bottom order:
 //   1. Free revival ticket (user-scoped flag; identical across rooms)
 //   2. Personal points balance (tappable → /wallet/{roomId}/ledger)
-//   3. Room point pool (<PoolBar> + Story 3.3's <FriendGiftBadge>)
+//   3. Room point pool (<PoolStack> + Story 3.3's <FriendGiftBadge>)
 //   4. 받은 회생권 history (tappable → /wallet/{roomId}/received-revivals)
 //
 // All sections are Bento Surface cards under the D2.bento sub-mode (the
@@ -27,16 +27,10 @@ import { useCurrentRoomSurvivalState, useMeSurvivalQuery } from "../../lib/query
 import { useRoomPoints } from "../../lib/query/hooks/roomPoints";
 import { useReceivedRevivals } from "../../lib/query/hooks/wallet";
 import { FriendGiftBadge } from "../revival/FriendGiftBadge";
-import { PoolBar } from "../revival/PoolBar";
+import { PoolStack } from "../survival/PoolStack";
 import { space } from "../../theme/spacing";
 import { palette, surface } from "../../theme/tokens";
 import { useTheme } from "../../theme/useTheme";
-
-// Story 4.3 wires the real per-room threshold table; v1 placeholder caps
-// the PoolBar fill ratio at this constant so the bar renders sensibly
-// for the v1 low-magnitude pool numbers.
-// TODO(Story 4.3): replace with the BE-shipped poolMax per room.
-const POOL_MAX_V1 = 100;
 
 const COPY = {
   freeTicketEnabled: "🎟  무료 회생권 1매",
@@ -206,8 +200,8 @@ export function WalletScreen({ roomId }: WalletScreenProps) {
           <Text variant="numericDisplay" color={palette.ink}>
             {pool}
           </Text>
-          <View style={styles.poolBarSpacer}>
-            <PoolBar total={pool} max={POOL_MAX_V1} />
+          <View style={styles.poolStackSpacer}>
+            <PoolStack key={roomId} total={pool} testID="wallet-pool-stack" />
           </View>
           <Text variant="caption" color={palette.inkMute}>
             {COPY.poolPromise}
@@ -263,8 +257,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  poolBarSpacer: {
-    marginTop: space[2],
-    marginBottom: space[2],
+  poolStackSpacer: {
+    marginTop: space[3],
+    marginBottom: space[3],
+    alignItems: "center",
   },
 });

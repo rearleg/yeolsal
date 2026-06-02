@@ -69,7 +69,9 @@ const DEFAULT_ROOTS: readonly ScanRoot[] = [
   { absPath: resolve(REPO_ROOT, "FE/app"), label: "FE/app" },
 ];
 
-const SCAN_EXT = new Set([".ts", ".tsx"]);
+const SCAN_EXT = new Set([".ts", ".tsx", ".svg"]);
+const SVG_PAINT_ATTRIBUTE_RE = /\b(?:fill|stroke)\s*=\s*(["'])(.*?)\1/g;
+const TOKENS_JSON_PATH = resolve(REPO_ROOT, "FE/src/theme/tokens.json");
 const SKIP_DIR_SEGMENTS = new Set([
   "node_modules",
   ".expo",
@@ -119,7 +121,7 @@ function walkDir(dir: string, entries: FileEntry[]): void {
     if (!dirent.isFile()) continue;
     const dotIdx = dirent.name.lastIndexOf(".");
     if (dotIdx < 0) continue;
-    const ext = dirent.name.slice(dotIdx);
+    const ext = dirent.name.slice(dotIdx).toLowerCase();
     if (!SCAN_EXT.has(ext)) continue;
     entries.push(makeEntry(childAbs));
   }
@@ -245,6 +247,85 @@ const RULE3_FILE_BLOCKLIST = new Set([
   "FE/src/theme/tokens.json",
 ]);
 
+// Story 4.3 TOOLS-1 — load the union of every hex value found anywhere
+// in tokens.json. Used as the allowlist for .svg-file scanning. Cached
+// on first call; tokens.json changes once per design system bump.
+let HEX_ALLOWLIST_CACHE: ReadonlySet<string> | null = null;
+
+function collectHexLiterals(node: unknown, out: Set<string>): void {
+  if (typeof node === "string") {
+    const m = node.match(/^#[0-9A-Fa-f]{3,8}$/);
+    if (m) out.add(node.toUpperCase());
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectHexLiterals(item, out);
+    return;
+  }
+  if (node && typeof node === "object") {
+    for (const value of Object.values(node as Record<string, unknown>)) {
+      collectHexLiterals(value, out);
+    }
+  }
+}
+
+export function loadHexAllowlist(
+  path: string = TOKENS_JSON_PATH,
+): ReadonlySet<string> {
+  if (HEX_ALLOWLIST_CACHE && path === TOKENS_JSON_PATH) {
+    return HEX_ALLOWLIST_CACHE;
+  }
+  const out = new Set<string>();
+  try {
+    const raw = readFileSync(path, "utf8");
+    const data = JSON.parse(raw) as unknown;
+    collectHexLiterals(data, out);
+  } catch {
+    // Allowlist stays empty — the lint will then flag every hex in .svg
+    // which surfaces the missing tokens.json early.
+  }
+  const frozen: ReadonlySet<string> = out;
+  if (path === TOKENS_JSON_PATH) HEX_ALLOWLIST_CACHE = frozen;
+  return frozen;
+}
+
+function lintSvgRule3(
+  file: FileEntry,
+  content: string,
+  allowlist: ReadonlySet<string>,
+): Violation[] {
+  const violations: Violation[] = [];
+  SVG_PAINT_ATTRIBUTE_RE.lastIndex = 0;
+  let match;
+  while ((match = SVG_PAINT_ATTRIBUTE_RE.exec(content)) !== null) {
+    const literal = match[2]!;
+    if (literal === "none") continue;
+    if (/^#[0-9A-Fa-f]{3,8}$/.test(literal)) {
+      const hexLen = literal.length - 1;
+      if (
+        (hexLen === 3 || hexLen === 4 || hexLen === 6 || hexLen === 8) &&
+        allowlist.has(literal.toUpperCase())
+      ) {
+        continue;
+      }
+    }
+    const literalIndex = match.index + match[0].indexOf(literal);
+    const pos = locate(content, literalIndex);
+    violations.push({
+      rule: 3,
+      file: file.relPath,
+      line: pos.line,
+      column: pos.column,
+      message: `Rule 3 (token-literal guard): SVG paint '${literal}' is not an allowlisted FE/src/theme/tokens.json hex — pick an existing token-backed hex.`,
+    });
+  }
+  return violations;
+}
+
+function isSvgFile(relPath: string): boolean {
+  return relPath.toLowerCase().endsWith(".svg");
+}
+
 export interface LintReport {
   readonly hardViolations: readonly Violation[];
   readonly warnings: readonly Violation[];
@@ -253,12 +334,20 @@ export interface LintReport {
 export function lintFiles(files: readonly FileEntry[]): LintReport {
   const hard: Violation[] = [];
   const warnings: Violation[] = [];
+  const allowlist = loadHexAllowlist();
   for (const file of files) {
     if (RULE3_FILE_BLOCKLIST.has(file.relPath)) continue;
     let content: string;
     try {
       content = readFileSync(file.absPath, "utf8");
     } catch {
+      continue;
+    }
+    if (isSvgFile(file.relPath)) {
+      // SVG asset files: only Rule 3 with allowlist applies. Rules 1
+      // (survival color packed-type) and 2 (AVOID lexicon) are TS/TSX
+      // concerns and don't translate to vector markup.
+      warnings.push(...lintSvgRule3(file, content, allowlist));
       continue;
     }
     hard.push(...lintFileRule1(file, content));
@@ -268,7 +357,11 @@ export function lintFiles(files: readonly FileEntry[]): LintReport {
   return { hardViolations: hard, warnings };
 }
 
-export function lintContent(relPath: string, content: string): LintReport {
+export function lintContent(
+  relPath: string,
+  content: string,
+  options?: { hexAllowlist?: ReadonlySet<string> },
+): LintReport {
   if (RULE3_FILE_BLOCKLIST.has(relPath)) {
     return {
       hardViolations: [],
@@ -276,6 +369,13 @@ export function lintContent(relPath: string, content: string): LintReport {
     };
   }
   const file: FileEntry = { absPath: relPath, relPath };
+  if (isSvgFile(relPath)) {
+    const allowlist = options?.hexAllowlist ?? loadHexAllowlist();
+    return {
+      hardViolations: [],
+      warnings: lintSvgRule3(file, content, allowlist),
+    };
+  }
   return {
     hardViolations: lintFileRule1(file, content),
     warnings: [...lintFileRule2(file, content), ...lintFileRule3(file, content)],
@@ -306,7 +406,7 @@ function main(argv: readonly string[]): number {
   const files = collectFiles(roots);
   if (files.length === 0) {
     console.warn(
-      `[brand-voice-lint] No *.ts / *.tsx files found under: ${roots.map((r) => r.label).join(", ")}`,
+      `[brand-voice-lint] No *.ts / *.tsx / *.svg files found under: ${roots.map((r) => r.label).join(", ")}`,
     );
     return 0;
   }

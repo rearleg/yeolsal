@@ -1,0 +1,649 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PoolStack — snapshots (AC9 visual regression) PoolStack renders stage 1 at total=0 1`] = `
+<View
+  accessibilityLabel="포인트 풀 1단계 — 토대"
+  accessibilityRole="image"
+  style={
+    {
+      "alignSelf": "center",
+      "height": 96,
+      "width": 96,
+    }
+  }
+>
+  <View
+    collapsable={false}
+    pointerEvents="none"
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "opacity": 1,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+    testID="pool-stack-current-layer"
+  >
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={96}
+      bbWidth={96}
+      focusable={false}
+      height={96}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 96,
+            "width": 96,
+          },
+        ]
+      }
+      vbHeight={96}
+      vbWidth={96}
+      width={96}
+    >
+      <RNSVGGroup
+        fill={
+          {
+            "payload": 4278190080,
+            "type": 0,
+          }
+        }
+      >
+        <RNSVGPath
+          d="M 16 78 A 32 6 0 1 0 80 78 A 32 6 0 1 0 16 78"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
+</View>
+`;
+
+exports[`PoolStack — snapshots (AC9 visual regression) PoolStack renders stage 2 at total=10 1`] = `
+<View
+  accessibilityLabel="포인트 풀 2단계 — 첫 켜"
+  accessibilityRole="image"
+  style={
+    {
+      "alignSelf": "center",
+      "height": 96,
+      "width": 96,
+    }
+  }
+>
+  <View
+    collapsable={false}
+    pointerEvents="none"
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "opacity": 1,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+    testID="pool-stack-current-layer"
+  >
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={96}
+      bbWidth={96}
+      focusable={false}
+      height={96}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 96,
+            "width": 96,
+          },
+        ]
+      }
+      vbHeight={96}
+      vbWidth={96}
+      width={96}
+    >
+      <RNSVGGroup
+        fill={
+          {
+            "payload": 4278190080,
+            "type": 0,
+          }
+        }
+      >
+        <RNSVGPath
+          d="M 14 82 A 34 6 0 1 0 82 82 A 34 6 0 1 0 14 82"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={52}
+          x={22}
+          y={66}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
+</View>
+`;
+
+exports[`PoolStack — snapshots (AC9 visual regression) PoolStack renders stage 3 at total=25 1`] = `
+<View
+  accessibilityLabel="포인트 풀 3단계 — 여러 켜"
+  accessibilityRole="image"
+  style={
+    {
+      "alignSelf": "center",
+      "height": 96,
+      "width": 96,
+    }
+  }
+>
+  <View
+    collapsable={false}
+    pointerEvents="none"
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "opacity": 1,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+    testID="pool-stack-current-layer"
+  >
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={96}
+      bbWidth={96}
+      focusable={false}
+      height={96}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 96,
+            "width": 96,
+          },
+        ]
+      }
+      vbHeight={96}
+      vbWidth={96}
+      width={96}
+    >
+      <RNSVGGroup
+        fill={
+          {
+            "payload": 4278190080,
+            "type": 0,
+          }
+        }
+      >
+        <RNSVGPath
+          d="M 12 84 A 36 6 0 1 0 84 84 A 36 6 0 1 0 12 84"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={56}
+          x={20}
+          y={68}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={48}
+          x={24}
+          y={52}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
+</View>
+`;
+
+exports[`PoolStack — snapshots (AC9 visual regression) PoolStack renders stage 4 at total=50 (PRD §3.1 KPI success bar) 1`] = `
+<View
+  accessibilityLabel="포인트 풀 4단계 — 형상"
+  accessibilityRole="image"
+  style={
+    {
+      "alignSelf": "center",
+      "height": 96,
+      "width": 96,
+    }
+  }
+>
+  <View
+    collapsable={false}
+    pointerEvents="none"
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "opacity": 1,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+    testID="pool-stack-current-layer"
+  >
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={96}
+      bbWidth={96}
+      focusable={false}
+      height={96}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 96,
+            "width": 96,
+          },
+        ]
+      }
+      vbHeight={96}
+      vbWidth={96}
+      width={96}
+    >
+      <RNSVGGroup
+        fill={
+          {
+            "payload": 4278190080,
+            "type": 0,
+          }
+        }
+      >
+        <RNSVGPath
+          d="M 12 86 A 36 6 0 1 0 84 86 A 36 6 0 1 0 12 86"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={56}
+          x={20}
+          y={70}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={48}
+          x={24}
+          y={54}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={40}
+          x={28}
+          y={38}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
+</View>
+`;
+
+exports[`PoolStack — snapshots (AC9 visual regression) PoolStack renders stage 5 at total=100 (keystone) 1`] = `
+<View
+  accessibilityLabel="포인트 풀 5단계 — 완성"
+  accessibilityRole="image"
+  style={
+    {
+      "alignSelf": "center",
+      "height": 96,
+      "width": 96,
+    }
+  }
+>
+  <View
+    collapsable={false}
+    pointerEvents="none"
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "opacity": 1,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+    testID="pool-stack-current-layer"
+  >
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={96}
+      bbWidth={96}
+      focusable={false}
+      height={96}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 96,
+            "width": 96,
+          },
+        ]
+      }
+      vbHeight={96}
+      vbWidth={96}
+      width={96}
+    >
+      <RNSVGGroup
+        fill={
+          {
+            "payload": 4278190080,
+            "type": 0,
+          }
+        }
+      >
+        <RNSVGPath
+          d="M 12 86 A 36 6 0 1 0 84 86 A 36 6 0 1 0 12 86"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          stroke={
+            {
+              "payload": 4284042824,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={56}
+          x={20}
+          y={70}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={48}
+          x={24}
+          y={54}
+        />
+        <RNSVGRect
+          fill={null}
+          height={12}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          rx={3}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+          width={40}
+          x={28}
+          y={38}
+        />
+        <RNSVGCircle
+          cx={48}
+          cy={24}
+          fill={
+            {
+              "payload": 4288970852,
+              "type": 0,
+            }
+          }
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+            ]
+          }
+          r={9}
+          stroke={
+            {
+              "payload": 4286458922,
+              "type": 0,
+            }
+          }
+          strokeWidth={2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
+</View>
+`;

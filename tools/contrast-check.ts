@@ -8,13 +8,15 @@
 // oklch is the authored source. The contrast check uses hex (the value
 // surfaces actually paint with) as the truth.
 
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(HERE), "..");
 const DEFAULT_TOKENS_PATH = resolve(REPO_ROOT, "FE/src/theme/tokens.json");
+const DEFAULT_V1_TOKENS_PATH = resolve(REPO_ROOT, "FE/src/theme/tokens.ts");
+const DEFAULT_POOL_ASSETS_PATH = resolve(REPO_ROOT, "FE/src/assets/pool");
 
 export interface ColorValue {
   readonly oklch: string;
@@ -26,11 +28,20 @@ export interface TokensSubset {
     readonly bg: Record<string, ColorValue>;
     readonly text: Record<string, ColorValue>;
     readonly key: Record<string, ColorValue>;
+    readonly ember?: Record<string, ColorValue>;
+    readonly stroke?: Record<string, ColorValue>;
   };
   readonly subMode: {
     readonly quiet: Record<string, ColorValue | unknown>;
   };
 }
+
+// Story 4.3 TOOLS-2 — `palette.surfaceSunken` from FE/src/theme/tokens.ts:36
+// is the D2 Bento Density card background WalletScreen renders on (per
+// `FE/src/components/wallet/WalletScreen.tsx:258`). Inlined here because
+// the v1 palette lives outside tokens.json; a static import would create
+// a Node/Expo dual-resolve burden disproportionate to a single literal.
+const POOL_STACK_GRAPHICS_THRESHOLD = 3.0;
 
 export interface PairSpec {
   readonly name: string;
@@ -98,6 +109,15 @@ export function loadTokens(path: string = DEFAULT_TOKENS_PATH): TokensSubset {
   const raw = readFileSync(path, "utf8");
   const data = JSON.parse(raw) as TokensSubset;
   return data;
+}
+
+export function loadSurfaceSunkenHex(path: string = DEFAULT_V1_TOKENS_PATH): string {
+  const raw = readFileSync(path, "utf8");
+  const match = raw.match(/\bsurfaceSunken:\s*"(#[0-9A-Fa-f]{6})"/);
+  if (!match) {
+    throw new Error(`contrast-check: surfaceSunken token not found in ${path}`);
+  }
+  return match[1]!;
 }
 
 function applyQuietOverride(base: ColorValue, override: unknown): ColorValue {
@@ -194,6 +214,85 @@ export function buildCanonicalPairs(tokens: TokensSubset): PairSpec[] {
   return pairs;
 }
 
+// Story 4.3 TOOLS-2 — PoolStack stroke contrast against the D2 Bento card.
+// Per AC5, every primary stroke + the keystone accent must achieve ≥ 3:1
+// contrast against `surface.sunken` (WCAG 2.x §1.4.11 non-text graphics).
+//
+// AC5 contrast escape hatch: `color.ember.default` (#D89F62) measures
+// only ~1.95:1 against #F0EBE3 — below the 3:1 graphics threshold. The
+// keystone in Stage5 uses `color.ember.subtle` (#A48064 — ~3.03:1) so
+// the artifact passes the gate without breaking the ember-family color
+// semantic. Flagged in story dev-agent-record for a future design-team
+// revisit of the ember ramp.
+function requiredColor(
+  group: Record<string, ColorValue> | undefined,
+  key: string,
+  label: string,
+): ColorValue {
+  const value = group?.[key];
+  if (!value) {
+    throw new Error(`contrast-check: required PoolStack token missing: ${label}.${key}`);
+  }
+  return value;
+}
+
+function poolSurface(surfaceSunkenHex: string): ColorValue {
+  return {
+    oklch: "(v1 palette literal — see FE/src/theme/tokens.ts:36)",
+    hex: surfaceSunkenHex,
+  };
+}
+
+export function buildPoolStackPairs(
+  tokens: TokensSubset,
+  surfaceSunkenHex: string = loadSurfaceSunkenHex(),
+): PairSpec[] {
+  const surfaceSunken = poolSurface(surfaceSunkenHex);
+  const key = tokens.color.key;
+  const ember = tokens.color.ember;
+  const stroke = tokens.color.stroke;
+
+  return [{
+    name: "PoolStack primary stroke (key.default) on surface.sunken",
+    fg: requiredColor(key, "default", "color.key"),
+    bg: surfaceSunken,
+    minRatio: POOL_STACK_GRAPHICS_THRESHOLD,
+    note: "Story 4.3 AC5 — non-text graphics threshold (WCAG 2.x §1.4.11).",
+  }, {
+    name: "PoolStack keystone accent (ember.subtle) on surface.sunken",
+    fg: requiredColor(ember, "subtle", "color.ember"),
+    bg: surfaceSunken,
+    minRatio: POOL_STACK_GRAPHICS_THRESHOLD,
+    note: "Story 4.3 AC5 — approved accessible ember-ramp keystone tone.",
+  }, {
+    name: "PoolStack muted stroke (stroke.default) on surface.sunken",
+    fg: requiredColor(stroke, "default", "color.stroke"),
+    bg: surfaceSunken,
+    minRatio: POOL_STACK_GRAPHICS_THRESHOLD,
+    note: "Story 4.3 AC5 — early-stage muted stroke.",
+  }];
+}
+
+export function buildPoolStackAssetPairs(
+  svgContents: readonly string[],
+  surfaceSunkenHex: string = loadSurfaceSunkenHex(),
+): PairSpec[] {
+  const colors = new Set<string>();
+  for (const content of svgContents) {
+    for (const match of content.matchAll(/\b(?:fill|stroke)\s*=\s*"(#[0-9A-Fa-f]{6})"/g)) {
+      colors.add(match[1]!.toUpperCase());
+    }
+  }
+  const surfaceSunken = poolSurface(surfaceSunkenHex);
+  return [...colors].map((hex) => ({
+    name: `PoolStack SVG paint (${hex}) on surface.sunken`,
+    fg: { oklch: "(SVG asset paint)", hex },
+    bg: surfaceSunken,
+    minRatio: POOL_STACK_GRAPHICS_THRESHOLD,
+    note: "Story 4.3 AC5 — every rendered SVG paint must pass the graphics threshold.",
+  }));
+}
+
 export function evaluatePairs(pairs: readonly PairSpec[]): PairResult[] {
   return pairs.map((p) => {
     const ratio = contrastRatio(p.fg.hex, p.bg.hex);
@@ -212,7 +311,14 @@ export function formatResult(r: PairResult): string {
 function main(argv: readonly string[]): number {
   const path = argv[0] ?? DEFAULT_TOKENS_PATH;
   const tokens = loadTokens(path);
-  const pairs = buildCanonicalPairs(tokens);
+  const svgContents = readdirSync(DEFAULT_POOL_ASSETS_PATH)
+    .filter((name) => name.toLowerCase().endsWith(".svg"))
+    .map((name) => readFileSync(join(DEFAULT_POOL_ASSETS_PATH, name), "utf8"));
+  const pairs = [
+    ...buildCanonicalPairs(tokens),
+    ...buildPoolStackPairs(tokens),
+    ...buildPoolStackAssetPairs(svgContents),
+  ];
   const results = evaluatePairs(pairs);
   const failures: PairResult[] = [];
   for (const r of results) {
