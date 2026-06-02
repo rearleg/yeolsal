@@ -55,6 +55,7 @@ class RoomServiceTest {
     @Mock private com.yeosal.api.survival.SurvivalStateRepository survivalStates;
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
     @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
+    @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -82,7 +83,8 @@ class RoomServiceTest {
                 survivalState,
                 survivalStates,
                 visibilityPrefs,
-                roomPointPool);
+                roomPointPool,
+                roomRuleVersions);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
@@ -111,6 +113,7 @@ class RoomServiceTest {
         verify(roomMembers).save(memberCaptor.capture());
         assertThat(memberCaptor.getValue().getUser()).isSameAs(alice);
         assertThat(memberCaptor.getValue().getRole()).isEqualTo(RoomRole.OWNER);
+        verify(roomRuleVersions).insertDefaultIfAbsent(42L, "2026-04", 1L);
     }
 
     @Test

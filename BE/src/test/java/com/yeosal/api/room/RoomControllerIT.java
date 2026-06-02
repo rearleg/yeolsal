@@ -120,6 +120,11 @@ class RoomControllerIT {
         assertThat(survival).as("survival_state row written atomically with the room").isPresent();
         SurvivalState row = survival.orElseThrow();
         assertThat(row.getStatus()).isEqualTo(SurvivalStatus.ACTIVE);
+        Integer ruleCount = jdbc.queryForObject(
+                "select count(*) from room_rule_versions where room_id = ?",
+                Integer.class,
+                roomId);
+        assertThat(ruleCount).as("fresh rooms receive a default current-month rule").isEqualTo(1);
         // grace_ends_at lives ~14 days in the future; the bounds are loose
         // because the service uses Clock and Instant.now() races slightly.
         assertThat(row.getGraceEndsAt())

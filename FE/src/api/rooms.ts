@@ -136,3 +136,51 @@ export async function updateMyMinimum(roomId: number, minDailyGoalDays: MinDays)
   );
   return envelope.data;
 }
+
+// ---------- Per-room rule (next-month-only application) ----------
+
+/**
+ * Wire-contract DTO mirroring BE {@code RoomRuleVersionDto}. The
+ * {@code effectiveFromMonth} field is the calendar month KST in
+ * "YYYY-MM" form; {@code createdAt} is ISO-8601 UTC.
+ */
+export interface RoomRuleVersionDto {
+  id: number;
+  preset: "DAILY_UPDATE";
+  weekendInclude: boolean;
+  effectiveFromMonth: string;
+  createdByUserId: number;
+  createdAt: string;
+}
+
+export interface RoomRuleStateDto {
+  current: RoomRuleVersionDto;
+  pending: RoomRuleVersionDto | null;
+}
+
+export interface UpdateRoomRuleVars {
+  roomId: number;
+  preset: "DAILY_UPDATE";
+  weekendInclude: boolean;
+}
+
+export async function getRoomRule(roomId: number): Promise<RoomRuleStateDto> {
+  const envelope = await apiRequest<ApiEnvelope<RoomRuleStateDto>>(
+    `/rooms/${roomId}/rule`,
+  );
+  return envelope.data;
+}
+
+export async function updateRoomRule(
+  roomId: number,
+  body: { preset: "DAILY_UPDATE"; weekendInclude: boolean },
+): Promise<RoomRuleVersionDto> {
+  const envelope = await apiRequest<ApiEnvelope<RoomRuleVersionDto>>(
+    `/rooms/${roomId}/rule`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+  return envelope.data;
+}

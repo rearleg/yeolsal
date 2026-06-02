@@ -14,6 +14,7 @@ import com.yeosal.api.room.chat.ChatMessageKind;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.survival.RecordVisibilityPref;
 import com.yeosal.api.survival.RecordVisibilityPrefRepository;
+import com.yeosal.api.survival.RoomRuleVersionRepository;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.survival.SurvivalStateService;
@@ -25,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,7 @@ public class RoomService {
     private final SurvivalStateRepository survivalStates;
     private final RecordVisibilityPrefRepository visibilityPrefs;
     private final RoomPointPoolRepository roomPointPool;
+    private final RoomRuleVersionRepository roomRuleVersions;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -80,7 +83,8 @@ public class RoomService {
             SurvivalStateService survivalState,
             SurvivalStateRepository survivalStates,
             RecordVisibilityPrefRepository visibilityPrefs,
-            RoomPointPoolRepository roomPointPool
+            RoomPointPoolRepository roomPointPool,
+            RoomRuleVersionRepository roomRuleVersions
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -98,6 +102,7 @@ public class RoomService {
         this.survivalStates = survivalStates;
         this.visibilityPrefs = visibilityPrefs;
         this.roomPointPool = roomPointPool;
+        this.roomRuleVersions = roomRuleVersions;
     }
 
     /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
@@ -133,12 +138,16 @@ public class RoomService {
         Room candidate = new Room(name.trim(), owner, min);
         candidate.setMaxMembers((short) maxMembers);
         Room room = rooms.save(candidate);
+        Instant now = clock.instant();
+        roomRuleVersions.insertDefaultIfAbsent(
+                room.getId(),
+                YearMonth.from(LocalDate.ofInstant(now, ZoneId.of("Asia/Seoul"))).toString(),
+                owner.getId());
         // Story 3.1 — seed the per-room point-pool counter cache. V11 step 15
         // backfills existing rooms once at migration time, but fresh rooms
         // created via this method need their pool row minted explicitly so
         // `RevivalService.selectForUpdate(roomId)` finds it.
         roomPointPool.save(new RoomPointPool(room.getId(), 0));
-        Instant now = clock.instant();
         // AC2 — bind joined_at to the injected Clock so survival_state.grace_ends_at
         // is derived from the SAME instant as the persisted RoomMember.joined_at,
         // not from a separate Instant.now() call inside prePersist.
@@ -403,13 +412,12 @@ public class RoomService {
     /**
      * Leader-of-record authorization gate per FR-8.5.1. The {@code Room.owner}
      * FK is the canonical leader identity; this is the single source of truth
-     * any future leader-only endpoint (Stories 5.1, 5.2, 5.6) must consult so
-     * the auth contract cannot drift between handlers.
+     * every leader-only endpoint (Stories 5.1, 5.2, 5.6) must consult so the
+     * auth contract cannot drift between handlers.
      *
      * @throws ForbiddenException when {@code user} is not the room's owner.
      */
-    @SuppressWarnings("unused") // wired by Stories 5.1, 5.2, 5.6 — kept resident as the single leader check.
-    private void requireLeader(Room room, User user) {
+    public void requireLeader(Room room, User user) {
         if (!room.getOwner().getId().equals(user.getId())) {
             throw new ForbiddenException("방장 권한이 필요합니다.");
         }
