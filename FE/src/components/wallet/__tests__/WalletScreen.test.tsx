@@ -5,11 +5,11 @@
 //   2. Free ticket section: unused state shows "🎟  무료 회생권 1매".
 //   3. Free ticket section: used state shows "🎟  사용 완료".
 //   4. Personal points section: tap navigates to /wallet/{roomId}/ledger.
-//   5. Room pool section: includes FriendGiftBadge mount + PoolBar children.
+//   5. Room pool section: includes FriendGiftBadge mount + PoolStack children.
 //   6. Loading state shows ActivityIndicator; error state shows generic copy.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { PropsWithChildren } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as walletApi from "../../../api/wallet";
@@ -17,6 +17,7 @@ import * as survivalApi from "../../../api/survival";
 import * as roomPointsApi from "../../../api/roomPoints";
 import * as targetsApi from "../../../api/friendGiftTargets";
 import type { MeSurvivalEntry } from "../../../lib/spectator";
+import { qk } from "../../../lib/query/keys";
 import { WalletScreen } from "../WalletScreen";
 
 const mockRouterPush = jest.fn();
@@ -178,16 +179,70 @@ describe("WalletScreen", () => {
     expect(mockRouterPush).toHaveBeenCalledWith(`/wallet/${ROOM_ID}/ledger`);
   });
 
-  it("room pool section mounts PoolBar + FriendGiftBadge children", async () => {
+  it("room pool section mounts PoolStack + FriendGiftBadge children", async () => {
     getMeSurvivalMock.mockResolvedValue([survival()]);
     const { getByTestId } = render(<WalletScreen roomId={ROOM_ID} />, {
       wrapper: makeWrapper(makeClient()),
     });
     await waitFor(() => expect(getByTestId("wallet-section-pool")).toBeTruthy());
-    expect(getByTestId("poolbar-fill")).toBeTruthy();
+    // Story 4.3 AC7 — pool section now mounts the 5-stage artifact.
+    expect(getByTestId("wallet-pool-stack")).toBeTruthy();
     // Spec AC8 case 5 + AC7 — the pool section is the integration point
     // for Story 3.3's friend-gift badge; verify the slot mounts.
     expect(getByTestId(`friend-gift-badge-mock-${ROOM_ID}`)).toBeTruthy();
+  });
+
+  it("Story 4.3 AC7 — PoolStack reflects total via useRoomPoints (stage 4 at total=50)", async () => {
+    getRoomPointsMock.mockResolvedValue({
+      roomId: ROOM_ID,
+      total: 50,
+      lastEventAt: null,
+    });
+    getMeSurvivalMock.mockResolvedValue([survival({ roomPointPool: 0 })]);
+    const { findByLabelText } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(makeClient()),
+    });
+    // total=50 → stageFor(50)=4. PoolStack's accessibilityLabel carries
+    // the matching threshold label.
+    await findByLabelText(/4단계/);
+  });
+
+  it("Story 4.3 review — room switch resets PoolStack ratchet state", async () => {
+    const nextRoomId = ROOM_ID + 1;
+    getRoomPointsMock.mockImplementation(async (roomId) => ({
+      roomId,
+      total: roomId === ROOM_ID ? 100 : 0,
+      lastEventAt: null,
+    }));
+    getMeSurvivalMock.mockResolvedValue([
+      survival({ roomId: ROOM_ID }),
+      survival({ roomId: nextRoomId, roomName: "Next Room" }),
+    ]);
+    const client = makeClient();
+    const { findByLabelText, rerender } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(client),
+    });
+    await findByLabelText(/5단계/);
+    rerender(<WalletScreen roomId={nextRoomId} />);
+    await findByLabelText(/1단계/);
+  });
+
+  it("Story 4.3 AC7 — PoolStack stage transitions when the room-points cache grows", async () => {
+    getMeSurvivalMock.mockResolvedValue([survival()]);
+    const client = makeClient();
+    const { findByLabelText } = render(<WalletScreen roomId={ROOM_ID} />, {
+      wrapper: makeWrapper(client),
+    });
+    await findByLabelText(/1단계/);
+    await act(async () => {
+      client.setQueryData(qk.roomPoints(ROOM_ID), {
+        roomId: ROOM_ID,
+        total: 10,
+        lastEventAt: null,
+      });
+      await Promise.resolve();
+    });
+    await findByLabelText(/2단계/);
   });
 
   it("loading state shows ActivityIndicator before survival resolves", async () => {
