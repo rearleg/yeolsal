@@ -56,4 +56,7 @@ export const qk = {
   // path) and on useSelfRevival success (caller's own self-revival).
   receivedRevivals: (roomId: number) =>
     ["receivedRevivals", roomId] as const,
+  // Per-room rule cache (current + pending). Member-scoped and invalidated
+  // after each successful update; realtime invalidation is intentionally absent.
+  roomRule: (roomId: number) => ["roomRule", roomId] as const,
 };

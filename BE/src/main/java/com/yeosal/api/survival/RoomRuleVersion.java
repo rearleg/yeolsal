@@ -13,10 +13,10 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Month-keyed rule history per room (V11 step 8). Story 1.2 owns the first
- * read site; Story 5.1 will own the write site. The V11 step 14 backfill
- * guarantees every room has at least one row, so the evaluator can treat a
- * missing row as a data-shape bug (not a user-facing error).
+ * Month-keyed rule history per room. Existing rooms are covered by the
+ * migration backfill and new rooms seed a default row during creation, so the
+ * evaluator can treat a missing row as a data-shape bug rather than a
+ * user-facing error.
  *
  * <p>{@code rule_payload} is JSONB; mapped here as a Jackson {@code JsonNode}
  * to stay consistent with {@code ChatMessage.payload} and to keep

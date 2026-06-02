@@ -3,10 +3,15 @@ package com.yeosal.api.room;
 import com.yeosal.api.friend.Friendship;
 import com.yeosal.api.friend.FriendshipRepository;
 import com.yeosal.api.friend.FriendshipStatus;
+import com.yeosal.api.survival.RoomRuleVersionRepository;
 import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,19 +46,25 @@ public class DefaultRoomMigrationRunner implements ApplicationRunner {
     private final RoomMemberRepository roomMembers;
     private final UserRepository users;
     private final SurvivalStateService survivalStateService;
+    private final RoomRuleVersionRepository roomRuleVersions;
+    private final Clock clock;
 
     public DefaultRoomMigrationRunner(
             FriendshipRepository friendships,
             RoomRepository rooms,
             RoomMemberRepository roomMembers,
             UserRepository users,
-            SurvivalStateService survivalStateService
+            SurvivalStateService survivalStateService,
+            RoomRuleVersionRepository roomRuleVersions,
+            Clock clock
     ) {
         this.friendships = friendships;
         this.rooms = rooms;
         this.roomMembers = roomMembers;
         this.users = users;
         this.survivalStateService = survivalStateService;
+        this.roomRuleVersions = roomRuleVersions;
+        this.clock = clock;
     }
 
     @Override
@@ -107,13 +118,13 @@ public class DefaultRoomMigrationRunner implements ApplicationRunner {
             log.warn("Default-room seed skipped: owner user id={} not found.", ownerId);
             return;
         }
-        // Single per-room timestamp so every membership + survival_state row in
-        // this seeded room shares the same joined_at instant — AC2/AC7 require
-        // grace_ends_at = joined_at + 14d, and the daily evaluator (Story 1.2)
-        // wants consistent windows across co-seeded members. Runner has no
-        // Clock injected today; that's out of scope for this fix.
-        Instant now = Instant.now();
+        // Keep every membership and survival-state window anchored to one instant.
+        Instant now = clock.instant();
         Room room = rooms.save(new Room(DEFAULT_ROOM_NAME, owner));
+        roomRuleVersions.insertDefaultIfAbsent(
+                room.getId(),
+                YearMonth.from(LocalDate.ofInstant(now, ZoneId.of("Asia/Seoul"))).toString(),
+                owner.getId());
         RoomMember ownerMember = new RoomMember(room, owner, RoomRole.OWNER);
         ownerMember.setJoinedAt(now);
         RoomMember savedOwner = roomMembers.save(ownerMember);

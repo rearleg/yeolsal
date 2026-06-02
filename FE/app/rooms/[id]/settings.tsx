@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { type MinDays } from "../../../src/api/rooms";
 import { useAuth } from "../../../src/auth/AuthContext";
 import { useRequireAuth } from "../../../src/auth/useRequireAuth";
@@ -102,6 +102,25 @@ export default function RoomSettingsScreen() {
           onSubmit={handleSubmit}
         />
         <RecordVisibilityToggle roomId={roomId} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="그룹 규칙 편집"
+          onPress={() => router.push(`/rooms/${roomId}/settings/rule`)}
+          style={({ pressed }) => [
+            styles.ruleRow,
+            pressed && styles.ruleRowPressed,
+          ]}
+        >
+          <View style={styles.ruleRowText}>
+            <Text variant="bodyStrong">그룹 규칙</Text>
+            <Text variant="caption" color={palette.inkMute}>
+              매일 업데이트 · 주말 포함 여부
+            </Text>
+          </View>
+          <Text variant="bodyStrong" color={palette.inkMute}>
+            ›
+          </Text>
+        </Pressable>
       </ScrollView>
     </Screen>
   );
@@ -111,4 +130,17 @@ const styles = StyleSheet.create({
   content: { gap: space[3], paddingBottom: space[8] },
   skeleton: { gap: space[2] },
   notMember: { gap: space[2] },
+  ruleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingVertical: space[3],
+    paddingHorizontal: space[3],
+    backgroundColor: palette.surfaceRaised,
+    borderRadius: 12,
+  },
+  ruleRowPressed: {
+    backgroundColor: palette.surfaceSunken,
+  },
+  ruleRowText: { flex: 1, gap: space[1] },
 });
