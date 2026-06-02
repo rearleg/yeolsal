@@ -14,6 +14,7 @@ import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -57,6 +58,7 @@ class RoomRuleNextMonthEvaluatorIT {
     @Autowired private SurvivalStateRepository survivalStates;
     @Autowired private SurvivalStateService survivalStateService;
     @Autowired private RoomRuleVersionRepository ruleVersions;
+    @Autowired private StreakFreezeRepository streakFreezes;
 
     @Test
     @DisplayName("AC9-1 — April evaluator reads the APRIL rule (weekendInclude=true) even after a May edit lands")
@@ -75,6 +77,14 @@ class RoomRuleNextMonthEvaluatorIT {
         survivalStateService.initializeOnJoin(room, member, joinedAt);
 
         LocalDate friday = LocalDate.of(2026, 4, 24);
+        // SurvivalStateService.evaluateRoom step 6 absorbs the first miss of
+        // the month via StreakFreeze.insertIfAbsent before the state machine
+        // sees it. Pre-consume the month-keyed freeze (same pattern as
+        // SurvivalStateEvaluatorIT.charlie) so the evaluator runs the
+        // ACTIVE → YELLOW transition we want to observe.
+        streakFreezes.save(new StreakFreeze(
+                member, room, friday.minusDays(5),
+                YearMonth.from(friday).toString()));
         survivalStateService.evaluateRoom(room.getId(), friday);
 
         SurvivalState memberState = survivalStates
