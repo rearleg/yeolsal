@@ -6,6 +6,7 @@ import com.yeosal.api.revival.InsufficientGiftPointsException;
 import com.yeosal.api.revival.InsufficientPointsException;
 import com.yeosal.api.revival.NotEliminatedException;
 import com.yeosal.api.revival.NotFriendsForGiftException;
+import com.yeosal.api.room.IneligibleLeaderException;
 import com.yeosal.api.room.chat.KudosAlreadySentTodayException;
 import com.yeosal.api.room.chat.KudosTargetNotEligibleException;
 import com.yeosal.api.room.chat.NotFriendsException;
@@ -255,6 +256,19 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> notFriendsForGift(NotFriendsForGiftException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiErrorResponse.of(NotFriendsForGiftException.CODE, exception.getMessage()));
+    }
+
+    /**
+     * Story 5.2 — {@code POST /api/v1/rooms/{id}/transfer-leadership} targeted
+     * a member whose survival state is not promotion-eligible (RED, SPECTATOR,
+     * or missing survival_state row). 409 CONFLICT distinguishes the
+     * state-precondition failure from a 403 FORBIDDEN (caller-not-leader) so
+     * the FE can render a recoverable "지금은 양도가 어려운 상태예요" toast.
+     */
+    @ExceptionHandler(IneligibleLeaderException.class)
+    ResponseEntity<ApiErrorResponse> ineligibleLeader(IneligibleLeaderException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of("INELIGIBLE_LEADER", exception.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -15,6 +15,7 @@ import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Duration;
@@ -60,6 +61,8 @@ class RoomServiceMemberJoinSystemMessageTest {
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
     @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
+    @Mock private RoomCapPromotionService capPromotion;
+    @Mock private EntityManager entityManager;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -87,7 +90,9 @@ class RoomServiceMemberJoinSystemMessageTest {
                 survivalStates,
                 visibilityPrefs,
                 roomPointPool,
-                roomRuleVersions);
+                roomRuleVersions,
+                capPromotion,
+                entityManager);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         lenient().when(roomMembers.save(any(RoomMember.class)))
@@ -101,6 +106,7 @@ class RoomServiceMemberJoinSystemMessageTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, now.plus(Duration.ofDays(1)));
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
 
@@ -116,6 +122,7 @@ class RoomServiceMemberJoinSystemMessageTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
 
@@ -131,6 +138,7 @@ class RoomServiceMemberJoinSystemMessageTest {
         Room room = makeRoom(42L, "첫 그룹", alice);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         RoomMember existing = new RoomMember(room, bob, RoomRole.MEMBER);
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.of(existing));
 
@@ -146,6 +154,7 @@ class RoomServiceMemberJoinSystemMessageTest {
         room.setMaxMembers((short) 2);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(2L);
 
@@ -164,6 +173,7 @@ class RoomServiceMemberJoinSystemMessageTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
 

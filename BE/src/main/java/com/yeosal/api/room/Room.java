@@ -36,6 +36,17 @@ public class Room {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    // Story 5.2 — pending member-cap edit (next-month-only). Both columns are
+    // either NULL together ("no pending edit") or both non-null. The DB CHECK
+    // chk_rooms_pending_cap_consistency (V13) enforces the paired-state
+    // invariant; the service layer keeps the setters paired so JPA never
+    // writes a half-state via dirty-check.
+    @Column(name = "pending_max_members")
+    private Short pendingMaxMembers;
+
+    @Column(name = "pending_max_members_effective_from_month", length = 7)
+    private String pendingMaxMembersEffectiveFromMonth;
+
     protected Room() {}
 
     public Room(String name, User owner) {
@@ -72,11 +83,21 @@ public class Room {
     public short getMaxMembers() { return maxMembers; }
     public short getMinDailyGoalDays() { return minDailyGoalDays; }
     public Instant getCreatedAt() { return createdAt; }
+    public Short getPendingMaxMembers() { return pendingMaxMembers; }
+    public String getPendingMaxMembersEffectiveFromMonth() {
+        return pendingMaxMembersEffectiveFromMonth;
+    }
 
     public void setName(String name) { this.name = name; }
     public void setOwner(User owner) { this.owner = owner; }
     public void setMaxMembers(short maxMembers) { this.maxMembers = maxMembers; }
     public void setMinDailyGoalDays(short minDailyGoalDays) {
         this.minDailyGoalDays = minDailyGoalDays;
+    }
+    public void setPendingMaxMembers(Short pendingMaxMembers) {
+        this.pendingMaxMembers = pendingMaxMembers;
+    }
+    public void setPendingMaxMembersEffectiveFromMonth(String month) {
+        this.pendingMaxMembersEffectiveFromMonth = month;
     }
 }

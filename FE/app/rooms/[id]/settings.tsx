@@ -121,6 +121,48 @@ export default function RoomSettingsScreen() {
             ›
           </Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="그룹 정원 편집"
+          onPress={() => router.push(`/rooms/${roomId}/settings/cap`)}
+          style={({ pressed }) => [
+            styles.ruleRow,
+            pressed && styles.ruleRowPressed,
+          ]}
+        >
+          <View style={styles.ruleRowText}>
+            <Text variant="bodyStrong">그룹 정원</Text>
+            <Text variant="caption" color={palette.inkMute}>
+              다음 달부터 적용되는 정원
+            </Text>
+          </View>
+          <Text variant="bodyStrong" color={palette.inkMute}>
+            ›
+          </Text>
+        </Pressable>
+        {room != null && user != null && room.ownerId === user.id ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="방장 양도"
+            onPress={() =>
+              router.push(`/rooms/${roomId}/settings/transfer-leadership`)
+            }
+            style={({ pressed }) => [
+              styles.ruleRow,
+              pressed && styles.ruleRowPressed,
+            ]}
+          >
+            <View style={styles.ruleRowText}>
+              <Text variant="bodyStrong">방장 양도</Text>
+              <Text variant="caption" color={palette.inkMute}>
+                바로 적용되는 변경
+              </Text>
+            </View>
+            <Text variant="bodyStrong" color={palette.inkMute}>
+              ›
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </Screen>
   );

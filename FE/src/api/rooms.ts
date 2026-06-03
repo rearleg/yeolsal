@@ -28,6 +28,10 @@ export interface Room {
    * {@code RoomSummary} after Story 1.6's small DTO addition.
    */
   createdAt: string;
+  /** Story 5.2 — next-month-only pending cap. Null when no pending edit. */
+  pendingMaxMembers: number | null;
+  /** Story 5.2 — "YYYY-MM" effective month for the pending cap. Null when no pending edit. */
+  pendingMaxMembersEffectiveFromMonth: string | null;
 }
 
 export interface RoomMember {
@@ -37,6 +41,12 @@ export interface RoomMember {
   role: "OWNER" | "MEMBER";
   currentMinimum: MinDays;
   warningCount: number;
+  /**
+   * Story 5.2 — per-(room, user) survival status batched by GET /rooms/{id}/members.
+   * Null when the survival_state row is missing (defensive). Used by the
+   * leader-transfer picker to filter eligible candidates.
+   */
+  survivalStatus: "ACTIVE" | "YELLOW" | "RED" | "SPECTATOR" | null;
 }
 
 export interface RoomInvite {
@@ -179,6 +189,48 @@ export async function updateRoomRule(
     `/rooms/${roomId}/rule`,
     {
       method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+  return envelope.data;
+}
+
+// ---------- Story 5.2 — Per-room member cap (next-month-only application) ----------
+
+export interface UpdateMemberCapVars {
+  roomId: number;
+  maxMembers: number;
+}
+
+export async function updateMemberCap(
+  roomId: number,
+  body: { maxMembers: number },
+): Promise<Room> {
+  const envelope = await apiRequest<ApiEnvelope<Room>>(
+    `/rooms/${roomId}/members/cap`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+  return envelope.data;
+}
+
+// ---------- Story 5.2 — Leader transfer (immediate atomic change) ----------
+
+export interface TransferLeadershipVars {
+  roomId: number;
+  targetUserId: number;
+}
+
+export async function transferLeadership(
+  roomId: number,
+  body: { targetUserId: number },
+): Promise<Room> {
+  const envelope = await apiRequest<ApiEnvelope<Room>>(
+    `/rooms/${roomId}/transfer-leadership`,
+    {
+      method: "POST",
       body: JSON.stringify(body),
     },
   );

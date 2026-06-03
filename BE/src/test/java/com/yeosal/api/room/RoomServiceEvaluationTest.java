@@ -21,6 +21,7 @@ import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Instant;
@@ -55,6 +56,8 @@ class RoomServiceEvaluationTest {
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
     @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
+    @Mock private RoomCapPromotionService capPromotion;
+    @Mock private EntityManager entityManager;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T00:10:00Z"), ZoneId.of("UTC"));
 
@@ -82,7 +85,9 @@ class RoomServiceEvaluationTest {
                 survivalStates,
                 visibilityPrefs,
                 roomPointPool,
-                roomRuleVersions);
+                roomRuleVersions,
+                capPromotion,
+                entityManager);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         room = makeRoom(42L, "기본 방", alice);

@@ -7,6 +7,8 @@ import {
   leaveRoom,
   listMembers,
   listRooms,
+  transferLeadership,
+  updateMemberCap,
   updateMyMinimum,
   type CreateRoomInput,
   type MemberTodayDto,
@@ -14,7 +16,10 @@ import {
   type Room,
   type RoomInvite,
   type RoomMember,
+  type TransferLeadershipVars,
+  type UpdateMemberCapVars,
 } from "../../../api/rooms";
+import { ApiError } from "../../../api/client";
 import { useHaptic } from "../../../hooks/useHaptics";
 import { qk } from "../keys";
 import { toast } from "../../toast";
@@ -111,6 +116,40 @@ export function useJoinRoom() {
     onSuccess: () => {
       haptic("success");
       qc.invalidateQueries({ queryKey: qk.rooms });
+    },
+  });
+}
+
+// Story 5.2 — leader-only PATCH /rooms/{id}/members/cap. Invalidates the
+// listing so every consumer (Today, Settings, Wallet) sees the new pending
+// fields without manual refetch. onError is intentionally not wired to a
+// toast here — the screen layer renders the precise 400 / 403 / 404 copy.
+export function useUpdateMemberCap() {
+  const qc = useQueryClient();
+  const haptic = useHaptic();
+  return useMutation<Room, ApiError, UpdateMemberCapVars>({
+    mutationFn: ({ roomId, maxMembers }) =>
+      updateMemberCap(roomId, { maxMembers }),
+    onSuccess: () => {
+      haptic("success");
+      qc.invalidateQueries({ queryKey: qk.rooms });
+    },
+  });
+}
+
+// Story 5.2 — leader-only POST /rooms/{id}/transfer-leadership. Owner change
+// ripples through both the listing (room.ownerId) and the per-room membership
+// cache (role flip on both members), so invalidate both keys.
+export function useTransferLeadership() {
+  const qc = useQueryClient();
+  const haptic = useHaptic();
+  return useMutation<Room, ApiError, TransferLeadershipVars>({
+    mutationFn: ({ roomId, targetUserId }) =>
+      transferLeadership(roomId, { targetUserId }),
+    onSuccess: (_data, { roomId }) => {
+      haptic("success");
+      qc.invalidateQueries({ queryKey: qk.rooms });
+      qc.invalidateQueries({ queryKey: qk.roomMembers(roomId) });
     },
   });
 }

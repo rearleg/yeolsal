@@ -18,9 +18,11 @@ import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateService;
+import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Duration;
@@ -56,6 +58,8 @@ class RoomServiceTest {
     @Mock private com.yeosal.api.survival.RecordVisibilityPrefRepository visibilityPrefs;
     @Mock private com.yeosal.api.revival.RoomPointPoolRepository roomPointPool;
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
+    @Mock private RoomCapPromotionService capPromotion;
+    @Mock private EntityManager entityManager;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -84,7 +88,9 @@ class RoomServiceTest {
                 survivalStates,
                 visibilityPrefs,
                 roomPointPool,
-                roomRuleVersions);
+                roomRuleVersions,
+                capPromotion,
+                entityManager);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
@@ -129,6 +135,8 @@ class RoomServiceTest {
     void myRoomsReturnsAllMemberships() {
         Room r1 = makeRoom(10L, "방1", alice);
         Room r2 = makeRoom(20L, "방2", bob);
+        when(rooms.findById(10L)).thenReturn(Optional.of(r1));
+        when(rooms.findById(20L)).thenReturn(Optional.of(r2));
         when(roomMembers.findByUser(alice)).thenReturn(List.of(
                 new RoomMember(r1, alice, RoomRole.OWNER),
                 new RoomMember(r2, alice, RoomRole.MEMBER)
@@ -213,6 +221,7 @@ class RoomServiceTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, now.plus(Duration.ofDays(1)));
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
 
@@ -242,6 +251,7 @@ class RoomServiceTest {
         Room room = makeRoom(42L, "기본 방", alice);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         RoomMember existing = new RoomMember(room, bob, RoomRole.MEMBER);
         lenient().when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.of(existing));
 
@@ -260,6 +270,7 @@ class RoomServiceTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, carol)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(8L);
 
@@ -378,6 +389,7 @@ class RoomServiceTest {
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, now.plus(Duration.ofDays(1)));
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
         when(roomMembers.save(any(RoomMember.class))).thenAnswer(inv -> setId(inv.getArgument(0), 7L));
@@ -400,6 +412,7 @@ class RoomServiceTest {
         room.setMinDailyGoalDays((short) 20);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         RoomMember existing = new RoomMember(room, bob, RoomRole.MEMBER);
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.of(existing));
         GroupMemberMinimum existingMin = new GroupMemberMinimum(42L, bob.getId(), (short) 31);
@@ -604,6 +617,7 @@ class RoomServiceTest {
         room.setMinDailyGoalDays((short) 10);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, now.plus(Duration.ofDays(1)));
         when(roomInvites.findActiveByCode("A7K9PXMQ", now)).thenReturn(Optional.of(invite));
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
         when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(Optional.empty());
         when(roomMembers.countByRoom(room)).thenReturn(1L);
         when(roomMembers.save(any(RoomMember.class))).thenAnswer(inv -> setId(inv.getArgument(0), 7L));
@@ -612,6 +626,100 @@ class RoomServiceTest {
         service.joinByCode(bob, "A7K9PXMQ");
 
         verify(survivalState, times(1)).initializeOnJoin(room, bob, now);
+    }
+
+    @Test
+    @DisplayName("requireRoom: no due promotion returns loaded room without refresh")
+    void requireRoomNoPromotionDoesNotRefresh() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(capPromotion.promotePendingCapIfDue(42L)).thenReturn(false);
+
+        Room result = service.requireRoom(42L);
+
+        assertThat(result).isSameAs(room);
+        verify(entityManager, never()).refresh(any());
+    }
+
+    @Test
+    @DisplayName("requireRoom: due promotion refreshes the managed room instance")
+    void requireRoomPromotionRefreshesManagedRoom() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(capPromotion.promotePendingCapIfDue(42L)).thenReturn(true);
+
+        Room result = service.requireRoom(42L);
+
+        assertThat(result).isSameAs(room);
+        verify(entityManager).refresh(room);
+    }
+
+    @Test
+    @DisplayName("requireRoomForUpdate: promotes first, then acquires row lock")
+    void requireRoomForUpdateLocksAfterPromotion() {
+        Room stale = makeRoom(42L, "기본 방", alice);
+        Room locked = makeRoom(42L, "기본 방", alice);
+        locked.setMaxMembers((short) 20);
+        when(rooms.findById(42L)).thenReturn(Optional.of(stale));
+        when(capPromotion.promotePendingCapIfDue(42L)).thenReturn(true);
+        when(rooms.findByIdForUpdate(42L)).thenReturn(Optional.of(locked));
+
+        Room result = service.requireRoomForUpdate(42L);
+
+        assertThat(result).isSameAs(locked);
+        verify(entityManager).refresh(stale);
+        verify(rooms).findByIdForUpdate(42L);
+    }
+
+    @Test
+    @DisplayName("members: masks RED cooldown from non-leader viewers")
+    void membersMasksRedCooldownForNonLeader() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, bob)).thenReturn(
+                Optional.of(new RoomMember(room, bob, RoomRole.MEMBER))
+        );
+        when(roomMembers.findByRoom(room)).thenReturn(List.of(
+                new RoomMember(room, alice, RoomRole.OWNER),
+                new RoomMember(room, bob, RoomRole.MEMBER),
+                new RoomMember(room, carol, RoomRole.MEMBER)
+        ));
+        SurvivalState carolState = new SurvivalState(room, carol, now.minus(Duration.ofDays(20)));
+        setField(carolState, "status", SurvivalStatus.RED);
+        setField(carolState, "broadVisibilityAt", now.plus(Duration.ofHours(1)));
+        when(survivalStates.findByRoomIdFetchingUser(42L)).thenReturn(List.of(carolState));
+
+        List<RoomService.MemberSummary> result = service.members(bob, 42L);
+
+        assertThat(result)
+                .filteredOn(m -> m.userId() == carol.getId())
+                .extracting(RoomService.MemberSummary::survivalStatus)
+                .containsExactly(SurvivalStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("members: leader can see RED during cooldown")
+    void membersLeaderSeesRedCooldown() {
+        Room room = makeRoom(42L, "기본 방", alice);
+        when(rooms.findById(42L)).thenReturn(Optional.of(room));
+        when(roomMembers.findByRoomAndUser(room, alice)).thenReturn(
+                Optional.of(new RoomMember(room, alice, RoomRole.OWNER))
+        );
+        when(roomMembers.findByRoom(room)).thenReturn(List.of(
+                new RoomMember(room, alice, RoomRole.OWNER),
+                new RoomMember(room, carol, RoomRole.MEMBER)
+        ));
+        SurvivalState carolState = new SurvivalState(room, carol, now.minus(Duration.ofDays(20)));
+        setField(carolState, "status", SurvivalStatus.RED);
+        setField(carolState, "broadVisibilityAt", now.plus(Duration.ofHours(1)));
+        when(survivalStates.findByRoomIdFetchingUser(42L)).thenReturn(List.of(carolState));
+
+        List<RoomService.MemberSummary> result = service.members(alice, 42L);
+
+        assertThat(result)
+                .filteredOn(m -> m.userId() == carol.getId())
+                .extracting(RoomService.MemberSummary::survivalStatus)
+                .containsExactly(SurvivalStatus.RED);
     }
 
     // -- helpers --
@@ -628,13 +736,29 @@ class RoomServiceTest {
     }
 
     private static <T> T setId(T entity, long id) {
+        setField(entity, "id", id);
+        return entity;
+    }
+
+    private static void setField(Object entity, String name, Object value) {
         try {
-            Field f = entity.getClass().getDeclaredField("id");
+            Field f = findField(entity.getClass(), name);
             f.setAccessible(true);
-            f.set(entity, id);
+            f.set(entity, value);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
-        return entity;
+    }
+
+    private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
+        Class<?> cursor = type;
+        while (cursor != null) {
+            try {
+                return cursor.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                cursor = cursor.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
     }
 }

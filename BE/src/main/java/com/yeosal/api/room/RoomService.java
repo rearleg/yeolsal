@@ -21,6 +21,7 @@ import com.yeosal.api.survival.SurvivalStateService;
 import com.yeosal.api.survival.SurvivalStatus;
 import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -61,6 +62,8 @@ public class RoomService {
     private final RecordVisibilityPrefRepository visibilityPrefs;
     private final RoomPointPoolRepository roomPointPool;
     private final RoomRuleVersionRepository roomRuleVersions;
+    private final RoomCapPromotionService capPromotion;
+    private final EntityManager entityManager;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -84,7 +87,9 @@ public class RoomService {
             SurvivalStateRepository survivalStates,
             RecordVisibilityPrefRepository visibilityPrefs,
             RoomPointPoolRepository roomPointPool,
-            RoomRuleVersionRepository roomRuleVersions
+            RoomRuleVersionRepository roomRuleVersions,
+            RoomCapPromotionService capPromotion,
+            EntityManager entityManager
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -103,6 +108,8 @@ public class RoomService {
         this.visibilityPrefs = visibilityPrefs;
         this.roomPointPool = roomPointPool;
         this.roomRuleVersions = roomRuleVersions;
+        this.capPromotion = capPromotion;
+        this.entityManager = entityManager;
     }
 
     /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
@@ -167,6 +174,7 @@ public class RoomService {
     public List<RoomSummary> myRooms(User user) {
         return roomMembers.findByUser(user).stream()
                 .map(RoomMember::getRoom)
+                .map(room -> requireRoom(room.getId()))
                 .map(RoomSummary::from)
                 .toList();
     }
@@ -181,8 +189,24 @@ public class RoomService {
         for (GroupMemberMinimum m : minimums.findByRoomId(room.getId())) {
             byUserId.put(m.getUserId(), m);
         }
+        // Story 5.2 — batch-load survival_state per (room, user) so the FE
+        // leader-transfer picker can filter eligible members without a
+        // second roundtrip. Members without a survival_state row (defensive
+        // path — V11 backfill + initializeOnJoin should keep coverage 100%)
+        // surface a null status to the wire.
+        Instant now = clock.instant();
+        boolean viewerIsLeader = room.getOwner().getId().equals(viewer.getId());
+        Map<Long, SurvivalStatus> statusByUserId = new HashMap<>();
+        for (SurvivalState s : survivalStates.findByRoomIdFetchingUser(roomId)) {
+            statusByUserId.put(
+                    s.getUser().getId(),
+                    visibleSurvivalStatus(s, viewer.getId(), viewerIsLeader, now));
+        }
         return roomMembers.findByRoom(room).stream()
-                .map(rm -> MemberSummary.from(rm, byUserId.get(rm.getUser().getId())))
+                .map(rm -> MemberSummary.from(
+                        rm,
+                        byUserId.get(rm.getUser().getId()),
+                        statusByUserId.get(rm.getUser().getId())))
                 .toList();
     }
 
@@ -298,7 +322,7 @@ public class RoomService {
         Instant now = clock.instant();
         RoomInvite invite = roomInvites.findActiveByCode(code, now)
                 .orElseThrow(() -> new NotFoundException("초대 코드를 찾을 수 없습니다."));
-        Room room = invite.getRoom();
+        Room room = requireRoom(invite.getRoom().getId());
 
         Optional<RoomMember> existing = roomMembers.findByRoomAndUser(room, user);
         if (existing.isPresent()) {
@@ -399,9 +423,52 @@ public class RoomService {
         roomMembers.delete(membership);
     }
 
-    private Room requireRoom(long roomId) {
-        return rooms.findById(roomId)
+    /**
+     * Room loader + lazy cap promoter. Loads {@code roomId} (404 {@code NOT_FOUND}
+     * on absence) and, before returning, asks {@link RoomCapPromotionService}
+     * to flush any pending member-cap edit whose
+     * {@code effective_from_month <= currentMonth(KST)} into {@code max_members}.
+     * Promotion runs in a {@code REQUIRES_NEW} writable transaction so
+     * readOnly callers (e.g. {@link #myRooms}, {@link #members},
+     * {@link #todayForRoom}) can call this helper safely without tripping
+     * Hibernate's readOnly flush guard. Promotion is idempotent — re-entrancy
+     * is a no-op once the pending columns are cleared. Every leader-edited
+     * next-month-only attribute (cap today; future minDays, etc.) MUST hook
+     * its promotion into this single helper so the contract-integrity
+     * contract cannot drift between callers.
+     *
+     * @throws NotFoundException when no row exists for {@code roomId}.
+     */
+    public Room requireRoom(long roomId) {
+        Room room = rooms.findById(roomId)
                 .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+        if (capPromotion != null) {
+            boolean promoted = capPromotion.promotePendingCapIfDue(room.getId());
+            if (promoted) {
+                // REQUIRES_NEW committed in a separate persistence context.
+                // Refresh the already-managed entity rather than calling
+                // findById again; JPA is allowed to return the stale first-level
+                // cache instance for a second find.
+                entityManager.refresh(room);
+            }
+        }
+        return room;
+    }
+
+    public Room requireRoomForUpdate(long roomId) {
+        requireRoom(roomId);
+        return rooms.findByIdForUpdate(roomId)
+                .orElseThrow(() -> new NotFoundException("방을 찾을 수 없습니다."));
+    }
+
+    private SurvivalStatus visibleSurvivalStatus(
+            SurvivalState state, long viewerUserId, boolean viewerIsLeader, Instant now) {
+        boolean masked = state.getStatus() == SurvivalStatus.RED
+                && state.getBroadVisibilityAt() != null
+                && state.getBroadVisibilityAt().isAfter(now)
+                && viewerUserId != state.getUser().getId()
+                && !viewerIsLeader;
+        return masked ? SurvivalStatus.ACTIVE : state.getStatus();
     }
 
     private RoomMember requireMembership(Room room, User user) {
@@ -429,7 +496,13 @@ public class RoomService {
             long ownerId,
             int maxMembers,
             int minDailyGoalDays,
-            Instant createdAt
+            Instant createdAt,
+            // Story 5.2 — nullable pending member-cap edit (next-month-only).
+            // Both fields are non-null together or null together; the DB
+            // CHECK chk_rooms_pending_cap_consistency keeps the paired-state
+            // invariant on disk.
+            Integer pendingMaxMembers,
+            String pendingMaxMembersEffectiveFromMonth
     ) {
         public static RoomSummary from(Room room) {
             return new RoomSummary(
@@ -438,7 +511,11 @@ public class RoomService {
                     room.getOwner().getId(),
                     room.getMaxMembers(),
                     room.getMinDailyGoalDays(),
-                    room.getCreatedAt()
+                    room.getCreatedAt(),
+                    room.getPendingMaxMembers() == null
+                            ? null
+                            : (int) room.getPendingMaxMembers().shortValue(),
+                    room.getPendingMaxMembersEffectiveFromMonth()
             );
         }
     }
@@ -449,9 +526,20 @@ public class RoomService {
             String nickname,
             RoomRole role,
             int currentMinimum,
-            int warningCount
+            int warningCount,
+            // Story 5.2 — nullable per-(room, user) survival status so the FE
+            // leader-transfer picker can filter eligible candidates (ACTIVE
+            // and YELLOW only; RED and SPECTATOR are not promotion-eligible).
+            // A null value means the survival_state row is missing — treat
+            // as "ineligible" on the FE side defensively.
+            SurvivalStatus survivalStatus
     ) {
         public static MemberSummary from(RoomMember m, GroupMemberMinimum minimum) {
+            return from(m, minimum, null);
+        }
+
+        public static MemberSummary from(
+                RoomMember m, GroupMemberMinimum minimum, SurvivalStatus status) {
             int min = minimum != null ? minimum.getMinDailyGoalDays() : m.getRoom().getMinDailyGoalDays();
             int warnings = minimum != null ? minimum.getWarningCount() : 0;
             return new MemberSummary(
@@ -460,7 +548,8 @@ public class RoomService {
                     m.getUser().getNickname(),
                     m.getRole(),
                     min,
-                    warnings
+                    warnings,
+                    status
             );
         }
     }

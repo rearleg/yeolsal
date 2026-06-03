@@ -50,6 +50,8 @@ describe("useCreateRoom", () => {
       maxMembers: 12,
       minDailyGoalDays: 10,
       createdAt: "2026-05-14T10:00:00Z",
+      pendingMaxMembers: null,
+      pendingMaxMembersEffectiveFromMonth: null,
     });
 
     const { result } = renderHook(() => useCreateRoom(), {

@@ -1,6 +1,7 @@
 package com.yeosal.api.realtime;
 
 import com.yeosal.api.revival.PointPoolChangePayload;
+import com.yeosal.api.room.LeadershipChangePayload;
 import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.room.chat.KudosSentPayload;
 import com.yeosal.api.survival.SurvivalStateChangePayload;
@@ -104,6 +105,20 @@ public class RealtimePublisher {
      */
     public void publishKudos(long roomId, KudosSentPayload payload) {
         sendTopic("/topic/rooms." + roomId + ".kudos", payload);
+    }
+
+    /**
+     * Story 5.2 — leader transfer publish point. Emits the {@code
+     * LeadershipChange} frame on the room's survival topic so any
+     * authenticated room member sees the new leader without waiting for a
+     * manual refresh. Failures are warn-and-swallowed via {@link #sendTopic}
+     * — a broker hiccup must NEVER roll back the surrounding transfer-
+     * leadership transaction. The dual-channel survival shape (private +
+     * broadcast) is intentionally NOT used here: a leader transfer carries
+     * no privacy implication.
+     */
+    public void publishLeadershipChange(long roomId, LeadershipChangePayload payload) {
+        sendTopic("/topic/rooms." + roomId + ".survival", payload);
     }
 
     /**
