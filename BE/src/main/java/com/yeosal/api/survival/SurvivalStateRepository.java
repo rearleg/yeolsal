@@ -1,9 +1,11 @@
 package com.yeosal.api.survival;
 
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +13,17 @@ import org.springframework.data.repository.query.Param;
 public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Long> {
 
     Optional<SurvivalState> findByRoomIdAndUserId(long roomId, long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select s
+            from SurvivalState s
+            where s.room.id = :roomId
+              and s.user.id = :userId
+            """)
+    Optional<SurvivalState> findByRoomIdAndUserIdForUpdate(
+            @Param("roomId") long roomId,
+            @Param("userId") long userId);
 
     List<SurvivalState> findByRoomId(long roomId);
 

@@ -67,6 +67,8 @@ function seedLeader() {
       maxMembers: 12,
       minDailyGoalDays: 10,
       createdAt: "2026-03-01T00:00:00Z",
+      pendingMaxMembers: null,
+      pendingMaxMembersEffectiveFromMonth: null,
     },
   ]);
 }
@@ -89,6 +91,8 @@ function seedNonLeader() {
       maxMembers: 12,
       minDailyGoalDays: 10,
       createdAt: "2026-03-01T00:00:00Z",
+      pendingMaxMembers: null,
+      pendingMaxMembersEffectiveFromMonth: null,
     },
   ]);
 }
