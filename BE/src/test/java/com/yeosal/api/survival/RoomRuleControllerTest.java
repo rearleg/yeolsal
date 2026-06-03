@@ -19,6 +19,7 @@ import com.yeosal.api.common.CurrentUser;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
 import com.yeosal.api.common.RateLimitFilter;
+import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -66,6 +67,10 @@ class RoomRuleControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private RoomRuleService roomRuleService;
     @MockBean private CurrentUser currentUser;
+    // Story 5.4 — RoomRuleService now constructor-injects ChatService.
+    // The web slice still mocks RoomRuleService directly, but Spring needs a
+    // bean of every dependency the production wiring would compose with.
+    @MockBean private ChatService chatService;
 
     private User viewer;
 

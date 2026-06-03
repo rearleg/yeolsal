@@ -22,6 +22,7 @@ import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
 import com.yeosal.api.room.RoomService;
+import com.yeosal.api.room.chat.ChatService;
 import com.yeosal.api.user.AuthProvider;
 import com.yeosal.api.user.User;
 import java.lang.reflect.Field;
@@ -29,14 +30,20 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Story 5.1 — Mockito unit assertions for {@link RoomRuleService}. Twelve
@@ -58,6 +65,7 @@ class RoomRuleServiceTest {
     @Mock private RoomMemberRepository roomMembers;
     @Mock private RoomRuleVersionRepository ruleVersions;
     @Mock private RoomService roomService;
+    @Mock private ChatService chatService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -76,8 +84,19 @@ class RoomRuleServiceTest {
         room = makeRoom(ROOM_ID, leader);
     }
 
+    @AfterEach
+    void tearDown() {
+        // Some cases pin tx synchronization to validate the publishAfterCommit
+        // branch — clear it before the next case so leakage cannot bleed into
+        // an inline-path assertion.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     private RoomRuleService build(Clock clock) {
-        return new RoomRuleService(rooms, roomMembers, ruleVersions, roomService, clock, objectMapper);
+        return new RoomRuleService(
+                rooms, roomMembers, ruleVersions, roomService, clock, objectMapper, chatService);
     }
 
     // ---------- updateRule ----------
@@ -205,6 +224,107 @@ class RoomRuleServiceTest {
         assertThatThrownBy(() -> service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", false))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("missing after upsert");
+    }
+
+    // ---------- Story 5.4 broadcast hook ----------
+
+    @Test
+    @DisplayName("Story 5.4 — happy insert emits broadcast with saved row's id, month, preset, weekendInclude")
+    void updateRule_emitsRuleChangeBroadcast_onHappyInsert() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(1001L, "2026-05", "DAILY_UPDATE", false)));
+
+        service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", false);
+
+        verify(chatService).publishRuleChangeSystemMessage(
+                eq(ROOM_ID), eq(1001L), eq("2026-05"), eq("DAILY_UPDATE"), eq(false));
+    }
+
+    @Test
+    @DisplayName("Story 5.4 — replace flow (same nextMonth re-edit) still fires broadcast (no dedupe)")
+    void updateRule_emitsRuleChangeBroadcast_onReplace() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(2002L, "2026-05", "DAILY_UPDATE", true)));
+
+        service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", true);
+        service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", true);
+
+        verify(chatService, times(2)).publishRuleChangeSystemMessage(
+                eq(ROOM_ID), eq(2002L), eq("2026-05"), eq("DAILY_UPDATE"), eq(true));
+    }
+
+    @Test
+    @DisplayName("Story 5.4 — non-leader path never reaches the broadcast hook")
+    void updateRule_doesNotEmitBroadcast_whenNonLeader() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        doThrow(new ForbiddenException("방장 권한이 필요합니다."))
+                .when(roomService).requireLeader(any(Room.class), eq(member));
+
+        assertThatThrownBy(() -> service.updateRule(member, ROOM_ID, "DAILY_UPDATE", false))
+                .isInstanceOf(ForbiddenException.class);
+
+        Mockito.verifyNoInteractions(chatService);
+    }
+
+    @Test
+    @DisplayName("Story 5.4 — inside an active transaction synchronization, broadcast is deferred until afterCommit fires")
+    void updateRule_registersAfterCommitSynchronization_whenInsideTransaction() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(3003L, "2026-05", "DAILY_UPDATE", false)));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", false);
+
+            // The lambda must be registered but NOT yet invoked — the chat row
+            // must wait for the outer transaction's commit to be observed.
+            verify(chatService, never()).publishRuleChangeSystemMessage(
+                    anyLong(), anyLong(), anyString(), anyString(), eq(false));
+
+            List<TransactionSynchronization> syncs =
+                    TransactionSynchronizationManager.getSynchronizations();
+            assertThat(syncs).isNotEmpty();
+            InOrder ordering = Mockito.inOrder(ruleVersions, chatService);
+            // Simulate the commit phase Spring's TransactionManager would drive.
+            for (TransactionSynchronization s : syncs) {
+                s.afterCommit();
+            }
+            ordering.verify(ruleVersions).upsertRule(
+                    eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID));
+            ordering.verify(chatService).publishRuleChangeSystemMessage(
+                    eq(ROOM_ID), eq(3003L), eq("2026-05"), eq("DAILY_UPDATE"), eq(false));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("Story 5.4 — chat publish failure is swallowed, updateRule still returns the DTO")
+    void updateRule_swallowsChatPublishFailure() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(4004L, "2026-05", "DAILY_UPDATE", true)));
+        doThrow(new RuntimeException("broker down"))
+                .when(chatService).publishRuleChangeSystemMessage(
+                        anyLong(), anyLong(), anyString(), anyString(), eq(true));
+
+        RoomRuleVersionDto dto = service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", true);
+
+        assertThat(dto.id()).isEqualTo(4004L);
+        assertThat(dto.weekendInclude()).isTrue();
+        verify(chatService).publishRuleChangeSystemMessage(
+                eq(ROOM_ID), eq(4004L), eq("2026-05"), eq("DAILY_UPDATE"), eq(true));
     }
 
     // ---------- getRule ----------

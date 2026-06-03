@@ -167,6 +167,46 @@ public class ChatService {
     }
 
     /**
+     * Story 5.4 — emits a SYSTEM chat row announcing a leader-staged rule
+     * change. Body opens with the locked positive-frame prefix
+     * "다음 달부터 새 규칙이 적용됩니다: " and is suffixed with a one-line preview
+     * (preset label + weekend-include phrase). Payload carries the structured
+     * tuple {ruleVersionId, effectiveFromMonth, preview} so a future consumer
+     * can render a sub-pill or deep-link to the rule editor without re-parsing
+     * the body string.
+     *
+     * <p>Runs in {@link Propagation#REQUIRES_NEW} and reuses
+     * {@link #publishSystem}'s validation, persistence, and fan-out path so a
+     * chat-row failure cannot roll back the caller's rule upsert, and the
+     * standard {@code /topic/rooms.{id}.chat} fan-out fires automatically.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ChatMessage publishRuleChangeSystemMessage(
+            long roomId,
+            long ruleVersionId,
+            String effectiveFromMonth,
+            String preset,
+            boolean weekendInclude) {
+        String preview = formatRulePreview(preset, weekendInclude);
+        String body = "다음 달부터 새 규칙이 적용됩니다: " + preview;
+        // ruleVersionId is rendered as a JSON string so `payload->>` operators
+        // line up with the V8/V9 milestone-dedup convention; the other two
+        // string fields route through JSON.valueToTree to escape safely.
+        String payload = String.format(
+                "{\"ruleVersionId\":\"%d\",\"effectiveFromMonth\":%s,\"preview\":%s}",
+                ruleVersionId,
+                JSON.valueToTree(effectiveFromMonth).toString(),
+                JSON.valueToTree(preview).toString());
+        return publishSystem(roomId, ChatMessageKind.SYSTEM, body, payload);
+    }
+
+    private static String formatRulePreview(String preset, boolean weekendInclude) {
+        String presetLabel = "DAILY_UPDATE".equals(preset) ? "매일 업데이트" : preset;
+        String weekendPhrase = weekendInclude ? "주말 포함" : "주말 제외";
+        return presetLabel + ", " + weekendPhrase;
+    }
+
+    /**
      * Reflection-time MILESTONE fan-out. For each room {@code actor}
      * belongs to, publishes a daily progress chat row of the form
      * "alice님 15일 중 7일 완료!" — the announcement now fires every
