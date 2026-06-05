@@ -225,8 +225,12 @@ class AutoLeaderPromotionIT {
         jdbc.update("UPDATE users SET free_revival_ticket_used = true WHERE id = ?",
                 leader.getId());
         jdbc.update(
+                // V11 schema names the column `delta` (smallint), not
+                // `points_delta`. The prior literal was a latent fixture
+                // bug that PR-CI masked under cascade-fail noise from
+                // earlier opt-in ITs.
                 "INSERT INTO personal_points_ledger"
-                        + " (user_id, room_id, points_delta, reason, occurred_at)"
+                        + " (user_id, room_id, delta, reason, occurred_at)"
                         + " VALUES (?, ?, 100, 'SURVIVAL', now())",
                 leader.getId(), room.getId());
         // Also mint a room_point_pool row (RoomService.create normally mints
