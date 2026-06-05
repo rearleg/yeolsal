@@ -82,10 +82,10 @@ class V11MigrationIT {
                         + "WHERE version IS NOT NULL "
                         + "ORDER BY installed_rank DESC LIMIT 1",
                 String.class);
-        // Bumped to "12" when Story 3.5 added V12__chat_kudos.sql. This test
-        // tracks the latest applied migration; each new V<N>__*.sql bumps
-        // the expectation by one.
-        assertThat(topVersion).isEqualTo("12");
+        // Bumped to "13" when Story 5.2 added V13__rooms_pending_max_members.sql.
+        // This test tracks the latest applied migration; each new V<N>__*.sql
+        // bumps the expectation by one.
+        assertThat(topVersion).isEqualTo("13");
     }
 
     @Test
