@@ -21,6 +21,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,7 +66,13 @@ public class PreviewCardCacheService {
             RoomRuleVersionRepository ruleVersions,
             InvitePreviewRenderer renderer,
             PngRasterizer rasterizer,
-            PreviewCardBackgroundRenderer backgroundRenderer,
+            // @Lazy breaks the circular dependency:
+            // PreviewCardBackgroundRenderer constructor-injects this service
+            // (so @Async dispatch crosses a real Spring AOP proxy boundary
+            // for trap #3), and this service needs the renderer to kick
+            // background work on the stale path. The lazy proxy is created
+            // up-front and resolved on first call — by then both beans exist.
+            @Lazy PreviewCardBackgroundRenderer backgroundRenderer,
             EntityManager em,
             Clock clock,
             @Value("${yeosal.share.preview-cards-dir:/var/yeosal/preview-cards}") String pngOutputDir,
