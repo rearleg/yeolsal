@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -104,6 +105,13 @@ class RoomMemberCapPromotionIT {
 
     @Test
     @DisplayName("RoomService.requireRoom boundary promotes due cap and returns refreshed summary")
+    // requireRoom is a plain (non-transactional) helper; in production it is
+    // always invoked from inside a readOnly @Transactional service boundary
+    // (myRooms, members, todayForRoom, ...). The opt-in IT must mirror that
+    // contract so the inner entityManager.refresh(room) — which Hibernate
+    // requires an active transaction for — actually has one. Without this
+    // wrapper the refresh call throws TransactionRequiredException.
+    @Transactional
     void requireRoom_promotesAndReturnsFreshRoom() {
         long roomId = seedRoomWithPending(20, "2000-01");
 
