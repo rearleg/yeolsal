@@ -3,6 +3,7 @@ package com.yeosal.api.room;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -60,6 +61,8 @@ class RoomServiceTest {
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
     @Mock private RoomCapPromotionService capPromotion;
     @Mock private EntityManager entityManager;
+    @Mock private com.yeosal.api.kakaoshare.PreviewCardCacheService previewCardCacheService;
+    @Mock private com.yeosal.api.kakaoshare.ShareUrlBuilder shareUrlBuilder;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -90,7 +93,16 @@ class RoomServiceTest {
                 roomPointPool,
                 roomRuleVersions,
                 capPromotion,
-                entityManager);
+                entityManager,
+                previewCardCacheService,
+                shareUrlBuilder);
+        // Story 6.1 AC1/AC7 — share-payload builder produces deterministic
+        // URLs for InviteSummary assertions. Returning a fixed result here
+        // covers both happy-path createInvite cases below.
+        lenient().when(shareUrlBuilder.kakaoShareUrl(any(RoomInvite.class)))
+                .thenReturn("https://yeolsal.app/join?code=A7K9PXMQ");
+        lenient().when(shareUrlBuilder.previewCardImageUrl(anyLong()))
+                .thenReturn("https://api.rearleg.com/yeolsal/api/v1/rooms/42/invites/preview-card");
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         carol = makeUser(3L, "carol@example.com", "Carol");
@@ -200,6 +212,10 @@ class RoomServiceTest {
         assertThat(invite.id()).isEqualTo(99L);
         assertThat(inviteCaptor.getValue().getExpiresAt())
                 .isEqualTo(now.plus(Duration.ofDays(7)));
+        // Story 6.1 AC1 — share payload populated from ShareUrlBuilder.
+        assertThat(invite.kakaoShareUrl()).isEqualTo("https://yeolsal.app/join?code=A7K9PXMQ");
+        assertThat(invite.previewCardImageUrl())
+                .isEqualTo("https://api.rearleg.com/yeolsal/api/v1/rooms/42/invites/preview-card");
     }
 
     @Test

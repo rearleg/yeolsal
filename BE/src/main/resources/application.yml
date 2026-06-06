@@ -26,6 +26,10 @@ yeosal:
     client-id: ${KAKAO_CLIENT_ID:}
     redirect-uri: ${KAKAO_REDIRECT_URI:https://api.rearleg.com/yeolsal/api/v1/auth/kakao/callback}
     mobile-redirect-uri: ${KAKAO_MOBILE_REDIRECT_URI:yeosal://auth/kakao}
+  share:
+    deeplink-base: ${YEOSAL_SHARE_DEEPLINK_BASE:https://yeolsal.app}
+    preview-card-base: ${YEOSAL_SHARE_PREVIEW_CARD_BASE:https://api.rearleg.com/yeolsal}
+    preview-cards-dir: ${YEOSAL_SHARE_PREVIEW_CARDS_DIR:/var/yeosal/preview-cards}
   evaluator:
     mass-elimination-alert-threshold: ${YEOSAL_EVALUATOR_MASS_ELIM_THRESHOLD:20}
   realtime:

@@ -39,6 +39,11 @@ dependencies {
     runtimeOnly "io.jsonwebtoken:jjwt-impl:0.12.6"
     runtimeOnly "io.jsonwebtoken:jjwt-jackson:0.12.6"
     runtimeOnly "org.postgresql:postgresql"
+    // Story 6.1 — KakaoTalk share preview card SVG → PNG transcoder.
+    // batik-codec is required at runtime so PNGTranscoder can write PNG
+    // output; without it the transcoder NoClassDefFoundErrors on first call.
+    implementation "org.apache.xmlgraphics:batik-transcoder:1.17"
+    implementation "org.apache.xmlgraphics:batik-codec:1.17"
 
     testImplementation "org.springframework.boot:spring-boot-starter-test"
     testImplementation "org.springframework.security:spring-security-test"

@@ -34,10 +34,18 @@ services:
       KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-}
       KAKAO_MOBILE_REDIRECT_URI: ${KAKAO_MOBILE_REDIRECT_URI:-yeosal://auth/kakao}
+      # Story 6.1 — KakaoTalk share preview card render output directory.
+      # Nginx serves files from the same mount so the API write and nginx
+      # read sides see one filesystem.
+      YEOSAL_SHARE_PREVIEW_CARDS_DIR: ${YEOSAL_SHARE_PREVIEW_CARDS_DIR:-/var/yeosal/preview-cards}
+      YEOSAL_SHARE_DEEPLINK_BASE: ${YEOSAL_SHARE_DEEPLINK_BASE:-https://yeolsal.app}
+      YEOSAL_SHARE_PREVIEW_CARD_BASE: ${YEOSAL_SHARE_PREVIEW_CARD_BASE:-https://api.rearleg.com/yeolsal}
     depends_on:
       - postgres
     expose:
       - "8080"
+    volumes:
+      - preview-cards-cache:/var/yeosal/preview-cards
 
   nginx:
     image: nginx:1.27-alpine
@@ -45,8 +53,13 @@ services:
       - "${HTTP_PORT:-8088}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - preview-cards-cache:/var/yeosal/preview-cards:ro
     depends_on:
       - api
 
 volumes:
   postgres-data:
+  # Story 6.1 — shared host volume for KakaoTalk preview card PNGs. Both api
+  # (writer) and nginx (static reader) mount it; container restarts therefore
+  # do not invalidate the cache directory.
+  preview-cards-cache:

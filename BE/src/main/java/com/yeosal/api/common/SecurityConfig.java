@@ -49,6 +49,11 @@ public class SecurityConfig {
                         // JwtChannelInterceptor. Without this entry the
                         // handshake never reaches the broker.
                         .requestMatchers("/ws", "/ws/**").permitAll()
+                        // Story 6.1 AC2 — KakaoTalk fetches the preview card
+                        // unauthenticated. PNG content is non-PII (room name +
+                        // member count + rule summary), GET-only, single
+                        // path-segment wildcard so depth cannot drift.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rooms/*/invites/preview-card").permitAll()
                         .anyRequest().authenticated()
                 )
                 // Both custom filters anchor against UsernamePasswordAuthenticationFilter

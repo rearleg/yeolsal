@@ -66,6 +66,7 @@ class RoomRuleServiceTest {
     @Mock private RoomRuleVersionRepository ruleVersions;
     @Mock private RoomService roomService;
     @Mock private ChatService chatService;
+    @Mock private com.yeosal.api.kakaoshare.PreviewCardCacheService previewCardCacheService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -96,7 +97,8 @@ class RoomRuleServiceTest {
 
     private RoomRuleService build(Clock clock) {
         return new RoomRuleService(
-                rooms, roomMembers, ruleVersions, roomService, clock, objectMapper, chatService);
+                rooms, roomMembers, ruleVersions, roomService, clock, objectMapper,
+                chatService, previewCardCacheService);
     }
 
     // ---------- updateRule ----------
@@ -305,6 +307,53 @@ class RoomRuleServiceTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    // ---------- Story 6.1 preview-card invalidate hook ----------
+
+    @Test
+    @DisplayName("Story 6.1 — updateRule invalidates preview-card cache after the outer commit")
+    void updateRule_invalidatesPreviewCardAfterCommit() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(5005L, "2026-05", "DAILY_UPDATE", false)));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", false);
+
+            // Before commit fires, the invalidate must not have been called —
+            // a rolled-back upsert would otherwise blow away a valid cache row.
+            verify(previewCardCacheService, never()).invalidate(anyLong());
+
+            List<TransactionSynchronization> syncs =
+                    TransactionSynchronizationManager.getSynchronizations();
+            for (TransactionSynchronization s : syncs) {
+                s.afterCommit();
+            }
+            verify(previewCardCacheService).invalidate(ROOM_ID);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("Story 6.1 — preview-card invalidate failure is swallowed, updateRule still returns DTO")
+    void updateRule_swallowsPreviewCardInvalidateFailure() {
+        when(rooms.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(ruleVersions.upsertRule(eq(ROOM_ID), eq("2026-05"), anyString(), eq(LEADER_ID)))
+                .thenReturn(1);
+        when(ruleVersions.findByRoomIdAndEffectiveFromMonth(ROOM_ID, "2026-05"))
+                .thenReturn(Optional.of(stubRow(6006L, "2026-05", "DAILY_UPDATE", false)));
+        doThrow(new RuntimeException("repo offline"))
+                .when(previewCardCacheService).invalidate(ROOM_ID);
+
+        RoomRuleVersionDto dto = service.updateRule(leader, ROOM_ID, "DAILY_UPDATE", false);
+
+        assertThat(dto.id()).isEqualTo(6006L);
+        verify(previewCardCacheService).invalidate(ROOM_ID);
     }
 
     @Test
