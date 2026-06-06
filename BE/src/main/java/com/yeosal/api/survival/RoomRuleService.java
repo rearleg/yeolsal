@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yeosal.api.common.BadRequestException;
 import com.yeosal.api.common.ForbiddenException;
 import com.yeosal.api.common.NotFoundException;
+import com.yeosal.api.kakaoshare.PreviewCardCacheService;
 import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
@@ -44,6 +45,8 @@ public class RoomRuleService {
     private final Clock clock;
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
+    /** Story 6.1 — KakaoTalk share preview cache invalidation hook. */
+    private final PreviewCardCacheService previewCardCacheService;
 
     public RoomRuleService(
             RoomRepository rooms,
@@ -52,7 +55,8 @@ public class RoomRuleService {
             RoomService roomService,
             Clock clock,
             ObjectMapper objectMapper,
-            ChatService chatService
+            ChatService chatService,
+            PreviewCardCacheService previewCardCacheService
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -61,6 +65,7 @@ public class RoomRuleService {
         this.clock = clock;
         this.objectMapper = objectMapper;
         this.chatService = chatService;
+        this.previewCardCacheService = previewCardCacheService;
     }
 
     /**
@@ -101,6 +106,18 @@ public class RoomRuleService {
             } catch (RuntimeException ex) {
                 log.warn("[chat] rule-change publish failed roomId={} ruleVersionId={}: {}",
                         roomId, saved.getId(), ex.toString());
+            }
+        });
+        // Story 6.1 AC4 — invalidate the KakaoTalk share preview card so the
+        // next render reflects the new rule preview phrase. Deferred until
+        // commit alongside the chat broadcast for the same rollback-safety
+        // reason (the chat lambda above; see RoomRuleService.publishAfterCommit).
+        publishAfterCommit(() -> {
+            try {
+                previewCardCacheService.invalidate(roomId);
+            } catch (RuntimeException ex) {
+                log.warn("[kakaoshare] preview-card invalidate failed roomId={}: {}",
+                        roomId, ex.toString());
             }
         });
         return dto;

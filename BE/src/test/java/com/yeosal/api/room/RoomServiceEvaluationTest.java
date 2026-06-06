@@ -58,6 +58,8 @@ class RoomServiceEvaluationTest {
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
     @Mock private RoomCapPromotionService capPromotion;
     @Mock private EntityManager entityManager;
+    @Mock private com.yeosal.api.kakaoshare.PreviewCardCacheService previewCardCacheService;
+    @Mock private com.yeosal.api.kakaoshare.ShareUrlBuilder shareUrlBuilder;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T00:10:00Z"), ZoneId.of("UTC"));
 
@@ -87,7 +89,9 @@ class RoomServiceEvaluationTest {
                 roomPointPool,
                 roomRuleVersions,
                 capPromotion,
-                entityManager);
+                entityManager,
+                previewCardCacheService,
+                shareUrlBuilder);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         room = makeRoom(42L, "기본 방", alice);

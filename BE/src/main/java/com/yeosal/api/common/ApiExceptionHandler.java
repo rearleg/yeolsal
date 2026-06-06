@@ -1,5 +1,6 @@
 package com.yeosal.api.common;
 
+import com.yeosal.api.kakaoshare.PreviewCardRenderException;
 import com.yeosal.api.revival.AlreadyRevivedException;
 import com.yeosal.api.revival.FreeTicketAlreadyUsedException;
 import com.yeosal.api.revival.InsufficientGiftPointsException;
@@ -269,6 +270,33 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> ineligibleLeader(IneligibleLeaderException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of("INELIGIBLE_LEADER", exception.getMessage()));
+    }
+
+    /**
+     * Story 6.1 AC2/AC3 — caller should retry shortly. Surfaced when an
+     * in-flight preview-card render holds the advisory lock and no stale row
+     * is available. KakaoTalk's fetcher honours {@code Retry-After}.
+     */
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> serviceUnavailable(ServiceUnavailableException exception) {
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header("Retry-After", "5")
+                .body(ApiErrorResponse.of("SERVICE_UNAVAILABLE", exception.getMessage()));
+    }
+
+    /**
+     * Story 6.1 AC6 — SVG → PNG transcode or disk-write failure during a
+     * Kakao share preview card render. Logged under the channel-scoped
+     * {@code [kakaoshare]} prefix so render incidents stay distinct from
+     * generic 5xx noise.
+     */
+    @ExceptionHandler(PreviewCardRenderException.class)
+    public ResponseEntity<ApiErrorResponse> previewCardRender(PreviewCardRenderException exception) {
+        log.error("[kakaoshare] preview-card render failed", exception);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of("INTERNAL_ERROR", INTERNAL_ERROR_MESSAGE));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

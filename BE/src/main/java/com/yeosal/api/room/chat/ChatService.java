@@ -15,6 +15,7 @@ import com.yeosal.api.room.GroupMemberMinimumRepository;
 import com.yeosal.api.room.Room;
 import com.yeosal.api.room.RoomMemberRepository;
 import com.yeosal.api.room.RoomRepository;
+import com.yeosal.api.survival.RulePresetPreview;
 import com.yeosal.api.survival.SurvivalState;
 import com.yeosal.api.survival.SurvivalStateRepository;
 import com.yeosal.api.survival.SurvivalStatus;
@@ -187,7 +188,7 @@ public class ChatService {
             String effectiveFromMonth,
             String preset,
             boolean weekendInclude) {
-        String preview = formatRulePreview(preset, weekendInclude);
+        String preview = RulePresetPreview.format(preset, weekendInclude);
         String body = "다음 달부터 새 규칙이 적용됩니다: " + preview;
         // ruleVersionId is rendered as a JSON string so `payload->>` operators
         // line up with the V8/V9 milestone-dedup convention; the other two
@@ -198,12 +199,6 @@ public class ChatService {
                 JSON.valueToTree(effectiveFromMonth).toString(),
                 JSON.valueToTree(preview).toString());
         return publishSystem(roomId, ChatMessageKind.SYSTEM, body, payload);
-    }
-
-    private static String formatRulePreview(String preset, boolean weekendInclude) {
-        String presetLabel = "DAILY_UPDATE".equals(preset) ? "매일 업데이트" : preset;
-        String weekendPhrase = weekendInclude ? "주말 포함" : "주말 제외";
-        return presetLabel + ", " + weekendPhrase;
     }
 
     /**

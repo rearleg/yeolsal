@@ -63,6 +63,8 @@ class RoomServiceMemberJoinSystemMessageTest {
     @Mock private com.yeosal.api.survival.RoomRuleVersionRepository roomRuleVersions;
     @Mock private RoomCapPromotionService capPromotion;
     @Mock private EntityManager entityManager;
+    @Mock private com.yeosal.api.kakaoshare.PreviewCardCacheService previewCardCacheService;
+    @Mock private com.yeosal.api.kakaoshare.ShareUrlBuilder shareUrlBuilder;
 
     private final Instant now = Instant.parse("2026-04-30T10:45:32Z");
     private final Clock clock = Clock.fixed(now, ZoneId.of("Asia/Seoul"));
@@ -92,7 +94,9 @@ class RoomServiceMemberJoinSystemMessageTest {
                 roomPointPool,
                 roomRuleVersions,
                 capPromotion,
-                entityManager);
+                entityManager,
+                previewCardCacheService,
+                shareUrlBuilder);
         alice = makeUser(1L, "alice@example.com", "Alice");
         bob = makeUser(2L, "bob@example.com", "Bob");
         lenient().when(roomMembers.save(any(RoomMember.class)))

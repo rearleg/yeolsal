@@ -7,6 +7,8 @@ import com.yeosal.api.daily.DailyEntry;
 import com.yeosal.api.daily.DailyEntryRepository;
 import com.yeosal.api.daily.DailyService;
 import com.yeosal.api.daily.TodoItem;
+import com.yeosal.api.kakaoshare.PreviewCardCacheService;
+import com.yeosal.api.kakaoshare.ShareUrlBuilder;
 import com.yeosal.api.profile.GrassDay;
 import com.yeosal.api.revival.RoomPointPool;
 import com.yeosal.api.revival.RoomPointPoolRepository;
@@ -64,6 +66,12 @@ public class RoomService {
     private final RoomRuleVersionRepository roomRuleVersions;
     private final RoomCapPromotionService capPromotion;
     private final EntityManager entityManager;
+    /** Story 6.1 — KakaoTalk share invalidation hook. afterCommit-driven so a
+     *  rolled-back join / leave / room-deletion cannot leave a stale cache row
+     *  behind. */
+    private final PreviewCardCacheService previewCardCacheService;
+    /** Story 6.1 — share payload URL builder consumed by {@link #createInvite}. */
+    private final ShareUrlBuilder shareUrlBuilder;
 
     /** Mirrors {@code FriendService.STREAK_WINDOW_DAYS} so the per-member streak
      * displayed in the group dashboard agrees with what each member sees on
@@ -89,7 +97,9 @@ public class RoomService {
             RoomPointPoolRepository roomPointPool,
             RoomRuleVersionRepository roomRuleVersions,
             RoomCapPromotionService capPromotion,
-            EntityManager entityManager
+            EntityManager entityManager,
+            PreviewCardCacheService previewCardCacheService,
+            ShareUrlBuilder shareUrlBuilder
     ) {
         this.rooms = rooms;
         this.roomMembers = roomMembers;
@@ -110,6 +120,8 @@ public class RoomService {
         this.roomRuleVersions = roomRuleVersions;
         this.capPromotion = capPromotion;
         this.entityManager = entityManager;
+        this.previewCardCacheService = previewCardCacheService;
+        this.shareUrlBuilder = shareUrlBuilder;
     }
 
     /** Default room capacity per FR-8.1.1 (V11 widened range is [2, 30]). */
@@ -314,7 +326,12 @@ public class RoomService {
         String code = codeGenerator.generate(roomInvites::existsByCodeAndRevokedAtIsNull);
         Instant expiresAt = ttl == null ? null : clock.instant().plus(ttl);
         RoomInvite saved = roomInvites.save(new RoomInvite(room, code, creator, expiresAt));
-        return InviteSummary.from(saved);
+        // Story 6.1 AC1/AC7 — wire shape change (e.g. switching deeplink to a
+        // different host) lives in ShareUrlBuilder and is not duplicated here.
+        String kakaoShareUrl = shareUrlBuilder.kakaoShareUrl(saved);
+        String previewCardImageUrl =
+                shareUrlBuilder.previewCardImageUrl(saved.getRoom().getId());
+        return InviteSummary.from(saved, kakaoShareUrl, previewCardImageUrl);
     }
 
     @Transactional
@@ -363,6 +380,17 @@ public class RoomService {
         // ChatService.publishSystem (REQUIRES_NEW) so a chat-write failure
         // does NOT roll back the membership insert.
         chatService.publishMemberJoinedSystemMessage(room, user);
+        // Story 6.1 AC4 — invalidate the KakaoTalk preview card so the next
+        // share regenerates with the updated member count. Deferred until
+        // commit so a rolled-back join cannot blow away a fresh cache row.
+        publishAfterCommit(() -> {
+            try {
+                previewCardCacheService.invalidate(room.getId());
+            } catch (RuntimeException ex) {
+                log.warn("[kakaoshare] preview-card invalidate failed roomId={}: {}",
+                        room.getId(), ex.toString());
+            }
+        });
         return summary;
     }
 
@@ -415,12 +443,45 @@ public class RoomService {
             }
             // group_member_minimums(room_id, user_id) FK has ON DELETE CASCADE
             // against room_members, so deleting the last RoomMember reaps the
-            // matching minimum row automatically.
+            // matching minimum row automatically. room_invite_preview_cache also
+            // FK cascades on rooms.id deletion — no explicit invalidate needed.
             roomMembers.delete(membership);
             rooms.delete(room);
             return;
         }
         roomMembers.delete(membership);
+        // Story 6.1 AC4 — non-owner leave path: invalidate the preview card so
+        // the next share renders with the decremented member count.
+        publishAfterCommit(() -> {
+            try {
+                previewCardCacheService.invalidate(room.getId());
+            } catch (RuntimeException ex) {
+                log.warn("[kakaoshare] preview-card invalidate failed roomId={}: {}",
+                        room.getId(), ex.toString());
+            }
+        });
+    }
+
+    /**
+     * Defers {@code task} until the surrounding @Transactional commits, or
+     * runs it inline when invoked outside a transaction (test fixtures /
+     * service callers without an active sync). Byte-identical to
+     * {@code DailyService.publishAfterCommit} and
+     * {@code RoomRuleService.publishAfterCommit} — this is the third
+     * call-site copy of the pattern. Worth extracting to a shared
+     * transactional-event-publisher utility in a follow-up story.
+     */
+    private void publishAfterCommit(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
     }
 
     /**
@@ -571,13 +632,32 @@ public class RoomService {
             int currentStreak
     ) {}
 
-    public record InviteSummary(long id, long roomId, String code, Instant expiresAt) {
-        public static InviteSummary from(RoomInvite invite) {
+    /**
+     * Story 6.1 AC1 — extended with two share-payload fields. JSON
+     * serialization is key-additive, so older FE bundles that ignore the
+     * new fields keep working ({@code TypeScript structural typing}).
+     */
+    public record InviteSummary(
+            long id,
+            long roomId,
+            String code,
+            Instant expiresAt,
+            // NEW Story 6.1 — KakaoTalk deeplink the FE share button feeds
+            // into the Kakao Share SDK (FR-8.6.1).
+            String kakaoShareUrl,
+            // NEW Story 6.1 — public preview-card URL that KakaoTalk's
+            // server-side fetcher hits to render the share card image.
+            String previewCardImageUrl
+    ) {
+        public static InviteSummary from(
+                RoomInvite invite, String kakaoShareUrl, String previewCardImageUrl) {
             return new InviteSummary(
                     invite.getId(),
                     invite.getRoom().getId(),
                     invite.getCode(),
-                    invite.getExpiresAt()
+                    invite.getExpiresAt(),
+                    kakaoShareUrl,
+                    previewCardImageUrl
             );
         }
     }
