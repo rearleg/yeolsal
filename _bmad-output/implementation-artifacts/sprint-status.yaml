@@ -1,5 +1,7 @@
 # generated: 2026-05-11
-# last_updated: 2026-06-03
+# last_updated: 2026-06-07
+# (Story 6.3 review patches complete → done 2026-06-07. DOCS-ONLY RUNBOOK.md 587 → 724 lines. Review corrected clean native regeneration, EAS Environment Variable usage, Android signing key hashes, Kakao Product Link domain registration, HTTPS/custom-scheme limitations, SDK fallback flow, and real native compile CI guidance. AC9 matrix green; diff sanity clean; 0 FE/BE source, test, migration, or config changes. Epic-6 stays in-progress pending retrospective decision.)
+# (Story 6.3 dev-story start 2026-06-07 — flipped ready-for-dev → in-progress. DOCS-ONLY scope: repo-root RUNBOOK.md edits only — §3 Kakao Share SDK sub-section, §6 EAS preview smoke (VERIFY-A/B/C), §12 Native App Key lifecycle, new § FE CI guard, OOS .well-known hosting note. 0 source/test/migration changes.)
 # (Story 5.4 implementation complete → review 2026-06-03 — BE 574/574 green, brand-voice 0 HARD, FE Δ=0, AC9 scope fence honored; epic-1 done — all 7 stories shipped, retrospective done, follow-ups merged via PR #64; epic-2 in-progress — all 3 stories scoped + ready-for-dev 2026-05-15)
 # project: yeolsal
 # project_key: NOKEY
@@ -158,7 +160,7 @@ development_status:
   epic-6: in-progress
   6-1-server-side-preview-card-renderer-cache: done
   6-2-kakao-share-sdk-integration-deep-linking: done
-  6-3-runbook-native-module-reinstall-guidance: backlog
+  6-3-runbook-native-module-reinstall-guidance: done
   epic-6-retrospective: optional
 
   # Epic 7: Final-3 Monthly Ceremony
