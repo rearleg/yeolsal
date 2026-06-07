@@ -202,6 +202,30 @@ public class ChatService {
     }
 
     /**
+     * Story 7.1 — zero-survivor monthly fallback (epic AC5). Emits a SYSTEM
+     * chat row with the locked body
+     * {@code "이번 달은 아무도 살아남지 못했어요 — 다음 달은 함께 가요"} (epic line 922,
+     * em-dash U+2014). Payload carries the {@code yearMonth} so a future
+     * consumer can render a sub-pill or deep-link without re-parsing the
+     * body.
+     *
+     * <p>Runs in {@link Propagation#REQUIRES_NEW} mirroring
+     * {@link #publishRuleChangeSystemMessage}: a chat-row failure must not
+     * roll back the {@code FinalThreeService} transaction (which has no
+     * other writes on the zero-survivor path, but propagation parity keeps
+     * future-self honest).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ChatMessage publishMonthlyNoSurvivorsSystemMessage(
+            long roomId, YearMonth yearMonth) {
+        String body = "이번 달은 아무도 살아남지 못했어요 — 다음 달은 함께 가요";
+        String payload = String.format(
+                "{\"yearMonth\":%s}",
+                JSON.valueToTree(yearMonth.toString()).toString());
+        return publishSystem(roomId, ChatMessageKind.SYSTEM, body, payload);
+    }
+
+    /**
      * Reflection-time MILESTONE fan-out. For each room {@code actor}
      * belongs to, publishes a daily progress chat row of the form
      * "alice님 15일 중 7일 완료!" — the announcement now fires every
