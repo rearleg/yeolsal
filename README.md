@@ -27,34 +27,369 @@ Yeosal은 모노레포입니다. Expo React Native 클라이언트, Java 21 / Sp
 
 ## 아키텍처
 
+### 전체 토폴로지
+
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Mobile["모바일 (app.yeosal.mobile)"]
-    FE["Expo RN 클라이언트<br/>FE/app + FE/src"]
+    direction TB
+    Router["expo-router<br/>FE/app/"]
+    Providers["Providers<br/>Query · Auth · Realtime"]
+    Hooks["TanStack Query hooks<br/>FE/src/lib/query/hooks/"]
+    Req["apiRequest&lt;T&gt;<br/>FE/src/api/"]
+    STOMP["RealtimeClient<br/>@stomp/stompjs"]
+    Router --> Providers --> Hooks
+    Hooks --> Req
+    Hooks --> STOMP
   end
 
   subgraph Edge["Edge (infra/)"]
-    NGX["nginx<br/>:8088"]
+    NGX["nginx :8088<br/>REST + WSS 프록시"]
   end
 
-  subgraph API["API (BE/) :8080 ctx /yeolsal"]
-    REST["REST<br/>/api/v1/*"]
-    WS["STOMP<br/>/ws"]
+  subgraph Backend["Spring Boot API (BE/)<br/>ctx /yeolsal · :8080"]
+    direction TB
+    REST["REST Controllers<br/>/api/v1/*"]
+    WS["STOMP /ws<br/>JwtChannelInterceptor"]
+    SVC["Feature Services<br/>auth · daily · room · survival · revival · …"]
+    RT["RealtimePublisher"]
+    REST --> SVC
+    SVC --> RT
+    RT --> WS
+    SVC --> DB
   end
 
-  DB[("PostgreSQL<br/>Flyway 관리")]
+  DB[("PostgreSQL<br/>Flyway V1–V10 + V11~")]
   KAKAO[["Kakao OAuth"]]
   SENTRY[["Sentry"]]
 
-  FE -- "HTTPS REST" --> NGX
-  FE -- "WSS / STOMP" --> NGX
+  Req -- "HTTPS REST" --> NGX
+  STOMP -- "WSS" --> NGX
   NGX --> REST
   NGX --> WS
-  REST --> DB
-  WS --> DB
   REST -. "OAuth" .-> KAKAO
-  FE -. "에러" .-> SENTRY
+  Mobile -. "에러 리포트" .-> SENTRY
 ```
+
+### 백엔드 도메인 모듈
+
+패키지-by-feature 모놀리스. 각 모듈은 `Controller → Service → Repository` 레이어를 따릅니다.
+
+```mermaid
+flowchart LR
+  subgraph common["common/"]
+    SEC["SecurityConfig<br/>JwtFilter · RateLimit"]
+    ERR["ApiExceptionHandler"]
+  end
+
+  subgraph features["도메인 모듈"]
+    auth["auth/<br/>JWT · Kakao OAuth"]
+    daily["daily/<br/>목표 · 회고 · todo"]
+    room["room/<br/>방 · 멤버 · 초대"]
+    chat["room/chat/<br/>ChatService · Kudos"]
+    survival["survival/<br/>YELLOW/RED 평가 · 규칙"]
+    revival["revival/<br/>회생권 · 포인트 · 친구선물"]
+    friend["friend/<br/>친구 요청"]
+    notif["notification/<br/>푸시 · 스케줄러"]
+    realtime["realtime/<br/>WebSocket · Publisher"]
+  end
+
+  auth --> SEC
+  daily --> chat
+  daily --> survival
+  room --> chat
+  survival --> realtime
+  revival --> realtime
+  chat --> realtime
+  friend --> realtime
+  notif --> realtime
+```
+
+| 모듈 | 책임 |
+|------|------|
+| `auth/` | 이메일·Kakao 로그인, JWT 발급/갱신, refresh 토큰 회전 |
+| `daily/` | 일일 목표·회고 CRUD, 제출 시 채팅 시스템 메시지·마일스톤 발행 |
+| `room/` | 방 생성·가입·멤버 관리, 리더 이양, 정원 변경 |
+| `room/chat/` | 채팅 CRUD, Kudos, 시스템 메시지 훅 (`publishSystem`) |
+| `survival/` | 06:00 KST 평가 잡, ACTIVE→YELLOW→RED, 스펙테이터, 방 규칙 |
+| `revival/` | 무료 회생권·개인 포인트·친구 선물 회생, 방 포인트 풀 |
+| `realtime/` | STOMP 엔드포인트, JWT CONNECT/SUBSCRIBE 검증, `RealtimePublisher` |
+
+### 프론트엔드 레이어
+
+```mermaid
+flowchart TB
+  subgraph screens["화면 (FE/app/)"]
+    Today["(tabs)/today"]
+    Rooms["rooms/[id]/chat"]
+    Profile["profile/…"]
+  end
+
+  subgraph components["컴포넌트 (FE/src/components/)"]
+    ChatUI["chat/<br/>ChatList · MessageBubble · SystemMessage"]
+    SurvivalUI["survival/<br/>PoolStack · …"]
+  end
+
+  subgraph state["상태 & 통신"]
+    QH["query/hooks/*<br/>useChatMessages · useSendChatMessage"]
+    RT["realtime/client.ts<br/>싱글톤 STOMP 클라이언트"]
+    API2["api/*.ts<br/>타입드 REST 래퍼"]
+  end
+
+  subgraph persist["영속화"]
+    QC["TanStack Query<br/>→ AsyncStorage"]
+    SS["expo-secure-store<br/>JWT 토큰"]
+  end
+
+  screens --> components
+  components --> QH
+  QH --> API2
+  QH --> RT
+  QH --> QC
+  API2 --> SS
+```
+
+Provider 트리: `QueryProvider` → `AuthProvider` → `RealtimeProvider` → 화면. 상세는 [`docs/architecture-fe.md`](./docs/architecture-fe.md) · [`docs/architecture-be.md`](./docs/architecture-be.md).
+
+## 서비스 흐름
+
+### 인증 & API 요청
+
+```mermaid
+sequenceDiagram
+  actor User as 사용자
+  participant FE as FE apiRequest
+  participant BE as BE AuthController
+  participant DB as PostgreSQL
+
+  User->>FE: 로그인 (이메일 / Kakao)
+  FE->>BE: POST /auth/login 또는 /auth/kakao/exchange
+  BE->>DB: 사용자 조회 · refresh 토큰 저장
+  BE-->>FE: { accessToken, refreshToken, user }
+  FE->>FE: expo-secure-store에 토큰 저장
+
+  Note over FE,BE: 이후 모든 REST 호출
+  FE->>BE: Authorization: Bearer accessToken
+  alt 401 Unauthorized
+    FE->>BE: POST /auth/refresh
+    BE-->>FE: 새 access + refresh (기존 refresh 폐기)
+    FE->>BE: 원래 요청 재시도
+  else refresh 실패
+    FE->>FE: 토큰 삭제 · 로그인 화면으로
+  end
+```
+
+### 일일 회고 & 서바이벌 평가
+
+day-boundary는 **06:00 Asia/Seoul**. 전날 회고 미제출 시 다음 날 06:00 평가에서 strike가 누적됩니다.
+
+```mermaid
+flowchart TB
+  subgraph user_actions["사용자 액션 (당일)"]
+    Goal["목표 작성<br/>POST /daily/goals"]
+    Reflect["회고 제출<br/>POST /daily/reflections"]
+  end
+
+  subgraph hooks["트랜잭션 후 훅"]
+    ChatGoal["ChatService.publishSystem<br/>kind=GOAL"]
+    ChatReflect["ChatService.publishSystem<br/>kind=REFLECTION"]
+    Milestone["ChatService.publishMilestones<br/>kind=MILESTONE"]
+  end
+
+  subgraph cron["06:00 KST (SurvivalStateEvaluatorJob)"]
+    Eval["SurvivalStateService.evaluateRoom"]
+    Compliant["준수 → +2 포인트"]
+    Freeze["미스 + streak freeze 사용"]
+    Yellow["ACTIVE → YELLOW<br/>(첫 strike)"]
+    Red["YELLOW → RED<br/>(7일 rolling 2회)"]
+  end
+
+  subgraph realtime_out["실시간 방출"]
+    Priv["/user/queue/private-survival"]
+    Topic["/topic/rooms.{id}.survival"]
+  end
+
+  Goal --> ChatGoal
+  Reflect --> ChatReflect
+  Reflect --> Milestone
+  ChatGoal --> WS["STOMP fan-out"]
+  ChatReflect --> WS
+  Milestone --> WS
+
+  Eval --> Compliant
+  Eval --> Freeze
+  Eval --> Yellow
+  Eval --> Red
+  Yellow --> Priv
+  Red --> Priv
+  Red --> Topic
+```
+
+| 상태 | 의미 | 채팅 쓰기 |
+|------|------|----------|
+| `ACTIVE` | 정상 참여 | 가능 |
+| `YELLOW` | 1회 미스 (grace) | 가능 |
+| `RED` | 탈락 | 불가 → `SPECTATOR` 전환 |
+| `SPECTATOR` | 관전 모드 | 읽기 전용 (BE·FE 이중 차단) |
+
+### 회생(Revival) 경로
+
+```mermaid
+flowchart LR
+  RED["RED / SPECTATOR"]
+  Free["무료 회생권<br/>가입 시 1회"]
+  Self["개인 포인트<br/>방 포인트 풀 차감"]
+  Gift["친구 선물<br/>선물자 포인트 차감"]
+
+  RED --> Free
+  RED --> Self
+  RED --> Gift
+
+  Free --> Active["ACTIVE 복귀"]
+  Self --> Active
+  Gift --> Active
+
+  Active --> RT2["SURVIVAL_STATE_CHANGE<br/>private-survival + topic"]
+```
+
+## 채팅 기능
+
+방 단위 그룹 채팅. REST로 영속화하고 STOMP로 실시간 fan-out합니다. 송신자는 REST 응답과 WS echo가 겹치므로 **메시지 `id`로 dedupe**합니다.
+
+### 메시지 종류 (`ChatMessageKind`)
+
+| kind | 작성 주체 | 예시 |
+|------|----------|------|
+| `USER` | 멤버 | 일반 대화 |
+| `GOAL` | 시스템 (`DailyService`) | "오늘의 목표를 작성했어요" |
+| `REFLECTION` | 시스템 | "회고를 제출했어요" |
+| `MILESTONE` | 시스템 | "alice님 15일 중 7일 완료!" |
+| `SYSTEM` | 시스템 | 멤버 가입, 규칙 변경 안내 |
+| `AUTO_LEAVE` | 시스템 | 미달 경고 후 자동 퇴장 |
+| `KUDOS` | 멤버 (`KudosService`) | 응원 메시지 (하루 1회) |
+
+`USER` 외 kind는 `ChatController`를 거치지 않고 `ChatService.publishSystem()` 등 서비스 훅으로만 기록됩니다.
+
+### 사용자 메시지 송수신 흐름
+
+```mermaid
+sequenceDiagram
+  actor Sender as 발신자
+  actor Peer as 다른 멤버
+  participant Screen as rooms/[id]/chat
+  participant Hook as useSendChatMessage<br/>useChatRealtime
+  participant REST as POST /rooms/{id}/messages
+  participant SVC as ChatService
+  participant DB as chat_messages
+  participant Pub as RealtimePublisher
+  participant WS as /topic/rooms.{id}.chat
+
+  Note over Screen: 화면 마운트 시 useChatRealtime 구독
+  Screen->>Hook: GET /messages (cursor 페이지)
+  Hook->>REST: InfiniteQuery 초기 로드
+
+  Sender->>Screen: MessageInput 전송
+  Screen->>Hook: useSendChatMessage.mutate
+  Hook->>REST: POST body
+  REST->>SVC: sendUserMessage (SPECTATOR 차단)
+  SVC->>DB: INSERT kind=USER
+  SVC->>Pub: publishChatMessage
+  Pub->>WS: MessageDto fan-out
+  REST-->>Hook: MessageDto (REST 응답)
+  Hook->>Hook: onSuccess → 캐시에 append (id=N)
+
+  WS-->>Hook: 동일 MessageDto (id=N)
+  Hook->>Hook: dedupe by id → skip (중복 렌더 방지)
+
+  WS-->>Peer: MessageDto
+  Peer->>Peer: useChatRealtime → 캐시 merge
+```
+
+**REST/WS dedupe 규칙** (FE `useChatRealtime`):
+1. REST `onSuccess`가 먼저 캐시에 메시지를 넣음.
+2. WS echo가 도착하면 모든 페이지에서 `id` 중복 검사 → 있으면 무시.
+3. WS 끊김 시 폴링 fallback: 연결됨 30s / 끊김 8s (`useChatMessages`).
+
+### 시스템 메시지 발행 훅
+
+```mermaid
+flowchart TB
+  subgraph triggers["트리거"]
+    Daily["DailyService<br/>목표·회고 저장"]
+    Room["RoomService<br/>가입 · AUTO_LEAVE"]
+    Rule["RoomRuleService<br/>규칙 변경"]
+    Kudos["KudosService<br/>응원 전송"]
+  end
+
+  subgraph chat_svc["ChatService"]
+    PS["publishSystem()<br/>REQUIRES_NEW"]
+    PM["publishMilestonesForActor()"]
+    PK["Kudos → chat row"]
+  end
+
+  subgraph out["출력"]
+    DB2[("chat_messages")]
+    RT3["RealtimePublisher<br/>/topic/rooms.{id}.chat"]
+  end
+
+  Daily --> PS
+  Daily --> PM
+  Room --> PS
+  Rule --> PS
+  Kudos --> PK
+  PS --> DB2 --> RT3
+  PM --> DB2
+  PK --> DB2
+```
+
+`REQUIRES_NEW`로 분리된 트랜잭션: 채팅 fan-out 실패가 목표·회고·가입 등 주 트랜잭션을 롤백하지 않습니다.
+
+### STOMP 구독 토픽
+
+| 목적지 | 페이로드 | 구독 위치 (FE) |
+|--------|---------|---------------|
+| `/topic/rooms.{id}.chat` | `MessageDto` | `useChatRealtime` (채팅 화면) |
+| `/topic/rooms.{id}.members` | 멤버 추가 | 방 상세 화면 |
+| `/topic/rooms.{id}.survival` | 상태·리더 변경 | 서바이벌 UI |
+| `/topic/rooms.{id}.points` | 포인트 풀 변경 | 지갑 화면 |
+| `/topic/rooms.{id}.kudos` | Kudos 이벤트 | 채팅/지갑 |
+| `/user/queue/notifications` | `RealtimeEvent` | `RealtimeProvider` (앱 전역) |
+| `/user/queue/private-survival` | `SurvivalStateChange` | `RealtimeProvider` |
+
+`JwtChannelInterceptor`가 CONNECT 시 JWT 검증, SUBSCRIBE 시 방 멤버십을 확인합니다. SockJS fallback 없음 — 네이티브 `WebSocket`만 사용.
+
+### FE 채팅 UI 구조
+
+```mermaid
+flowchart TB
+  ChatScreen["app/rooms/[id]/chat.tsx"]
+
+  subgraph hooks2["훅"]
+    UCM["useChatMessages<br/>InfiniteQuery + 폴링"]
+    USM["useSendChatMessage<br/>optimistic append"]
+    UCR["useChatRealtime<br/>STOMP merge + dedupe"]
+    UMR["useMarkChatRead<br/>AsyncStorage 워터마크"]
+  end
+
+  subgraph ui["컴포넌트"]
+    CL["ChatList<br/>FlashList inverted"]
+    MB["MessageBubble<br/>USER → 말풍선"]
+    SM["SystemMessage<br/>GOAL/REFLECTION/…"]
+    MI["MessageInput<br/>SPECTATOR 시 숨김"]
+    SB["SpectatorReadOnlyBanner"]
+  end
+
+  ChatScreen --> hooks2
+  ChatScreen --> ui
+  UCM --> CL
+  MB --> SM
+  UCR --> UCM
+  USM --> UCM
+```
+
+읽음 처리: 채팅 화면이 열려 있는 동안 최신 메시지 `id`를 `AsyncStorage`에 저장하고, 채팅 탭 목록의 unread 배지는 `useRoomLastMessage` + `useLastReadId`로 계산합니다.
+
+---
 
 요청 envelope, JWT 라이프사이클, STOMP 토픽, REST/WS 중복 제거, 설정 경계는 [`docs/integration-architecture.md`](./docs/integration-architecture.md) 참고.
 
