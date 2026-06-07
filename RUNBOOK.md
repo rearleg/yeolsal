@@ -76,6 +76,58 @@ npm run android
 
 단순 reload나 Metro cache 초기화만으로는 native module이 앱에 포함되지 않습니다.
 
+### Kakao Share SDK (Story 6.2, FR-8.6.6 / NFR-9.8.5)
+
+Kakao Share SDK 는 v1 의 두 번째 native module 추가 작업 (첫 번째 = `expo-secure-store`). `FE/package.json` 에서 앱 바이너리에 포함되는 관련 native module 은 현재 다음 세 개입니다.
+
+- `expo-secure-store` — 인증 토큰과 pending invite 저장
+- `@react-native-kakao/share` — Kakao 공유 SDK (Story 6.2)
+- `@react-native-kakao/core` — Kakao SDK 초기화 + Expo config plugin 번들 (Story 6.2)
+
+별도 패키지였던 `@react-native-kakao/expo-config-plugin` 은 v2 SDK 가 `core` 안에 plugin 을 번들하면서 npm 에서 사라졌습니다. `FE/app.config.ts` 의 plugin 배열에는 `"@react-native-kakao/core"` 만 등록되어 있으면 됩니다.
+
+`npm install` 만으로는 새 native code 가 기존 앱 바이너리에 포함되지 않습니다. Metro reload, `npx expo start -c`, JS hot-reload 어느 것도 native module 을 binary 에 inject 하지 않습니다.
+
+Android (Emulator / 실기기 공통):
+
+```bash
+cd FE
+adb uninstall app.yeosal.mobile
+npx expo prebuild --clean
+npx expo run:android
+```
+
+iOS Simulator:
+
+```bash
+cd FE
+xcrun simctl uninstall booted app.yeosal.mobile
+npx expo prebuild --clean
+npx expo run:ios
+```
+
+iOS 실기기:
+
+```bash
+cd FE
+# 실기기 홈 화면에서 기존 앱을 삭제한 뒤:
+npx expo prebuild --clean
+npx expo run:ios --device
+```
+
+`npx expo prebuild --clean` 은 기존 `android/` 와 `ios/` 를 다시 생성하므로, 실행 전 커밋되지 않은 native project 변경이 없는지 확인합니다.
+
+재빌드 후 KakaoTalk 이 설치된 단말에서 방의 invite-share 버튼 (`KakaoTalk으로 공유`) 을 탭했을 때 KakaoTalk 앱으로 hand-off 되면 native SDK 가 정상 동작한 것입니다. 일반 OS share sheet 로 떨어진다면 SDK 호출이 실패해 mutation `onError` 의 `Share.share` fallback 이 실행된 것입니다. 다음 항목을 확인합니다.
+
+- `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY` 가 비어 있음 → §12 의 Native App Key 절차로 채웁니다.
+- `FE/app.config.ts` 의 plugin 배열에 `@react-native-kakao/core` 등록 누락 → `npx expo prebuild --clean` 후 다시 빌드합니다.
+- Kakao Developers Console 의 Native App Key 에 Android package/key hash 또는 iOS Bundle ID 가 미등록 → §12.1 의 platform 등록 단계로 처리합니다.
+- Kakao Developers Console 의 Product Link Web domain 에 `https://yeolsal.app` 이 미등록 → §12.1 의 Product Link 단계로 처리합니다.
+
+`FE/src/lib/kakaoShare.ts` 는 SDK 오류를 다시 throw 하고, `FE/app/rooms/[id].tsx` 의 mutation `onError` 가 일반 `Share.share` fallback 을 호출합니다. KakaoTalk 이 설치되지 않은 단말에서는 SDK 의 web share dialog 가 먼저 사용되며, 그것도 실패한 경우에만 일반 OS share sheet 로 전환됩니다.
+
+Out of scope for Story 6.3: `yeolsal.app` 의 `.well-known/apple-app-site-association` 과 `.well-known/assetlinks.json` 의 정적 호스팅은 OS-level Universal Link / App Link verification 의 prerequisite 이지만, 본 스토리의 epic 정의 (FR-8.6.6) 에는 포함되지 않습니다. 현재 공유 payload 는 `https://yeolsal.app/join?code=X` 만 emit 하므로 OS verification 전에는 카드 탭이 브라우저로 열릴 수 있고 VERIFY-B 를 보장할 수 없습니다. `yeosal://join?code=X` 는 직접 열면 동작하는 dev용 scheme 이지만 현재 공유 카드에서 자동 전환되는 fallback 은 아닙니다. `.well-known/*` 호스팅은 별도 infra PR 또는 후속 스토리에서 완료해야 합니다.
+
 Metro 서버만 먼저 띄우고 싶으면:
 
 ```bash
@@ -173,6 +225,16 @@ eas build --platform android --profile production
 ```
 
 Google Play 배포에는 일반적으로 APK가 아니라 AAB를 사용합니다.
+
+### Story 6.2 Kakao 공유 SDK smoke
+
+`preview` 프로파일 APK 가 빌드된 직후 (`eas build --platform android --profile preview`), KakaoTalk 이 설치된 실기기에서 다음 세 시나리오를 손으로 검증합니다 (Story 6.2 AC12 의 VERIFY-A/B/C). 정확히는 `FE/eas.json` 의 `preview.android.buildType = apk` 로 빌드된 APK 가 대상입니다 (AAB 는 `adb install` 불가).
+
+1. VERIFY-A — 임의 방의 invite 발급 → `InviteCodeSheet` 의 `KakaoTalk으로 공유` primary 버튼 탭 → 설치된 KakaoTalk 앱으로 hand-off → preview card image + 방 이름 + 같이 살아남자 버튼이 노출됩니다.
+2. VERIFY-B — VERIFY-A 의 메시지를 같은 단말의 KakaoTalk 로 다른 카카오 계정으로 받은 뒤 preview card 를 탭 → 본인 앱으로 deep-link 진입 → `app/join.tsx` 의 invite-code 필드가 `?code=X` 로 자동 채워지고 auto-submit 됩니다.
+3. VERIFY-C — `max_members` 가 가득 찬 방의 invite-code 로 join 시도 → toast `방이 가득 찼어요. 친구에게 새 방을 만들어 달라고 요청하세요.` + 폼 유지. (BE 의 `RoomFullException` → 409 + code `ROOM_FULL` mapping 의 e2e 확인.)
+
+KakaoTalk 이 설치되지 않은 단말에서는 SDK 의 web share dialog 가 기본 fallback 입니다. web dialog 호출까지 실패해야 일반 `Share.share` 의 plain text + invite-code 경로가 실행됩니다. VERIFY-A 의 native hand-off 는 KakaoTalk 이 설치된 실기기에서 검증해야 합니다.
 
 ### 방법 B: 로컬 Gradle APK 빌드
 
@@ -459,6 +521,66 @@ npx expo start -c
 
 Kakao REST API 키는 FE에 넣지 않습니다. 앱은 `/auth/kakao/authorize`로 서버를 먼저 열고, 서버가 Kakao로 redirect합니다.
 
+### 12.1 Kakao Share SDK — Native App Key 셋업 (Story 6.2)
+
+Story 6.2 가 도입한 Kakao 공유 SDK 는 REST API 키와 **별개** 인 **Native App Key** 를 사용합니다. 두 키를 혼동하면 보안 사고로 직결되므로 다음 순서대로 채웁니다.
+
+9. `앱 설정 > 앱 키` 에서 **Native App Key** 를 복사합니다.
+   - 이 키는 REST API 키와 **다른 키** 입니다. REST API 키는 서버 (`yeosal.kakao.client-id`, `KAKAO_CLIENT_ID`) 가, Native App Key 는 모바일 클라이언트 (`EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY`) 가 사용합니다.
+   - Native App Key 는 Kakao 가 의도적으로 클라이언트 번들에 포함되는 공개 식별자입니다. `EXPO_PUBLIC_*` 으로 노출해도 안전합니다. (`_bmad-output/project-context.md:235` 의 "Kakao REST API key lives on the BE only" rule 은 그대로 유지 — REST API Key 만 FE 노출 금지.)
+
+10. `앱 설정 > 플랫폼 키 > Native App Key` 에서 platform 정보를 등록합니다.
+    - Android: package name `app.yeosal.mobile` 과 사용하는 모든 signing key hash 를 등록합니다. 로컬 debug key, EAS preview/release key, Google Play App Signing key가 다르면 각각 필요합니다.
+    - 로컬 debug key hash 예시:
+
+      ```bash
+      keytool -exportcert -alias androiddebugkey \
+        -keystore ~/.android/debug.keystore \
+        -storepass android -keypass android \
+        | openssl sha1 -binary | openssl base64
+      ```
+
+    - EAS signing credential 은 `cd FE && eas credentials --platform android` 에서 확인하거나 내려받아 같은 방식으로 key hash 를 계산합니다. Play 배포본은 Google Play Console 의 App Signing certificate 값도 등록합니다.
+    - iOS: Bundle ID `app.yeosal.mobile` 을 등록합니다.
+    - 정보가 실제 바이너리와 다르면 `invalid android_key_hash` 또는 `invalid ios_bundle_id` 오류가 발생하고 일반 share fallback 으로 전환됩니다.
+
+11. `앱 설정 > Product Link > Web domain` 에 `https://yeolsal.app` 을 등록합니다. 현재 Default Feed template 의 `mobileWebUrl` 과 `webUrl` 이 이 도메인을 사용하므로 platform 등록과 별도로 필요합니다.
+
+12. 로컬 dev 머신의 `FE/.env` 에 Console 에 표시된 Native App Key 값을 그대로 채웁니다.
+
+    ```text
+    EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY=실제_네이티브_앱_키
+    ```
+
+    `FE/.env.example` 는 placeholder (`replace-with-kakao-developers-console-native-app-key`) 만 commit 되어 있습니다. 실제 값이 들어간 `.env` 는 `.gitignore` 에 포함되어 있습니다.
+
+13. EAS 빌드용으로 Native App Key 를 **EAS Environment Variable** 로 등록합니다. 이 값은 client bundle 에 포함되는 공개 식별자이며, `app.config.ts` 해석 시 읽혀야 하므로 secret visibility 를 사용하지 않습니다.
+
+    ```bash
+    cd FE
+    eas env:create --scope project --environment preview \
+      --visibility plaintext \
+      --name EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY \
+      --value 실제_네이티브_앱_키
+    eas env:create --scope project --environment production \
+      --visibility plaintext \
+      --name EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY \
+      --value 실제_네이티브_앱_키
+    ```
+
+    이후 각 build profile 이 대응하는 EAS environment 값을 build config 와 client bundle 에 주입합니다.
+
+14. 환경 변수 변경 후 로컬은 native project 재생성 + rebuild 가 필요합니다 (Metro restart 만으로는 부족합니다).
+
+    ```bash
+    cd FE
+    adb uninstall app.yeosal.mobile
+    npx expo prebuild --clean
+    npx expo run:android
+    # iOS Simulator: npx expo run:ios
+    # iOS 실기기: npx expo run:ios --device
+    ```
+
 ## 13. 모바일 앱에서 로컬 Docker 서버를 바라보게 할 때
 
 현재 화면은 mock data 중심이지만, API client 기본 주소는 `FE/src/api/config.ts`에 있습니다. 로컬 Docker 서버를 바라보려면 `FE/.env`의 `EXPO_PUBLIC_API_BASE_URL`을 환경별로 바꿉니다.
@@ -585,3 +707,18 @@ npm run ios
 ```
 
 login.tsx 등에 임시로 `throw new Error("sentry test")`를 넣고 화면을 열면 ErrorBoundary가 fallback을 그리고 동시에 Sentry로 이벤트가 갑니다.
+
+## 16. FE CI 와 native module 추가의 관계
+
+본 리포의 GitHub Actions 는 **BE 전용** 입니다 (`.github/workflows/be-it-boot-smoke.yml` — Story 1.4 retro action item T3 의 V11 IT 게이트). FE 는 로컬 사전 검증 + EAS 빌드만 사용하며, 현재 FE 전용 CI workflow 는 ZERO 입니다.
+
+`FE/package.json`, `FE/package-lock.json`, `FE/app.json`, `FE/app.config.ts`, config plugin, `FE/android/**`, `FE/ios/**` 변경이 native dependency 또는 native configuration 에 영향을 주는 경우, 다음 중 한 가지 방식으로 **clean native rebuild** 가 PR 검증 경로에 포함되어야 합니다.
+
+1. **EAS 빌드 (현행 권장 경로)** — `eas build --profile preview --platform <android|ios>` 가 매 빌드마다 fresh prebuild + native compile 을 수행합니다. PR 리뷰어가 EAS 빌드 링크를 첨부하고 §6 의 VERIFY-A/B/C smoke 를 마치면 충분합니다.
+2. **(미래) FE CI workflow** — PR 트리거 워크플로우가 추가될 경우, 단순 `npm test` / `npm run typecheck` 또는 `expo prebuild` 만으로 green 을 받을 수 없습니다. Android 예시는 `npx expo prebuild --clean --platform android` 후 `cd android && ./gradlew assembleDebug` 까지 실행해야 합니다. iOS 도 EAS build 또는 `xcodebuild` 로 실제 native compile 을 수행해야 합니다. Jest mock 만으로는 wire-level API 차이를 catch 할 수 없습니다 (Story 6.2 의 deviation: v1 의 `KakaoShareLink.sendDefault` 가 v2 에서 제거되어 wrapper 가 `shareFeedTemplate` 로 변경 — 단위 mock 으로는 이 차이가 드러나지 않음).
+
+요약: native module 추가 PR 은 **로컬 `adb uninstall + npx expo prebuild --clean + npx expo run:android` 또는 EAS preview 빌드 + VERIFY-A/B/C** 가 PR 리뷰의 hard gate 입니다. 이 가드는 본 리포의 어떤 CI workflow 도 자동화하지 않으므로 **사람 (PR 작성자 + 리뷰어) 이 의식적으로 수행** 해야 합니다.
+
+> "Native module changes require `adb uninstall app.yeosal.mobile` + clean rebuild" — Architecture §5.2 (line 520)
+
+본 단락의 첫 문장 ("FE 전용 CI workflow 는 ZERO") 은 작성 시점 (2026-06-07) 의 사실입니다. 향후 FE CI 가 추가되면 이 한 줄을 업데이트하고, 위 (2) 의 가드를 실제 workflow 파일로 옮겨 자동화해야 합니다.
