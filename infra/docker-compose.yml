@@ -40,12 +40,16 @@ services:
       YEOSAL_SHARE_PREVIEW_CARDS_DIR: ${YEOSAL_SHARE_PREVIEW_CARDS_DIR:-/var/yeosal/preview-cards}
       YEOSAL_SHARE_DEEPLINK_BASE: ${YEOSAL_SHARE_DEEPLINK_BASE:-https://yeolsal.app}
       YEOSAL_SHARE_PREVIEW_CARD_BASE: ${YEOSAL_SHARE_PREVIEW_CARD_BASE:-https://api.rearleg.com/yeolsal}
+      # Story 7.1 — Final-3 ceremony poster render output directory. Both api
+      # and nginx mount the same host volume so writes are immediately served.
+      YEOSAL_SHARE_POSTERS_DIR: ${YEOSAL_SHARE_POSTERS_DIR:-/var/yeosal/posters}
     depends_on:
       - postgres
     expose:
       - "8080"
     volumes:
       - preview-cards-cache:/var/yeosal/preview-cards
+      - posters-cache:/var/yeosal/posters
 
   nginx:
     image: nginx:1.27-alpine
@@ -54,6 +58,7 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - preview-cards-cache:/var/yeosal/preview-cards:ro
+      - posters-cache:/var/yeosal/posters:ro
     depends_on:
       - api
 
@@ -63,3 +68,7 @@ volumes:
   # (writer) and nginx (static reader) mount it; container restarts therefore
   # do not invalidate the cache directory.
   preview-cards-cache:
+  # Story 7.1 — shared host volume for Final-3 ceremony poster PNGs. Same
+  # pattern as preview-cards-cache; posters are immutable (FR-8.7.6) so a
+  # longer browser cache TTL is safe (see nginx default.conf).
+  posters-cache:

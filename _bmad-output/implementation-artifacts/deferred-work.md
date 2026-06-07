@@ -22,3 +22,8 @@ Findings deferred during BMad code-review runs. Pick these up when the originati
 ## Deferred from: code review of 6-2-kakao-share-sdk-integration-deep-linking (2026-06-07)
 
 - `RoomService.joinByCode` reads the member count and inserts membership without locking the room row. Two concurrent joins for the final slot can both pass the capacity check and exceed `max_members`. This predates Story 6.2's exception-type change.
+
+## Deferred from: code review of 7-1-server-side-svg-poster-renderer (2026-06-07)
+
+- **Zero-survivor fallback idempotency**: `FinalThreeService.generatePoster` can publish duplicate monthly no-survivor chat messages on repeated direct invocation, but the story explicitly assigns duplicate prevention to Story 7.2's caller pre-filter/replay contract.
+- **Default IT coverage**: real Postgres/Batik checks are `yeosal.boot-smoke` opt-in and skipped by default verification; this matches the story's PR-CI gate and existing project precedent.

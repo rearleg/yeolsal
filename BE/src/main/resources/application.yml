@@ -30,6 +30,7 @@ yeosal:
     deeplink-base: ${YEOSAL_SHARE_DEEPLINK_BASE:https://yeolsal.app}
     preview-card-base: ${YEOSAL_SHARE_PREVIEW_CARD_BASE:https://api.rearleg.com/yeolsal}
     preview-cards-dir: ${YEOSAL_SHARE_PREVIEW_CARDS_DIR:/var/yeosal/preview-cards}
+    posters-dir: ${YEOSAL_SHARE_POSTERS_DIR:/var/yeosal/posters}
   evaluator:
     mass-elimination-alert-threshold: ${YEOSAL_EVALUATOR_MASS_ELIM_THRESHOLD:20}
   realtime:
