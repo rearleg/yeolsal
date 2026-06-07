@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
@@ -16,9 +16,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const interactiveAuthStarted = useRef(false);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!interactiveAuthStarted.current && !loading && user) {
       router.replace("/today");
     }
   }, [loading, user]);
@@ -34,10 +35,12 @@ export default function LoginScreen() {
     }
     setFormError(null);
     setSubmitting(true);
+    interactiveAuthStarted.current = true;
     try {
-      await signIn(email.trim(), password);
-      router.replace("/today");
+      const destination = await signIn(email.trim(), password);
+      router.replace(destination ?? "/today");
     } catch (error) {
+      interactiveAuthStarted.current = false;
       toast.error(error instanceof Error ? error.message : "로그인에 실패했어요.");
     } finally {
       setSubmitting(false);
@@ -46,10 +49,12 @@ export default function LoginScreen() {
 
   async function kakao() {
     setSubmitting(true);
+    interactiveAuthStarted.current = true;
     try {
-      await signInWithKakao();
-      router.replace("/today");
+      const destination = await signInWithKakao();
+      router.replace(destination ?? "/today");
     } catch (error) {
+      interactiveAuthStarted.current = false;
       toast.error(error instanceof Error ? error.message : "카카오 로그인에 실패했어요.");
     } finally {
       setSubmitting(false);

@@ -8,6 +8,15 @@ jest.mock("../../api/client", () => ({
   clearTokens: jest.fn(),
   getRefreshToken: jest.fn(),
   setOnAuthInvalid: jest.fn(),
+  ApiError: class ApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    constructor(status: number, code: string, message: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 
 jest.mock("../../lib/query/client", () => ({
@@ -16,6 +25,23 @@ jest.mock("../../lib/query/client", () => ({
 
 jest.mock("../../lib/query/persist", () => ({
   purgePersistedQueries: jest.fn(),
+}));
+
+// Story 6.2 — AuthContext now imports `router` from expo-router for the
+// post-install bridging redirect. Jest's babel transform doesn't grok the
+// transitive expo-router → @react-navigation/native ESM, so short-circuit
+// the import with a no-op router mock + matching mocks for the new
+// auto-join dependencies.
+jest.mock("expo-router", () => ({
+  router: { push: jest.fn(), replace: jest.fn() },
+}));
+
+jest.mock("../../api/rooms", () => ({
+  joinRoom: jest.fn(),
+}));
+
+jest.mock("../../lib/deepLinking", () => ({
+  consumePendingInviteCode: jest.fn(() => Promise.resolve(null)),
 }));
 
 const clientMod = jest.requireMock("../../api/client") as {

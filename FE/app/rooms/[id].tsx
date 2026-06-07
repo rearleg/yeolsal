@@ -29,6 +29,8 @@ import {
   useRoomMembersQuery,
   useRoomsQuery,
 } from "../../src/lib/query/hooks/rooms";
+import { useKakaoShare } from "../../src/lib/query/hooks/useKakaoShare";
+import { toast } from "../../src/lib/toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "../../src/lib/query/keys";
 import { useRealtimeSubscription } from "../../src/lib/realtime/client";
@@ -143,7 +145,32 @@ export default function RoomDetailScreen() {
     });
   }
 
-  async function shareInvite() {
+  // Story 6.2 AC1/AC4 — split share into Kakao SDK (primary) + plain
+  // Share.share (secondary / SDK-failure fallback). The Kakao SDK path
+  // forwards the Story 6.1 preview-card image so the recipient sees a
+  // rich preview card; the generic path keeps share working even on
+  // devices without KakaoTalk or when the SDK rejects the call.
+  const kakaoShare = useKakaoShare();
+  // Cap at 1 so the description never reads "0명이 함께 살아남는 중" while
+  // the members query is still loading (the user themselves is always a
+  // member of the room they're sharing from).
+  const memberCount = Math.max(1, members.length);
+  const roomName = room?.name ?? "그룹";
+
+  function shareInviteKakao() {
+    if (!invite) return;
+    kakaoShare.mutate(
+      { invite, roomName, memberCount },
+      {
+        onError: () => {
+          toast.info("KakaoTalk 공유가 안 돼요. 다른 방법으로 공유해주세요.");
+          shareInviteGeneric();
+        },
+      },
+    );
+  }
+
+  async function shareInviteGeneric() {
     if (!invite) return;
     try {
       await Share.share({ message: `열살 그룹 초대 코드: ${invite.code}` });
@@ -323,7 +350,8 @@ export default function RoomDetailScreen() {
         invite={invite}
         isCreating={inviteMut.isPending}
         onCreate={handleCreateInvite}
-        onShare={shareInvite}
+        onShareKakao={shareInviteKakao}
+        onShareGeneric={shareInviteGeneric}
         onClose={() => setInviteSheetVisible(false)}
       />
     </Screen>

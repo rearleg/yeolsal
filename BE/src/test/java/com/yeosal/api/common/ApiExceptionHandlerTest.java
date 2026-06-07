@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.yeosal.api.room.RoomFullException;
 
 class ApiExceptionHandlerTest {
 
@@ -103,6 +104,18 @@ class ApiExceptionHandlerTest {
         // Response message must not leak the SQL string back to the client.
         assertThat(err.message()).doesNotContain("constraint");
         assertThat(err.message()).doesNotContain("chat_messages_pkey");
+    }
+
+    @Test
+    @DisplayName("RoomFullException maps to 409 CONFLICT + ROOM_FULL code (Story 6.2 — epics:854 wire lock)")
+    void roomFull_returns409Conflict_withRoomFullCode() {
+        ResponseEntity<ApiErrorResponse> response =
+                handler.roomFull(new RoomFullException("방 정원을 초과했습니다."));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ApiErrorResponse.Error err = response.getBody().error();
+        assertThat(err.code()).isEqualTo("ROOM_FULL");
+        assertThat(err.message()).isEqualTo("방 정원을 초과했습니다.");
     }
 
     @Test

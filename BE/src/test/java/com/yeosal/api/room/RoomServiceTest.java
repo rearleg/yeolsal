@@ -280,8 +280,8 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("joinByCode: rejects when room is full")
-    void joinByCodeRejectsWhenRoomIsFull() {
+    @DisplayName("joinByCode: rejects with RoomFullException when room is at cap (Story 6.2 — epics:854 \"409 CONFLICT + ROOM_FULL\")")
+    void joinByCode_atCap_throwsRoomFullException() {
         Room room = makeRoom(42L, "기본 방", alice);
         room.setMaxMembers((short) 8);
         RoomInvite invite = new RoomInvite(room, "A7K9PXMQ", alice, null);
@@ -291,8 +291,14 @@ class RoomServiceTest {
         when(roomMembers.countByRoom(room)).thenReturn(8L);
 
         assertThatThrownBy(() -> service.joinByCode(carol, "A7K9PXMQ"))
-                .isInstanceOf(BadRequestException.class)
+                .isInstanceOf(RoomFullException.class)
                 .hasMessageContaining("정원");
+
+        // Story 6.2 AC11 — a failed join must not trigger the preview-card
+        // cache invalidate hook. The afterCommit defer never fires on a
+        // rolled-back tx; this verify guards against a future refactor
+        // moving the call site before the throw.
+        verify(previewCardCacheService, never()).invalidate(anyLong());
     }
 
     @Test

@@ -18,3 +18,7 @@ Findings deferred during BMad code-review runs. Pick these up when the originati
 ## Deferred from: code review of 4-1-room-point-pool-counter-cache (2026-06-01)
 
 - **FE verification baseline** Repair the pre-existing repository verification failures: `src/components/today/FriendsTodayPager.tsx` cannot resolve `react-native-pager-view` and has an implicit-`any` callback parameter; unrelated lint failures also remain outside Story 4.1 touched files.
+
+## Deferred from: code review of 6-2-kakao-share-sdk-integration-deep-linking (2026-06-07)
+
+- `RoomService.joinByCode` reads the member count and inserts membership without locking the room row. Two concurrent joins for the final slot can both pass the capacity check and exceed `max_members`. This predates Story 6.2's exception-type change.

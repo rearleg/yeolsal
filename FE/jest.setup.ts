@@ -14,6 +14,19 @@ jest.mock("@sentry/react-native", () => ({
   setUser: jest.fn(),
   captureException: jest.fn(),
   captureMessage: jest.fn(),
+  addBreadcrumb: jest.fn(),
   withScope: (cb: (scope: { setContext: jest.Mock }) => void) => cb({ setContext: jest.fn() }),
   ReactNativeTracing: jest.fn(),
+}));
+
+// Story 6.2 — KakaoTalk Share SDK + Core. The native modules are not loadable
+// in Jest so we expose only the surface the FE wrapper / boot path uses:
+// shareFeedTemplate + initializeKakaoSDK. Tests assert call shape against
+// these jest.fn()s.
+jest.mock("@react-native-kakao/share", () => ({
+  shareFeedTemplate: jest.fn(),
+}));
+
+jest.mock("@react-native-kakao/core", () => ({
+  initializeKakaoSDK: jest.fn(),
 }));

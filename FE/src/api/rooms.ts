@@ -54,6 +54,20 @@ export interface RoomInvite {
   roomId: number;
   code: string;
   expiresAt: string | null;
+  /**
+   * Story 6.1 — canonical share URL embedded in the Kakao card link. The
+   * BE owns the deeplink base (yeolsal.app default; env-overridable);
+   * FE forwards verbatim to the Kakao SDK and to the in-app deep-link
+   * router via app.config.ts's universal-link config.
+   */
+  kakaoShareUrl: string;
+  /**
+   * Story 6.1 — public, cacheable preview-card image URL. Resolves via
+   * GET /api/v1/rooms/{id}/invites/preview-card → 302 to a PNG served
+   * by nginx. The FE never fetches this URL — it's only forwarded to
+   * the Kakao SDK so KakaoTalk's fetcher can resolve the preview card.
+   */
+  previewCardImageUrl: string;
 }
 
 /** Per-member snapshot for the Today screen's group-mode card. Mirrors

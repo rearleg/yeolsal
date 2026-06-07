@@ -19,8 +19,17 @@ interface Props {
   isCreating: boolean;
   /** Triggered when the user asks to issue a fresh invite. */
   onCreate: () => void;
-  /** Triggered when the user taps "공유하기" — parent opens the share sheet. */
-  onShare: () => void;
+  /**
+   * Story 6.2 AC1/AC4 — primary CTA. Triggered when the user taps
+   * "KakaoTalk으로 공유". Parent opens the Kakao SDK Default-template share
+   * and falls back to the generic Share.share path on SDK failure.
+   */
+  onShareKakao: () => void;
+  /**
+   * Story 6.2 AC4 — secondary CTA. Triggered when the user taps
+   * "다른 앱으로 공유". Parent opens the platform's plain share sheet.
+   */
+  onShareGeneric: () => void;
   /** Triggered for the close affordance and Android back button. */
   onClose: () => void;
 }
@@ -38,7 +47,8 @@ export function InviteCodeSheet({
   invite,
   isCreating,
   onCreate,
-  onShare,
+  onShareKakao,
+  onShareGeneric,
   onClose,
 }: Props) {
   return (
@@ -96,11 +106,18 @@ export function InviteCodeSheet({
                 </Text>
               ) : null}
               <Button
-                label="공유하기"
+                label="KakaoTalk으로 공유"
                 tone="primary"
                 size="md"
                 fullWidth
-                onPress={onShare}
+                onPress={onShareKakao}
+              />
+              <Button
+                label="다른 앱으로 공유"
+                tone="secondary"
+                size="md"
+                fullWidth
+                onPress={onShareGeneric}
               />
             </View>
           ) : (
