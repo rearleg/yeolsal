@@ -1,9 +1,12 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Linking } from "react-native";
 import { API_BASE_URL } from "../api/config";
-import { apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens, setOnAuthInvalid } from "../api/client";
+import { ApiError, apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens, setOnAuthInvalid } from "../api/client";
+import { joinRoom } from "../api/rooms";
+import { consumePendingInviteCode } from "../lib/deepLinking";
 import { queryClient } from "../lib/query/client";
 import { purgePersistedQueries } from "../lib/query/persist";
+import { toast } from "../lib/toast";
 
 async function clearAllCaches(): Promise<void> {
   queryClient.clear();
@@ -17,9 +20,9 @@ async function clearAllCaches(): Promise<void> {
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, nickname: string) => Promise<void>;
-  signInWithKakao: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string, nickname: string) => Promise<string | null>;
+  signInWithKakao: () => Promise<string | null>;
   signOut: () => Promise<void>;
 };
 
@@ -86,6 +89,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ email, password })
     });
     await apply(response.data);
+    return tryConsumePendingInvite();
   }
 
   async function signUp(email: string, password: string, nickname: string) {
@@ -95,6 +99,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ email, password, nickname })
     });
     await apply(response.data);
+    return tryConsumePendingInvite();
   }
 
   async function signInWithKakao() {
@@ -105,6 +110,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ code })
     });
     await apply(response.data);
+    return tryConsumePendingInvite();
   }
 
   async function signOut() {
@@ -128,6 +134,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const value = useMemo(() => ({ user, loading, signIn, signUp, signInWithKakao, signOut }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/**
+ * Story 6.2 AC3 — post-install bridging. Reads-and-deletes the SecureStore
+ * slot the deep-link handler wrote (KakaoTalk share-tap landed on a
+ * non-authenticated device). On hit, attempts to auto-join the room and
+ * redirect to the newcomer settings flow; on miss or failure, falls
+ * through silently — the caller's existing post-auth redirect ("/today")
+ * remains the default.
+ */
+async function tryConsumePendingInvite(): Promise<string | null> {
+  const pendingCode = await consumePendingInviteCode();
+  if (!pendingCode) return null;
+  try {
+    const member = await joinRoom(pendingCode.toUpperCase());
+    return `/rooms/${member.roomId}/settings?onboarding=1`;
+  } catch (error) {
+    // Best-effort — surface a soft toast so the user knows the gift exists
+    // and can retry by typing the code on /join. Brand voice keeps the
+    // language calm, no AVOID lexicon.
+    if (error instanceof ApiError && error.code === "ROOM_FULL") {
+      toast.info("초대받은 방이 가득 찼어요. 직접 코드를 입력해서 다시 시도해보세요.");
+    } else {
+      toast.info("초대 코드는 그룹 참여 화면에서 다시 사용할 수 있어요.");
+    }
+    return null;
+  }
 }
 
 function openKakaoAuthorization(): Promise<string> {

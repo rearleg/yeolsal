@@ -30,8 +30,8 @@ export default function SignupScreen() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await signUp(email.trim(), password, nickname.trim());
-      router.replace("/today");
+      const destination = await signUp(email.trim(), password, nickname.trim());
+      router.replace(destination ?? "/today");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "가입에 실패했어요.");
     } finally {

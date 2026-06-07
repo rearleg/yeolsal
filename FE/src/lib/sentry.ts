@@ -67,6 +67,26 @@ export function captureQueryError(
   });
 }
 
+/**
+ * Story 6.2 AC15 — light-touch WARN-level breadcrumb. Drops on the floor
+ * when Sentry hasn't bootstrapped (DSN missing). Caller is responsible
+ * for keeping PII out of {@code data}; this helper does not filter.
+ */
+export function addBreadcrumb(input: {
+  category: string;
+  level: "info" | "warning" | "error";
+  message: string;
+  data?: Record<string, unknown>;
+}): void {
+  if (!initialized) return;
+  Sentry.addBreadcrumb({
+    category: input.category,
+    level: input.level,
+    message: input.message,
+    data: input.data,
+  });
+}
+
 export function setSentryUser(user: { id: number; email: string } | null): void {
   if (!initialized) return;
   if (!user) {

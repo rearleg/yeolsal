@@ -37,11 +37,16 @@ const sampleInvite: RoomInvite = {
   roomId: 42,
   code: "A7K9PXMQ",
   expiresAt: "2026-05-09T00:00:00.000Z",
+  // Story 6.2 AC8 — non-nullable wire fields the Story 6.1 BE always emits.
+  kakaoShareUrl: "https://yeolsal.app/join?code=A7K9PXMQ",
+  previewCardImageUrl:
+    "https://api.rearleg.com/yeolsal/api/v1/rooms/42/invites/preview-card",
 };
 
 function setup(overrides: Partial<React.ComponentProps<typeof InviteCodeSheet>> = {}) {
   const onCreate = jest.fn();
-  const onShare = jest.fn();
+  const onShareKakao = jest.fn();
+  const onShareGeneric = jest.fn();
   const onClose = jest.fn();
   const utils = render(
     <InviteCodeSheet
@@ -49,12 +54,13 @@ function setup(overrides: Partial<React.ComponentProps<typeof InviteCodeSheet>> 
       invite={null}
       isCreating={false}
       onCreate={onCreate}
-      onShare={onShare}
+      onShareKakao={onShareKakao}
+      onShareGeneric={onShareGeneric}
       onClose={onClose}
       {...overrides}
     />,
   );
-  return { ...utils, onCreate, onShare, onClose };
+  return { ...utils, onCreate, onShareKakao, onShareGeneric, onClose };
 }
 
 describe("InviteCodeSheet", () => {
@@ -62,14 +68,16 @@ describe("InviteCodeSheet", () => {
     const { queryByText } = setup({ visible: false });
 
     expect(queryByText("초대 코드 만들기")).toBeNull();
-    expect(queryByText("공유하기")).toBeNull();
+    expect(queryByText("KakaoTalk으로 공유")).toBeNull();
+    expect(queryByText("다른 앱으로 공유")).toBeNull();
   });
 
   it("offers only the create button when no invite has been issued yet", () => {
     const { queryByText, getByText } = setup({ invite: null });
 
     getByText("초대 코드 만들기");
-    expect(queryByText("공유하기")).toBeNull();
+    expect(queryByText("KakaoTalk으로 공유")).toBeNull();
+    expect(queryByText("다른 앱으로 공유")).toBeNull();
     expect(queryByText("A7K9PXMQ")).toBeNull();
   });
 
@@ -81,21 +89,32 @@ describe("InviteCodeSheet", () => {
     expect(onCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the code, expiry, and share button when an invite is supplied", () => {
+  it("renders the code, expiry, and BOTH share buttons when an invite is supplied (Story 6.2 AC4)", () => {
     const { getByText, queryByText } = setup({ invite: sampleInvite });
 
     getByText("A7K9PXMQ");
     getByText(/유효기간/);
-    getByText("공유하기");
+    getByText("KakaoTalk으로 공유");
+    getByText("다른 앱으로 공유");
     expect(queryByText("초대 코드 만들기")).toBeNull();
   });
 
-  it("invokes onShare when the share button is pressed", () => {
-    const { getByText, onShare } = setup({ invite: sampleInvite });
+  it("invokes onShareKakao when the primary KakaoTalk share button is pressed (Story 6.2 AC1)", () => {
+    const { getByText, onShareKakao, onShareGeneric } = setup({ invite: sampleInvite });
 
-    fireEvent.press(getByText("공유하기"));
+    fireEvent.press(getByText("KakaoTalk으로 공유"));
 
-    expect(onShare).toHaveBeenCalledTimes(1);
+    expect(onShareKakao).toHaveBeenCalledTimes(1);
+    expect(onShareGeneric).not.toHaveBeenCalled();
+  });
+
+  it("invokes onShareGeneric when the secondary share button is pressed (Story 6.2 AC4)", () => {
+    const { getByText, onShareKakao, onShareGeneric } = setup({ invite: sampleInvite });
+
+    fireEvent.press(getByText("다른 앱으로 공유"));
+
+    expect(onShareGeneric).toHaveBeenCalledTimes(1);
+    expect(onShareKakao).not.toHaveBeenCalled();
   });
 
   it("disables the create button while a new invite is being issued", () => {

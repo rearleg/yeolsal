@@ -23,14 +23,25 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.yeosal.mobile"
+      "bundleIdentifier": "app.yeosal.mobile",
+      "associatedDomains": ["applinks:yeolsal.app"]
     },
     "android": {
       "package": "app.yeosal.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/icon.png",
         "backgroundColor": "#F8F3E7"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "yeolsal.app", "pathPrefix": "/join" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "extra": {
       "router": {},

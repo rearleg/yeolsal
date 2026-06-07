@@ -3,6 +3,8 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { KakaoSdkBootstrap } from "../src/lib/KakaoSdkBootstrap";
+import { useShareLinkDeepLink } from "../src/lib/deepLinking";
 import { useWantedSans } from "../src/lib/fonts";
 import { useIsSpectatorEverywhere } from "../src/lib/query/hooks/survival";
 import { registerForPushAsync } from "../src/lib/push";
@@ -22,6 +24,11 @@ import { surface } from "../src/theme/tokens";
 
 bootstrapSentry();
 
+/**
+ * Story 6.2 AC7 — boot-time Kakao SDK init using the public Native App Key
+ * (REST API key remains BE-only per project-context.md:235). Dev / OSS
+ * forks without a key skip initialization. EAS injects the production key.
+ */
 export default function RootLayout() {
   // Wire RN AppState into React Query's focus manager exactly once for the
   // app's lifetime. Without this any "background → active" transition (the
@@ -41,6 +48,7 @@ export default function RootLayout() {
     <SubModeProvider subMode={null}>
       <AuthProvider>
         <QueryProvider>
+          <KakaoSdkBootstrap />
           <RealtimeProvider>
             <ToastProvider>
               <ErrorBoundary>
@@ -95,6 +103,12 @@ function NotificationInvalidationBootstrap() {
   // push the room route and write the SecureStore pending slot the room
   // screen reads on mount.
   useNotificationResponseDeepLink();
+  // Story 6.2 AC2 — KakaoTalk share-link deep-link handler. Subscribes to
+  // both Linking.getInitialURL (cold launch) and Linking.addEventListener
+  // (warm foreground); routes /join?code=X to the in-app join flow for
+  // authenticated users, or persists the code into SecureStore +
+  // redirects to /signup for the post-install bridging path.
+  useShareLinkDeepLink();
   return null;
 }
 

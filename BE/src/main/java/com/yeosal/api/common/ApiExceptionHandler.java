@@ -8,6 +8,7 @@ import com.yeosal.api.revival.InsufficientPointsException;
 import com.yeosal.api.revival.NotEliminatedException;
 import com.yeosal.api.revival.NotFriendsForGiftException;
 import com.yeosal.api.room.IneligibleLeaderException;
+import com.yeosal.api.room.RoomFullException;
 import com.yeosal.api.room.chat.KudosAlreadySentTodayException;
 import com.yeosal.api.room.chat.KudosTargetNotEligibleException;
 import com.yeosal.api.room.chat.NotFriendsException;
@@ -270,6 +271,21 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> ineligibleLeader(IneligibleLeaderException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of("INELIGIBLE_LEADER", exception.getMessage()));
+    }
+
+    /**
+     * Story 6.2 — {@code POST /api/v1/rooms/join} found the room at
+     * {@code max_members} capacity. 409 CONFLICT distinguishes the
+     * state-precondition failure from a generic 400 validation message
+     * so the FE (especially the KakaoTalk-share landing-on-/join flow)
+     * can render a calmer "방이 가득 찼어요" toast and let the user keep
+     * the form open for a different code. Mirrors the
+     * {@link IneligibleLeaderException} 409 precedent.
+     */
+    @ExceptionHandler(RoomFullException.class)
+    ResponseEntity<ApiErrorResponse> roomFull(RoomFullException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of("ROOM_FULL", exception.getMessage()));
     }
 
     /**

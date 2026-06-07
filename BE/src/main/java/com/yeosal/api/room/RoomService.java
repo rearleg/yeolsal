@@ -350,7 +350,11 @@ public class RoomService {
 
         long memberCount = roomMembers.countByRoom(room);
         if (memberCount >= room.getMaxMembers()) {
-            throw new BadRequestException("방 정원을 초과했습니다.");
+            // Story 6.2 AC6 — typed exception swap so ApiExceptionHandler can
+            // map this to 409 CONFLICT + code ROOM_FULL (epics:854 wire lock).
+            // FE then branches on the wire code to surface a calmer "방이 가득
+            // 찼어요" toast instead of the generic 400 validation message.
+            throw new RoomFullException("방 정원을 초과했습니다.");
         }
         // AC2 — anchor the new member's joined_at to the same Clock instant
         // we'll feed into initializeOnJoin below, so survival_state.grace_ends_at
