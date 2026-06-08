@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
  *       {@code SimpMessagingTemplate.convertAndSendToUser} can route per-user
  *       events back to this connection.</li>
      *   <li>{@code SUBSCRIBE}: requires an authenticated principal AND, for any
-     *       {@code /topic/rooms.{id}.(chat|members|survival|points|kudos)}
+     *       {@code /topic/rooms.{id}.(chat|members|survival|points|kudos|posters)}
      *       destination, room membership. Unknown destination patterns are
      *       denied (deny-by-default).</li>
  * </ul>
@@ -41,7 +41,7 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     private static final Logger log = LoggerFactory.getLogger(JwtChannelInterceptor.class);
 
     private static final Pattern ROOM_TOPIC = Pattern.compile(
-            "^/topic/rooms\\.(\\d+)\\.(chat|members|survival|points|kudos)$");
+            "^/topic/rooms\\.(\\d+)\\.(chat|members|survival|points|kudos|posters)$");
     private static final String USER_QUEUE_PREFIX = "/user/";
 
     private final JwtService jwtService;

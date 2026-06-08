@@ -134,6 +134,21 @@ class JwtChannelInterceptorTest {
     }
 
     @Test
+    @DisplayName("SUBSCRIBE to /topic/rooms.{id}.posters as room member: allowed")
+    void subscribe_postersTopic_member_allowed() {
+        JwtService jwtService = mock(JwtService.class);
+        RoomMemberRepository roomMembers = mock(RoomMemberRepository.class);
+        when(roomMembers.existsByRoomIdAndUserId(42L, 7L)).thenReturn(true);
+        JwtChannelInterceptor interceptor = new JwtChannelInterceptor(jwtService, roomMembers);
+
+        Message<?> result = interceptor.preSend(
+                buildSubscribe("/topic/rooms.42.posters", 7L), channel);
+
+        assertThat(result).isNotNull();
+        verify(roomMembers).existsByRoomIdAndUserId(42L, 7L);
+    }
+
+    @Test
     @DisplayName("SUBSCRIBE to /topic/rooms.{id}.chat as NON-member: rejected (CRITICAL)")
     void subscribe_chatTopic_nonMember_rejected() {
         JwtService jwtService = mock(JwtService.class);
@@ -159,6 +174,20 @@ class JwtChannelInterceptorTest {
 
         Message<?> result = interceptor.preSend(
                 buildSubscribe("/topic/rooms.42.members", 7L), channel);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("SUBSCRIBE to /topic/rooms.{id}.posters as NON-member: rejected")
+    void subscribe_postersTopic_nonMember_rejected() {
+        JwtService jwtService = mock(JwtService.class);
+        RoomMemberRepository roomMembers = mock(RoomMemberRepository.class);
+        when(roomMembers.existsByRoomIdAndUserId(42L, 7L)).thenReturn(false);
+        JwtChannelInterceptor interceptor = new JwtChannelInterceptor(jwtService, roomMembers);
+
+        Message<?> result = interceptor.preSend(
+                buildSubscribe("/topic/rooms.42.posters", 7L), channel);
 
         assertThat(result).isNull();
     }

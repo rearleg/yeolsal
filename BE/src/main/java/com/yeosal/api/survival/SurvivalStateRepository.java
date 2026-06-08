@@ -4,6 +4,8 @@ import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -106,4 +108,29 @@ public interface SurvivalStateRepository extends JpaRepository<SurvivalState, Lo
             @Param("roomId") long roomId,
             @Param("userId") long userId,
             @Param("graceEndsAt") Instant graceEndsAt);
+
+    /**
+     * Story 7.2 — paged scan of rooms with at least one ACTIVE
+     * survival_state row. Used by
+     * {@link com.yeosal.api.ceremony.FinalThreeJob} to filter eligible
+     * rooms before invoking
+     * {@link com.yeosal.api.ceremony.FinalThreeService#generatePoster}.
+     *
+     * <p>Pre-filtering at SQL level (rather than per-room post-filter) is
+     * required so {@code FinalThreeService.generatePoster}'s zero-survivor
+     * chat fallback is unreachable in steady state — the fallback is NOT
+     * idempotent on replay.
+     *
+     * <p>Returns distinct room ids in ascending order so a job restart
+     * picks up at a deterministic page boundary, mirroring the
+     * {@link com.yeosal.api.room.RoomRepository#findAllIdsOrderById}
+     * contract.
+     */
+    @Query("""
+            select distinct s.room.id
+            from SurvivalState s
+            where s.status = com.yeosal.api.survival.SurvivalStatus.ACTIVE
+            order by s.room.id
+            """)
+    Page<Long> findRoomIdsWithAtLeastOneActive(Pageable pageable);
 }
