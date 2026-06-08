@@ -36,6 +36,31 @@ export function entryDateOf(now: Date = new Date()): IsoDate {
   return toIso(shifted);
 }
 
+/**
+ * Story 7.3 AC8 — KST calendar-month-boundary helper for the Home tab
+ * Final-3 card. Returns the {@code "YYYY-MM"} string of the calendar
+ * month IMMEDIATELY preceding {@code now} in {@code Asia/Seoul}. Pure
+ * function: UTC-offset math only (no {@code Intl} locale lookups, no
+ * {@code Date} mutation), matching the BE {@code PosterDto.yearMonth}
+ * wire-format byte-for-byte.
+ *
+ * <p>This is distinct from {@link entryDateOf} — the daily-mission
+ * boundary is 06:00 KST, but month rollover follows the standard
+ * calendar (00:00 KST on day 1).
+ */
+export function previousYearMonthKst(now: Date = new Date()): string {
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const kst = new Date(now.getTime() + KST_OFFSET_MS);
+  let year = kst.getUTCFullYear();
+  let month = kst.getUTCMonth() + 1;
+  month -= 1;
+  if (month === 0) {
+    month = 12;
+    year -= 1;
+  }
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
 /** Returns Monday=0..Sunday=6 for the given ISO date. */
 export function weekdayIndex(iso: IsoDate): WeekdayIndex {
   const d = fromIso(iso).getDay();

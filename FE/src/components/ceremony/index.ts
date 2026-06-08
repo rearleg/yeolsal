@@ -1,0 +1,1 @@
+export { FinalThreeCard } from "./FinalThreeCard";

@@ -59,4 +59,10 @@ export const qk = {
   // Per-room rule cache (current + pending). Member-scoped and invalidated
   // after each successful update; realtime invalidation is intentionally absent.
   roomRule: (roomId: number) => ["roomRule", roomId] as const,
+  // Story 7.3 — per-(room, yearMonth) Final-3 poster. 5-min staleTime in the
+  // hook (posters are immutable per FR-8.7.6). Invalidated on STOMP
+  // MonthlyPosterReady frames + on reconnect-recovery from a disconnected→
+  // connected transition.
+  finalThreePoster: (roomId: number, yearMonth: string) =>
+    ["finalThreePoster", roomId, yearMonth] as const,
 };
