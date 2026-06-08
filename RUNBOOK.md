@@ -751,11 +751,26 @@ PR #90 / #93 / #95 모두 30분 cap 에 도달해 `cancelled` 상태로 종료�
 | (a) **60min cap (PR #98)** | 1줄 변경, 즉시 incremental 개선 | 60min 도 cap 에 도달 (PR #98 자체에서 확인) | ✅ ship, 부족 확인 |
 | (b) **워크플로 matrix-split** (test class 단위로 parallel job 분할) | 실제 wall-clock 단축 | YAML 복잡도 ↑, 각 job 의 cold-start (Gradle cache, Docker pull) 중복으로 비용 ↑ | (d) 가 더 surgical, 보류 |
 | (c) **Nightly schedule + PR manual-trigger backdoor** | PR wait 제거 | PR 머지 시점에 enforcement signal 없음 (deferral allowance 가 norm 화) | 최후 수단, 보류 |
-| (d) **Gradle `maxParallelForks` + Testcontainers reuse** (현재 선택) | 단일 job 유지, build.gradle 9 줄 + workflow 1 step. 로컬 dev 영향 zero (opt-in via `-Dyeosal.test.parallel=N`). 28 × ~25s 직렬 startup → 4-fork 병렬 + 컨테이너 재사용으로 3–4min 추정 | build.gradle 변경 (대부분 story 의 banned-paths) — 별도 chore PR 필요 | ✅ 채택 |
+| (d) **Gradle `maxParallelForks` + Testcontainers reuse** (PR #99 시도) | 단일 job 유지, build.gradle 9 줄 + workflow 1 step. 로컬 dev 영향 zero (opt-in via `-Dyeosal.test.parallel=N`). 28 × ~25s 직렬 startup → 4-fork 병렬 + 컨테이너 재사용으로 3–4min 추정 | build.gradle 변경 — 별도 chore PR 필요 | ❌ **실패** — 사후 분석 아래 |
 
-**옵션 (d) 구현:**
+**옵션 (d) 구현 (PR #99):**
 
 - `BE/build.gradle` `tasks.named("test")` 블록 — `-Dyeosal.test.parallel=N` 으로 opt-in 분기. 로컬 `./gradlew test` 는 single-fork 유지 (concurrent Postgres 컨테이너가 dev 머신을 oversaturate 하지 않도록).
-- `.github/workflows/be-it-boot-smoke.yml` — Testcontainers reuse 활성화를 위한 step (`echo "testcontainers.reuse.enable=true" > ~/.testcontainers.properties`) + 기존 `./gradlew test -Dyeosal.boot-smoke=true` 에 `-Dyeosal.test.parallel=4` 플래그 추가 (ubuntu-latest 의 4 vCPU 매칭).
+- `.github/workflows/be-it-boot-smoke.yml` — Testcontainers reuse 활성화를 위한 step (`echo "testcontainers.reuse.enable=true" > ~/.testcontainers.properties`) + 기존 `./gradlew test -Dyeosal.boot-smoke=true` 에 `-Dyeosal.test.parallel=4` 플래그 추가.
 
-**측정 기준 (다음 PR-CI 시):** 워크플로 wall-clock 이 60min 미만으로 떨어지면 (d) 성공. 여전히 cap 에 도달하면 (b) 워크플로 matrix-split 또는 (c) nightly schedule 로 추가 escalate. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.
+**2026-06-08 옵션 (d) 시도 결과 — 실패:** PR #99 의 CI 도 1h 0m 16s 에 `cancelled` (run [27120469166](https://github.com/rearleg/yeolsal/actions/runs/27120469166)). 실제 fork 데드락은 **시작 후 ~4분** 에 발생했고 나머지 56분간 hung 상태로 timeout 대기. 사후 분석:
+
+1. **Root cause: Testcontainers reuse 가 OS 레벨에서만 활성화됨.** Testcontainers 의 `testcontainers.reuse.enable=true` 는 `~/.testcontainers.properties` 와 `withReuse(true)` **양쪽이 모두 설정되어야** 작동. 우리 코드는 후자 (코드 내 `.withReuse(true)` 호출) 가 없음 — Spring Boot Testcontainers integration 의 `@ServiceConnection` 컨테이너는 reuse 기본값이 false.
+2. **결과: 4 개 fork 이 race condition 에 빠짐.** OS 레벨에서 reuse 가 활성화되어 Testcontainers 가 공유 컨테이너 hash 매핑을 시도했지만, 코드 레벨에서는 each fork 이 독립 컨테이너를 띄움. fork A 의 컨테이너가 셧다운된 후 fork B 가 그 hash 의 port (`localhost:32774`, `localhost:32775`) 에 연결 시도 → `PSQLException: Connection refused` → Spring context 셧다운 → fork hung.
+3. **Gradle test 가 hung fork 의 join 을 기다리며 무한 대기** — `--no-daemon` flag 도 도움 안 됨 (test worker 자체가 hung 상태). orphan Java 프로세스 3 개가 60min timeout 시점에 강제 종료됨.
+
+**hotfix (이 RUNBOOK 갱신과 함께):** `.github/workflows/be-it-boot-smoke.yml` 에서 `-Dyeosal.test.parallel=4` 플래그 + Testcontainers reuse step 제거 → PR #98 baseline (단순 60min cap) 으로 복원. `BE/build.gradle` 의 opt-in 분기는 그대로 유지 — default 동작 byte-identical 이며 향후 옵션 (g) JUnit `@Execution(CONCURRENT)` 시도 시 재활용 가능.
+
+**다음 시도 — 옵션 (b) 또는 (g):**
+
+| 추가 옵션 | 접근 | 트레이드오프 |
+|---|---|---|
+| (b) **워크플로 matrix-split** | `.github/workflows/be-it-boot-smoke.yml` 의 `boot-smoke` job 을 `strategy.matrix` 로 분할 (예: package 별 — `ceremony` / `room` / `survival` / `kakaoshare`). 각 job 은 독립 Gradle cache + 독립 Docker daemon. | YAML 복잡도 ↑, 각 job 의 cold-start 중복 (Gradle cache restore, Docker pull). 비용은 ↑ 지만 race condition 없음. |
+| (g) **JUnit 5 `@Execution(CONCURRENT)`** | `BE/src/test/resources/junit-platform.properties` 에 `junit.jupiter.execution.parallel.enabled=true` + `junit.jupiter.execution.parallel.mode.default=concurrent`. fork 1 개 안에서 method-level 병렬 실행 — Spring context 캐시 hit, 컨테이너 race 없음. | Spring context 는 thread-safe 여야 함 (대부분 OK 이지만 `@MockBean` 사용 클래스는 isolation 필요). |
+
+옵션 (g) 가 가장 surgical — context 캐시 가장 효율적, 컨테이너 race 원천 차단. 다음 시도로 권장. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.
