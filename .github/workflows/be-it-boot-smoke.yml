@@ -51,7 +51,12 @@ jobs:
   boot-smoke:
     name: Opt-in Testcontainers IT
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Raised from 30 → 60 (2026-06-08, Epic 7 retro A1). The opt-in IT layer
+    # grew past the 30-min cap on PRs #90 / #93 / #95; three PRs merged on
+    # AC11 deferral allowance + `deferred-work.md` notes. See
+    # `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §C1
+    # for the matrix-split / nightly-schedule alternatives still open.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout

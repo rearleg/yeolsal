@@ -722,3 +722,30 @@ login.tsx 등에 임시로 `throw new Error("sentry test")`를 넣고 화면을 
 > "Native module changes require `adb uninstall app.yeosal.mobile` + clean rebuild" — Architecture §5.2 (line 520)
 
 본 단락의 첫 문장 ("FE 전용 CI workflow 는 ZERO") 은 작성 시점 (2026-06-07) 의 사실입니다. 향후 FE CI 가 추가되면 이 한 줄을 업데이트하고, 위 (2) 의 가드를 실제 workflow 파일로 옮겨 자동화해야 합니다.
+
+## 17. opt-in IT 워크플로 (`be-it-boot-smoke.yml`) timeout 정책
+
+`.github/workflows/be-it-boot-smoke.yml` 은 Epic 1 retro action item **T3** 결과로 도입된 opt-in Testcontainers IT 레이어를 PR 마다 강제하는 워크플로입니다. 처음에는 `timeout-minutes: 30` 으로 시작했지만 Epic 7 시점 (Stories 7.1 / 7.2 누적) 에 다음 IT 클래스들이 누적되며 cap 을 초과하기 시작했습니다:
+
+- `RoomControllerIT`
+- `SurvivalStateEvaluatorIT`
+- `SurvivalStateRosterIT`
+- `V11MigrationIT`
+- `FinalThreeServiceIT` (Story 7.1)
+- `SvgRendererTokenDiffIT` (Story 7.1)
+- `FinalThreeJobIT` (Story 7.2)
+- `FinalThreeJobSchedulerRegistrationIT` (Story 7.2)
+- `PreviewCardEndToEndIT` (Story 6.1)
+- `ChatServiceRuleChangeIT` (Story 5.4)
+
+PR #90 / #93 / #95 모두 30분 cap 에 도달해 `cancelled` 상태로 종료됐고, AC11 deferral allowance + `deferred-work.md` 코멘트로 squash-merge 했습니다 — Epic 1 retro G3 (*"never sign off a V11-class audit without a green opt-in IT run"*) 의 enforcement 메커니즘이 사실상 무력화된 상태였습니다.
+
+**2026-06-08 Epic 7 retro A1 결정 (가장 보수적인 즉시 unblock):** `timeout-minutes` 를 30 → 60 으로 상향. RUNBOOK 으로 의사결정 근거를 박제. 향후 두 대안은 그대로 open:
+
+| 대안 | 장점 | 단점 | 트리거 |
+|---|---|---|---|
+| (a) **현재 선택: 60min cap** | 1줄 변경, 즉시 unblock | 다시 cap 에 도달하면 같은 문제 반복 | 가장 빠른 ship |
+| (b) **Matrix-split** (test class 단위로 parallel job 분할) | 실제 wall-clock 단축, 60min 도달 자체를 방지 | YAML 복잡도 증가, 각 job 의 cold-start (Gradle cache, Docker pull) 중복 | 60min 도 부족해질 때 |
+| (c) **Nightly schedule + PR manual-trigger backdoor** | PR 마다의 wait 제거, 실제 enforcement 는 nightly 가 담당 | PR 머지 시점에 enforcement signal 가 없음 (deferral allowance 가 다시 norm 화) | (b) 도 견디기 어려운 규모일 때 |
+
+다음 cap 도달 (예: Story 8.5 analytics SDK boot-smoke IT 추가 후) 시 (b) 또는 (c) 로 재평가. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.

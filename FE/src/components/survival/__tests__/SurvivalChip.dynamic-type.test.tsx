@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest hoists `jest.mock` factories above ES imports, so the factory must use `require()` to reference modules. Canonical Jest mock pattern; mirrors `InviteCodeSheet.test.tsx`. */
 // Dynamic Type smoke test for <SurvivalChip /> (Story 1.5 AC9, NFR-9.6.3).
 //
 // The chip wraps the label in our shared <Text> which caps

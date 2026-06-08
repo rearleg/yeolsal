@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 // Behaviour contract for the room-detail invite modal:
 // - hidden when visible=false
 // - shows the create-button only until the parent supplies an invite

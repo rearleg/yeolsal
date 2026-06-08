@@ -63,9 +63,11 @@ export default function RoomChatScreen() {
   useEffect(() => {
     if (latestId == null) return;
     markRead.mutate(latestId);
-    // mutation handle is stable across renders — exclude to avoid re-firing
-    // when the mutation state object identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: `markRead` (mutation handle) is intentionally excluded from the
+    // dependency array — the handle is stable across renders, and including
+    // it would re-fire this effect when the mutation state object identity
+    // changes. Restore `// eslint-disable-next-line react-hooks/exhaustive-deps`
+    // once eslint-plugin-react-hooks is registered (Epic 7 retro A1 follow-up).
   }, [latestId]);
 
   const nicknameByUserId = useMemo(() => {

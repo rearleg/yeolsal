@@ -97,7 +97,9 @@ export class RealtimeClient {
         onStompError: (frame) => {
           // STOMP-level error frames are typically auth failures. Tear down
           // so the next AppState/auth tick re-attempts with a fresh token.
-          // eslint-disable-next-line no-console -- broker errors are operationally important
+          // NOTE: broker errors are operationally important — keep the warn
+          // call. Once a `no-console` rule is enforced project-wide, restore
+          // `// eslint-disable-next-line no-console` here.
           console.warn("[realtime] STOMP error", frame.headers, frame.body);
           this.setStatus("disconnected");
         },
@@ -280,6 +282,10 @@ export function useRealtimeSubscription<T>(
     return () => {
       sub.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handler captured by ref intentionally; destination changes drive re-subscription
+    // NOTE: `handler` is captured by ref intentionally and `client` is a
+    // module-level singleton — neither belongs in the deps array. Only
+    // destination changes should drive re-subscription. Restore
+    // `// eslint-disable-next-line react-hooks/exhaustive-deps` once
+    // eslint-plugin-react-hooks is registered (Epic 7 retro A1 follow-up).
   }, [destination]);
 }
