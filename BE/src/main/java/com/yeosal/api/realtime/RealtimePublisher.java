@@ -1,5 +1,6 @@
 package com.yeosal.api.realtime;
 
+import com.yeosal.api.ceremony.MonthlyPosterReadyPayload;
 import com.yeosal.api.revival.PointPoolChangePayload;
 import com.yeosal.api.room.LeadershipChangePayload;
 import com.yeosal.api.room.chat.ChatService;
@@ -25,6 +26,8 @@ import org.springframework.stereotype.Component;
  *       (Story 3.1 self-revival; Story 4.1 will add the FE subscriber)</li>
  *   <li>{@code /topic/rooms.{roomId}.kudos} — kudos message events
  *       (Story 3.5)</li>
+ *   <li>{@code /topic/rooms.{roomId}.posters} — Final-3 monthly poster
+ *       ready events (Story 7.2)</li>
  *   <li>{@code /user/{userId}/queue/notifications} — per-user fan-in events
  *       (friend requests, accepts, future user-scoped events)</li>
  *   <li>{@code /user/{userId}/queue/private-survival} — immediate private
@@ -119,6 +122,23 @@ public class RealtimePublisher {
      */
     public void publishLeadershipChange(long roomId, LeadershipChangePayload payload) {
         sendTopic("/topic/rooms." + roomId + ".survival", payload);
+    }
+
+    /**
+     * Story 7.2 — Final-3 monthly poster ready publish point. Emits the
+     * {@code MonthlyPosterReady} frame on the room's posters topic so any
+     * authenticated room member (Story 7.3's Home tab subscriber) gets a
+     * refresh signal as soon as the batch job inserts the poster row.
+     * Failures are warn-and-swallowed via {@link #sendTopic} — a broker
+     * hiccup must NEVER roll back the surrounding poster-generation
+     * transaction.
+     *
+     * <p>Destination {@code /topic/rooms.{roomId}.posters} follows the
+     * existing dot-separated convention ({@code .chat}, {@code .members},
+     * {@code .survival}, {@code .points}, {@code .kudos}).
+     */
+    public void publishMonthlyPosterReady(long roomId, MonthlyPosterReadyPayload payload) {
+        sendTopic("/topic/rooms." + roomId + ".posters", payload);
     }
 
     /**

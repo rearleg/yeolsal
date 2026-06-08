@@ -91,16 +91,21 @@ public class FinalThreeService {
      */
     @Transactional
     public Optional<FinalThreePoster> generatePoster(long roomId, YearMonth yearMonth) {
+        return generatePosterWithResult(roomId, yearMonth).poster();
+    }
+
+    @Transactional
+    public GenerationResult generatePosterWithResult(long roomId, YearMonth yearMonth) {
         FinalThreePosterId id = new FinalThreePosterId(roomId, yearMonth.toString());
         Optional<FinalThreePoster> existing = posterRepository.findById(id);
         if (existing.isPresent()) {
-            return existing;
+            return new GenerationResult(existing, false);
         }
 
         acquireGenerationLock(roomId, yearMonth);
         existing = posterRepository.findById(id);
         if (existing.isPresent()) {
-            return existing;
+            return new GenerationResult(existing, false);
         }
 
         Room room = rooms.findById(roomId)
@@ -109,7 +114,7 @@ public class FinalThreeService {
         List<SurvivorTenureRow> survivors = querySurvivors(roomId);
         if (survivors.isEmpty()) {
             chatService.publishMonthlyNoSurvivorsSystemMessage(roomId, yearMonth);
-            return Optional.empty();
+            return new GenerationResult(Optional.empty(), false);
         }
 
         String svg = svgRenderer.render(room, yearMonth, survivors, survivors.size());
@@ -126,7 +131,22 @@ public class FinalThreeService {
 
         FinalThreePoster poster = new FinalThreePoster(
                 roomId, yearMonth.toString(), svg, pngUrl);
-        return Optional.of(posterRepository.save(poster));
+        return new GenerationResult(Optional.of(posterRepository.save(poster)), true);
+    }
+
+    public record GenerationResult(Optional<FinalThreePoster> poster, boolean created) {}
+
+    /**
+     * Story 7.2 — pre-existence check used by {@link FinalThreeJob} to
+     * decide whether the realtime publish should fire. {@code true} =
+     * poster row already exists (idempotent rerun, no publish).
+     * {@code false} = first generation (publish after generate).
+     * Read-only; does NOT acquire the advisory lock.
+     */
+    @Transactional(readOnly = true)
+    public boolean existsPoster(long roomId, YearMonth yearMonth) {
+        return posterRepository.existsById(
+                new FinalThreePosterId(roomId, yearMonth.toString()));
     }
 
     /**
