@@ -1,6 +1,6 @@
 # Story 7.3: Home tab Final-3 card with Kakao share
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -943,7 +943,7 @@ PRD: NFR-9.6.x (process). Architecture: §6.2 (FE deltas). Epic 7 retrospective 
 - ☑ AC11 — Pre-merge verify gates (14 gates) locked
 - ☑ AC12 — Architecture-deviation log + deferred-work entries
 
-Status: **review**
+Status: **done**
 
 ---
 

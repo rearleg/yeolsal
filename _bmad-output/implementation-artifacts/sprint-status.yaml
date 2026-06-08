@@ -175,10 +175,10 @@ development_status:
   epic-6-retrospective: optional
 
   # Epic 7: Final-3 Monthly Ceremony
-  epic-7: in-progress
+  epic-7: done
   7-1-server-side-svg-poster-renderer: done
   7-2-monthly-final-3-scheduled-job: done
-  7-3-home-tab-final-3-card-with-kakao-share: review
+  7-3-home-tab-final-3-card-with-kakao-share: done
   epic-7-retrospective: optional
 
   # Epic 8: Brand Voice & Onboarding
