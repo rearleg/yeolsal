@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest hoists `jest.mock` factories above ES imports, so the factory must use `require()` to reference modules. Canonical Jest mock pattern; mirrors `InviteCodeSheet.test.tsx`. */
 // Mock @expo/vector-icons up front so the icon glyph renders as a plain
 // view in tests. The real component would require the bundled font asset
 // which Jest doesn't load in unit-test mode.
