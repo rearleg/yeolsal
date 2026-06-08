@@ -13,8 +13,12 @@ import { TODAY_TAGLINE } from "../../src/components/welcome";
 import { useAndroidBack } from "../../src/hooks/useAndroidBack";
 import { useTodayQuery } from "../../src/lib/query/hooks/today";
 import { useFeedQuery } from "../../src/lib/query/hooks/feed";
-import { useIsSpectatorEverywhere } from "../../src/lib/query/hooks/survival";
-import { entryDateOf, fromIso } from "../../src/lib/calendar";
+import {
+  useIsSpectatorEverywhere,
+  useMeSurvivalQuery,
+} from "../../src/lib/query/hooks/survival";
+import { FinalThreeCard } from "../../src/components/ceremony";
+import { entryDateOf, fromIso, previousYearMonthKst } from "../../src/lib/calendar";
 import { space } from "../../src/theme/spacing";
 import { palette } from "../../src/theme/tokens";
 
@@ -24,7 +28,17 @@ export default function TodayScreen() {
   const today = useTodayQuery();
   const feed = useFeedQuery(entryDateOf());
   const isSpectatorEverywhere = useIsSpectatorEverywhere();
+  const meSurvival = useMeSurvivalQuery();
   const qc = useQueryClient();
+
+  // Story 7.3 AC1 — render a FinalThreeCard per ACTIVE-status room
+  // (Trap #2: enumerate from meSurvival rather than useRoomsQuery so
+  // SPECTATOR / RED / YELLOW members never trigger a card mount, even
+  // though the in-card AC4 gate would self-hide them).
+  const activeRoomEntries = (meSurvival.data ?? []).filter(
+    (entry) => entry.status === "ACTIVE",
+  );
+  const finalThreeYearMonth = previousYearMonthKst();
 
   const entry = today.data ?? null;
   // Drive the header off the *server's* entry date when we have one, so the
@@ -47,6 +61,13 @@ export default function TodayScreen() {
       <TodayHeader date={headerDate} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {isSpectatorEverywhere ? <WalletPreview /> : null}
+        {activeRoomEntries.map((entry) => (
+          <FinalThreeCard
+            key={entry.roomId}
+            roomId={entry.roomId}
+            yearMonth={finalThreeYearMonth}
+          />
+        ))}
         {today.isLoading ? <ActivityIndicator color={palette.coralDeep} /> : null}
         {showSoloLeaderTagline ? (
           <Text testID="today-solo-leader-tagline" variant="body">
