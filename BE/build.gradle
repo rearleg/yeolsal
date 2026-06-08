@@ -315,4 +315,26 @@ tasks.named("test") {
     // JVM; without this, @EnabledIfSystemProperty(named="yeosal.boot-smoke")
     // silently no-ops. Story 1.3 review finding #3.
     systemProperty "yeosal.boot-smoke", System.getProperty("yeosal.boot-smoke", "false")
+
+    // Opt-in parallel test execution — Epic 7 retro A1 follow-up.
+    //
+    // The opt-in IT layer exhausted the be-it-boot-smoke workflow at
+    // BOTH the 30-min cap (PRs #90 / #93 / #95) and the 60-min cap
+    // (PR #98). 28 `@SpringBootTest`-annotated opt-in IT classes each
+    // pay a ~25–30s startup tax (Spring context cache miss + Testcontainers
+    // Postgres start), yielding 12–14 min of sequential startup overhead
+    // before a single assertion runs.
+    //
+    // Default: single fork (preserves local-dev behavior — concurrent
+    // Postgres containers would oversaturate developer laptops). Opt-in
+    // via `-Dyeosal.test.parallel=N` (CI sets N=4 to match the runner's
+    // 4 vCPU). See RUNBOOK.md §17.
+    def parallelForks = (System.getProperty("yeosal.test.parallel", "1") as int)
+    if (parallelForks > 1) {
+        maxParallelForks = parallelForks
+        // Pair with Testcontainers reuse — see workflow step that writes
+        // `~/.testcontainers.properties`. Without reuse, each fork would
+        // spin its own Postgres (4 × ~12s on cold cache).
+        systemProperty "testcontainers.reuse.enable", "true"
+    }
 }

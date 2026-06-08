@@ -740,12 +740,22 @@ login.tsx 등에 임시로 `throw new Error("sentry test")`를 넣고 화면을 
 
 PR #90 / #93 / #95 모두 30분 cap 에 도달해 `cancelled` 상태로 종료됐고, AC11 deferral allowance + `deferred-work.md` 코멘트로 squash-merge 했습니다 — Epic 1 retro G3 (*"never sign off a V11-class audit without a green opt-in IT run"*) 의 enforcement 메커니즘이 사실상 무력화된 상태였습니다.
 
-**2026-06-08 Epic 7 retro A1 결정 (가장 보수적인 즉시 unblock):** `timeout-minutes` 를 30 → 60 으로 상향. RUNBOOK 으로 의사결정 근거를 박제. 향후 두 대안은 그대로 open:
+**2026-06-08 Epic 7 retro A1 1차 시도 (가장 보수적인 즉시 unblock):** `timeout-minutes` 를 30 → 60 으로 상향. PR #98 에 박제.
 
-| 대안 | 장점 | 단점 | 트리거 |
+**2026-06-08 1차 시도 결과:** PR #98 의 CI 가 정확히 1h 0m 15s 에 `cancelled` — 60min cap 도 구조적으로 부족함이 확인됨. 누적 28 개의 `@SpringBootTest`-annotated opt-in IT 가 각 ~25–30s 의 startup tax (Spring context cache miss + Testcontainers Postgres start) 를 지불하므로 12–14 min 이 단순 부팅 오버헤드. (run [27117144879](https://github.com/rearleg/yeolsal/actions/runs/27117144879))
+
+**2026-06-08 Epic 7 retro A1 2차 시도 — 옵션 (d) Gradle 병렬 test forking + Testcontainers reuse:** 별도의 follow-up PR 로 처리. PR #98 마무리 직후 ship.
+
+| 대안 | 장점 | 단점 | 결정 |
 |---|---|---|---|
-| (a) **현재 선택: 60min cap** | 1줄 변경, 즉시 unblock | 다시 cap 에 도달하면 같은 문제 반복 | 가장 빠른 ship |
-| (b) **Matrix-split** (test class 단위로 parallel job 분할) | 실제 wall-clock 단축, 60min 도달 자체를 방지 | YAML 복잡도 증가, 각 job 의 cold-start (Gradle cache, Docker pull) 중복 | 60min 도 부족해질 때 |
-| (c) **Nightly schedule + PR manual-trigger backdoor** | PR 마다의 wait 제거, 실제 enforcement 는 nightly 가 담당 | PR 머지 시점에 enforcement signal 가 없음 (deferral allowance 가 다시 norm 화) | (b) 도 견디기 어려운 규모일 때 |
+| (a) **60min cap (PR #98)** | 1줄 변경, 즉시 incremental 개선 | 60min 도 cap 에 도달 (PR #98 자체에서 확인) | ✅ ship, 부족 확인 |
+| (b) **워크플로 matrix-split** (test class 단위로 parallel job 분할) | 실제 wall-clock 단축 | YAML 복잡도 ↑, 각 job 의 cold-start (Gradle cache, Docker pull) 중복으로 비용 ↑ | (d) 가 더 surgical, 보류 |
+| (c) **Nightly schedule + PR manual-trigger backdoor** | PR wait 제거 | PR 머지 시점에 enforcement signal 없음 (deferral allowance 가 norm 화) | 최후 수단, 보류 |
+| (d) **Gradle `maxParallelForks` + Testcontainers reuse** (현재 선택) | 단일 job 유지, build.gradle 9 줄 + workflow 1 step. 로컬 dev 영향 zero (opt-in via `-Dyeosal.test.parallel=N`). 28 × ~25s 직렬 startup → 4-fork 병렬 + 컨테이너 재사용으로 3–4min 추정 | build.gradle 변경 (대부분 story 의 banned-paths) — 별도 chore PR 필요 | ✅ 채택 |
 
-다음 cap 도달 (예: Story 8.5 analytics SDK boot-smoke IT 추가 후) 시 (b) 또는 (c) 로 재평가. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.
+**옵션 (d) 구현:**
+
+- `BE/build.gradle` `tasks.named("test")` 블록 — `-Dyeosal.test.parallel=N` 으로 opt-in 분기. 로컬 `./gradlew test` 는 single-fork 유지 (concurrent Postgres 컨테이너가 dev 머신을 oversaturate 하지 않도록).
+- `.github/workflows/be-it-boot-smoke.yml` — Testcontainers reuse 활성화를 위한 step (`echo "testcontainers.reuse.enable=true" > ~/.testcontainers.properties`) + 기존 `./gradlew test -Dyeosal.boot-smoke=true` 에 `-Dyeosal.test.parallel=4` 플래그 추가 (ubuntu-latest 의 4 vCPU 매칭).
+
+**측정 기준 (다음 PR-CI 시):** 워크플로 wall-clock 이 60min 미만으로 떨어지면 (d) 성공. 여전히 cap 에 도달하면 (b) 워크플로 matrix-split 또는 (c) nightly schedule 로 추가 escalate. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.

@@ -81,9 +81,20 @@ jobs:
       - name: Verify Docker is available (Testcontainers prerequisite)
         run: docker version
 
-      - name: Run BE opt-in IT layer (`-Dyeosal.boot-smoke=true`)
+      - name: Enable Testcontainers reuse (Epic 7 retro A1 follow-up)
+        # Writes the OS-level Testcontainers properties file so that
+        # parallel test forks share Postgres containers across the
+        # boot-smoke run instead of each fork spinning a fresh container.
+        # Paired with `BE/build.gradle` `systemProperty "testcontainers.reuse.enable","true"`
+        # which is activated when `-Dyeosal.test.parallel>1`. See RUNBOOK §17.
+        run: |
+          mkdir -p "$HOME"
+          echo "testcontainers.reuse.enable=true" > "$HOME/.testcontainers.properties"
+          cat "$HOME/.testcontainers.properties"
+
+      - name: Run BE opt-in IT layer (`-Dyeosal.boot-smoke=true -Dyeosal.test.parallel=4`)
         working-directory: BE
-        run: ./gradlew test -Dyeosal.boot-smoke=true --no-daemon --stacktrace
+        run: ./gradlew test -Dyeosal.boot-smoke=true -Dyeosal.test.parallel=4 --no-daemon --stacktrace
 
       - name: Upload test reports on failure
         if: failure()
