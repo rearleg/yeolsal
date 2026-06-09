@@ -34,6 +34,9 @@ services:
       KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-}
       KAKAO_MOBILE_REDIRECT_URI: ${KAKAO_MOBILE_REDIRECT_URI:-yeosal://auth/kakao}
+      YEOSAL_ANALYTICS_ENABLED: ${YEOSAL_ANALYTICS_ENABLED:-false}
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+      POSTHOG_PROJECT_API_KEY: ${POSTHOG_PROJECT_API_KEY:-}
       # Story 6.1 — KakaoTalk share preview card render output directory.
       # Nginx serves files from the same mount so the API write and nginx
       # read sides see one filesystem.

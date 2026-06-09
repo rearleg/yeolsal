@@ -44,6 +44,9 @@ dependencies {
     // output; without it the transcoder NoClassDefFoundErrors on first call.
     implementation "org.apache.xmlgraphics:batik-transcoder:1.17"
     implementation "org.apache.xmlgraphics:batik-codec:1.17"
+    // Story 8.5 — PostHog server-side capture client. Pinned to a
+    // specific minor; verify-latest at BE/build.gradle bump time.
+    implementation "com.posthog.java:posthog:1.2.0"
 
     testImplementation "org.springframework.boot:spring-boot-starter-test"
     testImplementation "org.springframework.security:spring-security-test"

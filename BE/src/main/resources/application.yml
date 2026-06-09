@@ -35,3 +35,7 @@ yeosal:
     mass-elimination-alert-threshold: ${YEOSAL_EVALUATOR_MASS_ELIM_THRESHOLD:20}
   realtime:
     broadcast-dispatcher-delay-ms: ${YEOSAL_REALTIME_BROADCAST_DISPATCHER_DELAY_MS:60000}
+  analytics:
+    enabled: ${YEOSAL_ANALYTICS_ENABLED:false}
+    host: ${POSTHOG_HOST:}
+    project-api-key: ${POSTHOG_PROJECT_API_KEY:}
