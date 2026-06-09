@@ -774,3 +774,82 @@ PR #90 / #93 / #95 모두 30분 cap 에 도달해 `cancelled` 상태로 종료�
 | (g) **JUnit 5 `@Execution(CONCURRENT)`** | `BE/src/test/resources/junit-platform.properties` 에 `junit.jupiter.execution.parallel.enabled=true` + `junit.jupiter.execution.parallel.mode.default=concurrent`. fork 1 개 안에서 method-level 병렬 실행 — Spring context 캐시 hit, 컨테이너 race 없음. | Spring context 는 thread-safe 여야 함 (대부분 OK 이지만 `@MockBean` 사용 클래스는 isolation 필요). |
 
 옵션 (g) 가 가장 surgical — context 캐시 가장 효율적, 컨테이너 race 원천 차단. 다음 시도로 권장. 이 결정의 owner 는 `_bmad-output/implementation-artifacts/epic-7-retro-2026-06-08.md` §8 A1 의 rearleg 입니다.
+
+---
+
+## 18. PostHog (분석 SDK) 운영
+
+Story 8.5 가 ship 한 self-hosted PostHog 의 운영 절차. SDK 결정 근거는 `_bmad-output/planning-artifacts/analytics-sdk-decision-2026-06-09.md`, 코드 측 위치는 `docs/analytics.md`.
+
+### 18.1 PostHog self-host 시작 (개발 / dev)
+
+```bash
+# infra/.env 를 한 번 만든다.
+cp infra/.env.example infra/.env
+# POSTHOG_DOMAIN과 검토한 upstream commit SHA를 채운다.
+# 공식 installer는 8GB 이상 메모리의 Ubuntu 호스트를 요구한다.
+
+set -a
+source infra/.env
+set +a
+infra/posthog.sh install
+# 공식 installer가 TLS, migration, ingest worker를 포함한 hobby stack을 구성한다.
+
+# https://${POSTHOG_DOMAIN} 첫 접속 → admin 계정 생성 → 프로젝트 생성 →
+# Project Settings → Project API Key 복사 →
+# FE/.env 의 EXPO_PUBLIC_POSTHOG_API_KEY 와
+# infra/.env 의 POSTHOG_PROJECT_API_KEY 에 붙여넣기.
+
+# PostHog 서비스 헬스 체크
+infra/posthog.sh status
+curl -s "https://${POSTHOG_DOMAIN}/_health" | head -5
+```
+
+dev 머신에서 `YEOSAL_ANALYTICS_ENABLED=false` 로 남겨두면 BE 가 `NoOpAnalyticsService` bean 으로 부팅 — PostHog 컨테이너를 띄울 필요도 없습니다 (`docs/analytics.md` §2 의 fail-closed 기본값).
+
+### 18.2 운영 배포 절차
+
+1. 서브도메인 (예: `analytics.yeolsal.app`) DNS A 레코드 추가 → 운영 VPS public IP.
+2. Let's Encrypt 인증서 발급 — `certbot --nginx -d analytics.yeolsal.app`.
+3. nginx reverse proxy 설정 — `infra/nginx/posthog.conf` (새 파일, 운영 시 작성). `proxy_pass http://127.0.0.1:8000;` 와 `proxy_set_header X-Forwarded-Proto https;` 가 필수.
+4. `infra/.env` 의 `POSTHOG_SITE_URL=https://analytics.yeolsal.app` 로 설정 — `IS_BEHIND_PROXY=1` 이미 default.
+5. 검토한 PostHog commit SHA를 `POSTHOG_UPSTREAM_REF`에 고정하고 `infra/posthog.sh install` 실행 → 첫 부팅 후 admin 계정 + 프로젝트 생성.
+6. Project API Key 를 (a) EAS secret (`eas secret:create EXPO_PUBLIC_POSTHOG_API_KEY`), (b) 운영 `infra/.env` 의 `POSTHOG_PROJECT_API_KEY` 양쪽에 등록.
+7. `YEOSAL_ANALYTICS_ENABLED=true` 로 flip → 운영 api 컨테이너 재시작 (`docker compose restart api`).
+8. `StartupConfigValidator` 가 host + key 양쪽 둘 다 set 되어 있는지 boot-time 체크 — 미설정 시 부팅 실패하므로 환경변수가 안 박혀 있으면 즉시 알 수 있음 (Story 8.5 BE-6).
+
+`posthog-react-native`는 네이티브 SDK입니다. SDK 추가 또는 버전 변경 후에는 Metro reload로 검증하지 않습니다.
+
+```bash
+adb uninstall app.yeosal.mobile
+cd FE
+npx expo prebuild --clean
+npx expo run:android
+# 또는 새 EAS preview build를 생성해 실제 기기에서 동의 토글과 이벤트 수신을 확인한다.
+```
+
+### 18.3 PIPA 정책 alignment
+
+- 옵트인/아웃 UI: 앱 내 Profile 탭 → **개인정보 설정** → **사용 통계 공유** 토글 (Story 8.5 AC9). Onboarding S5 (Story 8.1) 가 primary prompt, Settings 토글이 revocation surface.
+- 데이터 보유 기간: PostHog admin → Project Settings → Data Management → 365 일로 설정 (`docs/analytics.md` §7).
+- 옵트아웃 시점 즉시 capture 차단 (큐에 남아있는 이벤트는 flush 안 함 — 결정 doc §3.3).
+- 가입자 데이터 export/delete 요청: PostHog admin → People → person id (BE primary key as string) 로 검색 → `Delete person` 또는 `Export`. 응답기한 30 일 (PIPA Art. 35-3).
+
+### 18.4 보안 + 백업
+
+- **ClickHouse 일일 스냅샷:** `clickhouse-backup create <yyyymmdd>` 를 cron 으로 매일 06:00 KST 에 (yeosal 의 day-boundary 와 동기). 보관 14 일. 자동화 스크립트는 post-launch SRE 작업 (Story 8.5 OOS #8).
+- **Postgres metadata:** PostHog 의 `posthog-db` 는 기존 운영 Postgres 백업 패턴 (RUNBOOK §11) 과 동일 — `pg_dump` 일일 + WAL archiving.
+- **PostHog 업그레이드 cadence:** 분기별 minor bump + 보안 권고 (CVE / PostHog announcement) 즉시. 업그레이드 전 ClickHouse 스냅샷 백업 필수.
+- **시크릿:** 공식 installer가 생성한 설치 디렉터리의 `.env`는 절대 commit 금지. 재설치나 업그레이드 때 기존 `.env`를 보존해 세션 및 암호화 키를 유지합니다.
+
+### 18.5 트러블슈팅
+
+| 증상 | 점검 명령 | 원인 후보 |
+|---|---|---|
+| BE 로그에 `[analytics] capture failed event=... distinctId=...` 반복 | `docker compose logs api --since 5m \| grep '\[analytics\]'` | PostHog 컨테이너 다운 / 네트워크 단절 / Project API Key 잘못됨. `curl https://analytics.yeolsal.app/_health` 로 PostHog 헬스 체크 |
+| BE 가 부팅 실패: `IllegalStateException: yeosal.analytics.enabled=true but POSTHOG_HOST is not set` | `docker compose exec api env \| grep POSTHOG_` | 운영 `.env` 에 `POSTHOG_HOST` 가 빠짐. Story 8.5 BE-6 의 fail-fast 가 의도대로 동작한 것 |
+| FE 가 옵트인 후에도 이벤트가 안 들어옴 | 앱 → Profile → 개인정보 설정 토글 ON 재확인 + `expo-secure-store` key 의 `yeosal.analyticsConsent` 값 확인 | SecureStore 쓰기 실패 (디스크 풀 등). `setAnalyticsConsent` 는 fire-and-forget 이라 UI 는 즉시 flip 되지만 다음 부팅 시 fail-closed 로 복귀 |
+| ClickHouse 디스크 사용량 급증 | `docker exec yeosal-posthog-clickhouse df -h /var/lib/clickhouse` | 365 일 보유 정책 미설정 / autocapture 켜진 상태. PostHog admin → Settings → Data Management 확인 |
+| `infra/posthog.sh install` 중 컨테이너가 OOM | `docker stats` | 공식 hobby stack은 8GB 이상 메모리를 요구. 작은 인스턴스에서는 self-host 비추 — 결정 doc §3.4 의 fallback 검토 |
+
+trouble 발생 시 첫 confirmation 은 `infra/posthog.sh status` 와 `curl https://analytics.yeolsal.app/_health`. 정상이면 SDK 측 (FE/BE 클라이언트), 비정상이면 self-host stack 측 문제로 좁힐 수 있습니다.

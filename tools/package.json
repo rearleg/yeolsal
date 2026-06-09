@@ -5,6 +5,7 @@
   "description": "Repo-root TS tooling for yeolsal: brand-voice-lint (NFR-9.6.1 hard CI gate) and contrast-check (WCAG 2.2 AA).",
   "scripts": {
     "lint:brand-voice": "tsx brand-voice-lint.ts",
+    "lint:analytics-taxonomy": "tsx analytics-taxonomy-lint.ts",
     "check:contrast": "tsx contrast-check.ts",
     "test": "tsx --test __tests__/**/*.test.ts",
     "typecheck": "tsc --noEmit"

@@ -36,19 +36,28 @@ public class StartupConfigValidator {
     private final String datasourceUsername;
     private final String datasourcePassword;
     private final String kakaoClientId;
+    private final boolean analyticsEnabled;
+    private final String analyticsHost;
+    private final String analyticsProjectApiKey;
 
     public StartupConfigValidator(
             Environment environment,
             @Value("${yeosal.auth.jwt-secret:}") String jwtSecret,
             @Value("${spring.datasource.username:}") String datasourceUsername,
             @Value("${spring.datasource.password:}") String datasourcePassword,
-            @Value("${yeosal.kakao.client-id:}") String kakaoClientId
+            @Value("${yeosal.kakao.client-id:}") String kakaoClientId,
+            @Value("${yeosal.analytics.enabled:false}") boolean analyticsEnabled,
+            @Value("${yeosal.analytics.host:}") String analyticsHost,
+            @Value("${yeosal.analytics.project-api-key:}") String analyticsProjectApiKey
     ) {
         this.environment = environment;
         this.jwtSecret = jwtSecret;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
         this.kakaoClientId = kakaoClientId;
+        this.analyticsEnabled = analyticsEnabled;
+        this.analyticsHost = analyticsHost;
+        this.analyticsProjectApiKey = analyticsProjectApiKey;
     }
 
     @PostConstruct
@@ -59,6 +68,11 @@ public class StartupConfigValidator {
             validateProdDatasource();
             validateProdKakao();
         }
+        // Story 8.5 AC7 — fail fast when analytics is turned on with
+        // missing host or key. Applies in every profile because enabling
+        // analytics with a missing key would silently lose every
+        // capture (PostHog client would 401 every flush).
+        validateAnalyticsConsistency();
     }
 
     private boolean isProdProfile() {
@@ -101,6 +115,20 @@ public class StartupConfigValidator {
         if (kakaoClientId == null || kakaoClientId.isBlank()) {
             throw new IllegalStateException(
                     "KAKAO_CLIENT_ID must be set in prod (or remove the prod profile if Kakao is disabled)");
+        }
+    }
+
+    private void validateAnalyticsConsistency() {
+        if (!analyticsEnabled) {
+            return;
+        }
+        if (analyticsHost == null || analyticsHost.isBlank()) {
+            throw new IllegalStateException(
+                    "yeosal.analytics.enabled=true but POSTHOG_HOST is not set");
+        }
+        if (analyticsProjectApiKey == null || analyticsProjectApiKey.isBlank()) {
+            throw new IllegalStateException(
+                    "yeosal.analytics.enabled=true but POSTHOG_PROJECT_API_KEY is not set");
         }
     }
 }

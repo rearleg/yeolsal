@@ -255,6 +255,13 @@ export default function ProfileScreen() {
             fullWidth
             onPress={() => router.push("/notification-settings")}
           />
+          <Button
+            label="개인정보 설정"
+            tone="secondary"
+            size="md"
+            fullWidth
+            onPress={() => router.push("/privacy-settings")}
+          />
           <Button label="로그아웃" tone="ghost" size="md" fullWidth onPress={auth.signOut} />
         </View>
       </ScrollView>

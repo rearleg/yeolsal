@@ -13,7 +13,16 @@ import {
   useNotificationResponseDeepLink,
 } from "../src/lib/notifications";
 import { setupReactQueryFocus } from "../src/lib/query/focus";
+import {
+  bootstrapAnalytics,
+  postHogOptIn,
+  postHogOptOut,
+  setAnalyticsUser,
+} from "../src/lib/analytics";
+import { getAnalyticsConsent } from "../src/lib/analyticsConsent";
 import { bootstrapSentry, setSentryUser } from "../src/lib/sentry";
+import { useRoomsQuery } from "../src/lib/query/hooks/rooms";
+import { useMeSurvivalQuery } from "../src/lib/query/hooks/survival";
 import { QueryProvider } from "../src/providers/QueryProvider";
 import { RealtimeProvider } from "../src/providers/RealtimeProvider";
 import { SubModeProvider } from "../src/providers/SubModeProvider";
@@ -23,6 +32,7 @@ import { RitualMoment } from "../src/components/ritual";
 import { surface } from "../src/theme/tokens";
 
 bootstrapSentry();
+bootstrapAnalytics();
 
 /**
  * Story 6.2 AC7 — boot-time Kakao SDK init using the public Native App Key
@@ -55,6 +65,7 @@ export default function RootLayout() {
                 <PushTokenBootstrap />
                 <NotificationInvalidationBootstrap />
                 <SentryUserBinding />
+                <AnalyticsUserBinding />
                 <Stack
                   screenOptions={{
                     headerShown: false,
@@ -130,6 +141,75 @@ function SentryUserBinding() {
     if (auth.loading) return;
     setSentryUser(auth.user ? { id: auth.user.id, email: auth.user.email } : null);
   }, [auth.loading, auth.user]);
+  return null;
+}
+
+/**
+ * Story 8.5 AC3 — mirror of SentryUserBinding for PostHog. Sits inside
+ * QueryProvider so the TanStack hooks below resolve. Re-derives the
+ * non-PII person properties on auth change and pipes the stored consent
+ * decision into the SDK's runtime opt-in/out state.
+ *
+ * Unlike SentryUserBinding, this sends no email. It also omits account age
+ * until the API exposes a truthful signup timestamp; fabricated zero values
+ * would corrupt retention cohorts.
+ */
+function AnalyticsUserBinding() {
+  const auth = useAuth();
+  useEffect(() => {
+    if (!auth.loading && !auth.user) {
+      setAnalyticsUser(null);
+    }
+  }, [auth.loading, auth.user]);
+  if (auth.loading || !auth.user) return null;
+  return <AuthenticatedAnalyticsUserBinding userId={auth.user.id} />;
+}
+
+interface AuthenticatedAnalyticsUserBindingProps {
+  userId: number;
+}
+
+function AuthenticatedAnalyticsUserBinding({
+  userId,
+}: AuthenticatedAnalyticsUserBindingProps) {
+  const survivalQuery = useMeSurvivalQuery();
+  const roomsQuery = useRoomsQuery();
+  useEffect(() => {
+    if (!survivalQuery.isSuccess || !roomsQuery.isSuccess) return;
+    let cancelled = false;
+    const survivalEntries = survivalQuery.data ?? [];
+    const rooms = roomsQuery.data ?? [];
+    const currentSurvivalState = survivalEntries[0]?.status;
+    if (!currentSurvivalState) return;
+    const isRoomLeader = rooms.some((room) => room.ownerId === userId);
+    getAnalyticsConsent()
+      .then((decision) => {
+        if (cancelled || decision == null) return;
+        if (decision === "opt_out") {
+          postHogOptOut();
+          return;
+        }
+        postHogOptIn();
+        if (cancelled) return;
+        setAnalyticsUser({
+          id: userId,
+          currentSurvivalState,
+          isRoomLeader,
+        });
+      })
+      .catch(() => {
+        // SecureStore unavailable — keep fail-closed default.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    userId,
+    survivalQuery.data,
+    survivalQuery.isSuccess,
+    roomsQuery.data,
+    roomsQuery.isSuccess,
+  ]);
   return null;
 }
 
