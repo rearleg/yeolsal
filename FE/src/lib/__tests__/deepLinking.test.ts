@@ -14,6 +14,10 @@
 jest.mock("../../auth/AuthContext", () => ({
   useAuth: jest.fn(() => ({ user: null, loading: false })),
 }));
+jest.mock("../onboardingState", () => ({
+  getOnboardingState: jest.fn(),
+  setDeferredDestination: jest.fn(),
+}));
 
 jest.mock("expo-linking", () => ({
   parse: jest.fn(),
@@ -37,6 +41,10 @@ import * as SecureStore from "expo-secure-store";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { useAuth } from "../../auth/AuthContext";
 import {
+  getOnboardingState,
+  setDeferredDestination,
+} from "../onboardingState";
+import {
   __PENDING_INVITE_KEY_FOR_TESTS,
   consumePendingInviteCode,
   routeShareLink,
@@ -55,6 +63,11 @@ const mockGetItem = SecureStore.getItemAsync as jest.MockedFunction<
 const mockDeleteItem = SecureStore.deleteItemAsync as jest.MockedFunction<
   typeof SecureStore.deleteItemAsync
 >;
+const mockGetOnboardingState = getOnboardingState as jest.MockedFunction<
+  typeof getOnboardingState
+>;
+const mockSetDeferredDestination =
+  setDeferredDestination as jest.MockedFunction<typeof setDeferredDestination>;
 
 describe("deep-link routing matrix (Story 6.2 AC2)", () => {
   beforeEach(() => {
@@ -64,6 +77,14 @@ describe("deep-link routing matrix (Story 6.2 AC2)", () => {
     mockSetItem.mockReset();
     mockGetItem.mockReset();
     mockDeleteItem.mockReset();
+    mockGetOnboardingState.mockReset();
+    mockGetOnboardingState.mockResolvedValue({
+      version: 1,
+      completedAt: "2026-06-10T00:00:00.000Z",
+      deferredDestination: null,
+    });
+    mockSetDeferredDestination.mockReset();
+    mockSetDeferredDestination.mockResolvedValue(undefined);
   });
 
   it("authenticated /join?code=X → router.push(/join?code=X)", async () => {
@@ -152,6 +173,24 @@ describe("deep-link routing matrix (Story 6.2 AC2)", () => {
 
     expect(mockPush).toHaveBeenCalledWith("/join?code=WXYZ4321");
   });
+
+  it("authenticated user with incomplete onboarding preserves the join destination", async () => {
+    mockGetOnboardingState.mockResolvedValueOnce(null);
+    mockParse.mockReturnValueOnce({
+      path: "join",
+      queryParams: { code: "ABCD1234" },
+      scheme: "https",
+      hostname: "yeolsal.app",
+    } as unknown as ReturnType<typeof Linking.parse>);
+
+    await routeShareLink("https://yeolsal.app/join?code=ABCD1234", true);
+
+    expect(mockSetDeferredDestination).toHaveBeenCalledWith(
+      "/join?code=ABCD1234",
+    );
+    expect(mockReplace).toHaveBeenCalledWith("/onboarding");
+    expect(mockPush).not.toHaveBeenCalled();
+  });
 });
 
 describe("useShareLinkDeepLink lifecycle", () => {
@@ -172,6 +211,7 @@ describe("useShareLinkDeepLink lifecycle", () => {
       signUp: jest.fn(),
       signInWithKakao: jest.fn(),
       signOut: jest.fn(),
+      getLastAuthEvent: jest.fn(() => null),
     });
     mockParse.mockReturnValue({
       path: "join",

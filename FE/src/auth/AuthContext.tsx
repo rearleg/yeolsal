@@ -3,7 +3,9 @@ import { Linking } from "react-native";
 import { API_BASE_URL } from "../api/config";
 import { ApiError, apiRequest, ApiEnvelope, AuthTokens, AuthUser, clearTokens, getRefreshToken, saveTokens, setOnAuthInvalid } from "../api/client";
 import { joinRoom } from "../api/rooms";
+import { captureEvent } from "../lib/analytics";
 import { consumePendingInviteCode } from "../lib/deepLinking";
+import { setDeferredDestination } from "../lib/onboardingState";
 import { queryClient } from "../lib/query/client";
 import { purgePersistedQueries } from "../lib/query/persist";
 import { toast } from "../lib/toast";
@@ -17,6 +19,14 @@ async function clearAllCaches(): Promise<void> {
   }
 }
 
+/**
+ * Story 8.1 AC5 — transient record of which auth method most recently
+ * produced the current `user`. A restored session counts as "signIn"
+ * (force-quit + restoreSession resolves to a signIn-like flow, which is
+ * exactly the returning-user change-summary case). Never persisted.
+ */
+export type LastAuthEvent = "signUp" | "signIn" | "signInKakao" | null;
+
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
@@ -24,6 +34,7 @@ type AuthContextValue = {
   signUp: (email: string, password: string, nickname: string) => Promise<string | null>;
   signInWithKakao: () => Promise<string | null>;
   signOut: () => Promise<void>;
+  getLastAuthEvent: () => LastAuthEvent;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -32,10 +43,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const userRef = useRef<AuthUser | null>(null);
+  const lastAuthEventRef = useRef<LastAuthEvent>(null);
+
+  const getLastAuthEvent = useCallback(() => lastAuthEventRef.current, []);
 
   const handleAuthInvalid = useCallback(async () => {
     await clearAllCaches();
     userRef.current = null;
+    lastAuthEventRef.current = null;
     setUser(null);
   }, []);
 
@@ -72,6 +87,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         body: JSON.stringify({ refreshToken })
       });
       await apply(response.data);
+      lastAuthEventRef.current = "signIn";
     } catch {
       await clearTokens();
       await clearAllCaches();
@@ -89,7 +105,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ email, password })
     });
     await apply(response.data);
-    return tryConsumePendingInvite();
+    lastAuthEventRef.current = "signIn";
+    const destination = await tryConsumePendingInvite();
+    await stashDeferredDestination(destination);
+    return destination;
   }
 
   async function signUp(email: string, password: string, nickname: string) {
@@ -99,7 +118,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ email, password, nickname })
     });
     await apply(response.data);
-    return tryConsumePendingInvite();
+    lastAuthEventRef.current = "signUp";
+    // Story 8.1 AC8 — fires BEFORE tryConsumePendingInvite so a
+    // deeplink-failed signup still records.
+    captureEvent("signup.completed", { authMethod: "EMAIL" });
+    const destination = await tryConsumePendingInvite();
+    await stashDeferredDestination(destination);
+    return destination;
   }
 
   async function signInWithKakao() {
@@ -110,7 +135,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       body: JSON.stringify({ code })
     });
     await apply(response.data);
-    return tryConsumePendingInvite();
+    lastAuthEventRef.current = "signInKakao";
+    if (response.data.newAccount === true) {
+      lastAuthEventRef.current = "signUp";
+      captureEvent("signup.completed", { authMethod: "KAKAO" });
+    }
+    const destination = await tryConsumePendingInvite();
+    await stashDeferredDestination(destination);
+    return destination;
   }
 
   async function signOut() {
@@ -128,10 +160,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await clearTokens();
     await clearAllCaches();
     userRef.current = null;
+    lastAuthEventRef.current = null;
     setUser(null);
   }
 
-  const value = useMemo(() => ({ user, loading, signIn, signUp, signInWithKakao, signOut }), [user, loading]);
+  const value = useMemo(
+    () => ({ user, loading, signIn, signUp, signInWithKakao, signOut, getLastAuthEvent }),
+    [user, loading, getLastAuthEvent]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -161,6 +197,17 @@ async function tryConsumePendingInvite(): Promise<string | null> {
     }
     return null;
   }
+}
+
+/**
+ * Story 8.1 AC9 — stashes the post-auth deeplink destination into the
+ * durable onboarding slot so `<OnboardingGate>` / the onboarding screen
+ * can route to it after S5 (survives a force-quit between auth and
+ * onboarding). A null destination writes nothing — overwriting would
+ * wipe a destination stashed by an earlier interrupted auth.
+ */
+async function stashDeferredDestination(destination: string | null): Promise<void> {
+  await setDeferredDestination(destination);
 }
 
 function openKakaoAuthorization(): Promise<string> {

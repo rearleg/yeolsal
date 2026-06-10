@@ -12,7 +12,13 @@ const REFRESH_TOKEN_KEY = "yeosal.refreshToken";
 
 export type ApiEnvelope<T> = { data: T };
 export type AuthUser = { id: number; email: string; nickname: string; timezone: string };
-export type AuthTokens = { accessToken: string; refreshToken: string; tokenType: string; user: AuthUser };
+export type AuthTokens = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  user: AuthUser;
+  newAccount?: boolean;
+};
 
 /**
  * Thrown by {@link apiRequest} for any non-2xx response. Subclass of Error

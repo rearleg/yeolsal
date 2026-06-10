@@ -3,6 +3,10 @@ import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import * as SecureStore from "expo-secure-store";
 import { useAuth } from "../auth/AuthContext";
+import {
+  getOnboardingState,
+  setDeferredDestination,
+} from "./onboardingState";
 
 /**
  * SecureStore slot that bridges an unauthenticated KakaoTalk-share tap
@@ -70,6 +74,12 @@ export async function routeShareLink(
   if (!code) return;
 
   if (isAuthed) {
+    const onboardingState = await getOnboardingState();
+    if (onboardingState?.completedAt == null) {
+      await setDeferredDestination(`/join?code=${encodeURIComponent(code)}`);
+      router.replace("/onboarding");
+      return;
+    }
     router.push(`/join?code=${encodeURIComponent(code)}`);
     return;
   }

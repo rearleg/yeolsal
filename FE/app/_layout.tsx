@@ -1,8 +1,9 @@
-import { Stack } from "expo-router";
+import { router, Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { getOnboardingState } from "../src/lib/onboardingState";
 import { KakaoSdkBootstrap } from "../src/lib/KakaoSdkBootstrap";
 import { useShareLinkDeepLink } from "../src/lib/deepLinking";
 import { useWantedSans } from "../src/lib/fonts";
@@ -66,6 +67,7 @@ export default function RootLayout() {
                 <NotificationInvalidationBootstrap />
                 <SentryUserBinding />
                 <AnalyticsUserBinding />
+                <OnboardingGate />
                 <Stack
                   screenOptions={{
                     headerShown: false,
@@ -73,7 +75,17 @@ export default function RootLayout() {
                     // window from bleeding through during route transitions.
                     contentStyle: { backgroundColor: surface.page },
                   }}
-                />
+                >
+                  {/*
+                    Story 8.1 — onboarding is non-dismissable: no header,
+                    no back gesture. Completion routes away via
+                    router.replace inside the screen itself.
+                  */}
+                  <Stack.Screen
+                    name="onboarding"
+                    options={{ title: "소개", headerShown: false, gestureEnabled: false }}
+                  />
+                </Stack>
                 {/*
                   Story 1.7 — RitualMoment 06:00–06:05 KST sacred wrapper.
                   Renders as a sibling overlay on top of the Stack so it
@@ -132,6 +144,34 @@ function PushTokenBootstrap() {
       // changes; swallow to avoid breaking app boot.
     });
   }, [auth.loading, auth.user]);
+  return null;
+}
+
+/**
+ * Story 8.1 — single centralized onboarding gate (AC0: index.tsx / login /
+ * signup must NOT redirect to /onboarding themselves). Any authed user
+ * without a completed onboarding record is re-routed to /onboarding, no
+ * matter which route they land on — the pathname dependency makes the gate
+ * win the race against login/signup's unconditional replace("/today").
+ * Fail-open by construction: a SecureStore read failure reads as "no
+ * record", so the user re-onboards once rather than getting stuck.
+ */
+function OnboardingGate() {
+  const auth = useAuth();
+  const pathname = usePathname();
+  useEffect(() => {
+    if (auth.loading || !auth.user) return;
+    if (pathname === "/onboarding") return;
+    let cancelled = false;
+    getOnboardingState().then((state) => {
+      if (cancelled) return;
+      if (state?.completedAt != null) return;
+      router.replace("/onboarding");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.loading, auth.user, pathname]);
   return null;
 }
 

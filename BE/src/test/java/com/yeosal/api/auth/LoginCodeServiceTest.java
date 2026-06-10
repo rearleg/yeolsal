@@ -41,7 +41,7 @@ class LoginCodeServiceTest {
     @Test
     @DisplayName("issue: returns Base64URL-encoded 32-byte code without padding")
     void issue_returnsCodeAndPersists() {
-        String code = service.issue(user);
+        String code = service.issue(user, true);
 
         // Base64URL of 32 bytes (no padding) = 43 chars
         assertThat(code).hasSize(43);
@@ -52,12 +52,13 @@ class LoginCodeServiceTest {
     @Test
     @DisplayName("exchange: returns user and marks consumed when valid")
     void exchange_validCode_returnsUser() {
-        LoginCode lc = new LoginCode("abc", user, now.plus(Duration.ofMinutes(1)));
+        LoginCode lc = new LoginCode("abc", user, now.plus(Duration.ofMinutes(1)), true);
         when(repo.findByCodeAndConsumedAtIsNull("abc")).thenReturn(Optional.of(lc));
 
-        User result = service.exchange("abc");
+        LoginCodeService.ExchangeResult result = service.exchange("abc");
 
-        assertThat(result).isSameAs(user);
+        assertThat(result.user()).isSameAs(user);
+        assertThat(result.newAccount()).isTrue();
         assertThat(lc.getConsumedAt()).isEqualTo(now);
     }
 
@@ -85,7 +86,7 @@ class LoginCodeServiceTest {
     @Test
     @DisplayName("exchange: throws when code expired and does not consume")
     void exchange_expiredCode_throws() {
-        LoginCode expired = new LoginCode("old", user, now.minus(Duration.ofSeconds(1)));
+        LoginCode expired = new LoginCode("old", user, now.minus(Duration.ofSeconds(1)), false);
         when(repo.findByCodeAndConsumedAtIsNull("old")).thenReturn(Optional.of(expired));
 
         assertThatThrownBy(() -> service.exchange("old"))
