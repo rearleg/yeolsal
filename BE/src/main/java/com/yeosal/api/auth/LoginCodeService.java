@@ -46,17 +46,17 @@ public class LoginCodeService {
     }
 
     @Transactional
-    public String issue(User user) {
+    public String issue(User user, boolean newAccount) {
         byte[] bytes = new byte[RANDOM_BYTES];
         secureRandom.nextBytes(bytes);
         String code = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         Instant expiresAt = clock.instant().plus(Duration.ofMinutes(TTL_MINUTES));
-        loginCodes.save(new LoginCode(code, user, expiresAt));
+        loginCodes.save(new LoginCode(code, user, expiresAt, newAccount));
         return code;
     }
 
     @Transactional
-    public User exchange(String code) {
+    public ExchangeResult exchange(String code) {
         if (code == null || code.isBlank()) {
             throw new BadRequestException("invalid login code");
         }
@@ -67,6 +67,8 @@ public class LoginCodeService {
             throw new BadRequestException("invalid login code");
         }
         loginCode.consume(now);
-        return loginCode.getUser();
+        return new ExchangeResult(loginCode.getUser(), loginCode.isNewAccount());
     }
+
+    public record ExchangeResult(User user, boolean newAccount) {}
 }

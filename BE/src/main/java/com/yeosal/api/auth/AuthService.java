@@ -54,7 +54,7 @@ public class AuthService {
                 passwordEncoder.encode(request.password()),
                 AuthProvider.EMAIL
         ));
-        return issue(user);
+        return issue(user, true);
     }
 
     @Transactional
@@ -64,7 +64,7 @@ public class AuthService {
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadRequestException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
-        return issue(user);
+        return issue(user, false);
     }
 
     /**
@@ -74,17 +74,18 @@ public class AuthService {
      * URL query string.
      */
     @Transactional
-    public User kakaoUserFor(String authorizationCode) {
+    public KakaoLoginUser kakaoUserFor(String authorizationCode) {
         KakaoAuthClient.KakaoUser kakaoUser = kakaoAuthClient.fetchUser(authorizationCode);
-        User user = users.findByEmail(kakaoUser.email().toLowerCase())
-                .orElseGet(() -> users.save(new User(
+        var existing = users.findByEmail(kakaoUser.email().toLowerCase());
+        boolean newAccount = existing.isEmpty();
+        User user = existing.orElseGet(() -> users.save(new User(
                         kakaoUser.email().toLowerCase(),
                         kakaoUser.nickname(),
                         null,
                         AuthProvider.KAKAO
-                )));
+        )));
         user.setAuthProvider(AuthProvider.KAKAO);
-        return user;
+        return new KakaoLoginUser(user, newAccount);
     }
 
     /**
@@ -93,7 +94,8 @@ public class AuthService {
      */
     @Transactional
     public AuthController.AuthTokens exchangeKakaoLoginCode(String code) {
-        return issue(loginCodeService.exchange(code));
+        LoginCodeService.ExchangeResult result = loginCodeService.exchange(code);
+        return issue(result.user(), result.newAccount());
     }
 
     @Transactional
@@ -104,7 +106,7 @@ public class AuthService {
             throw new BadRequestException("만료된 refresh token입니다.");
         }
         stored.revoke();
-        return issue(stored.getUser());
+        return issue(stored.getUser(), false);
     }
 
     @Transactional
@@ -112,15 +114,23 @@ public class AuthService {
         refreshTokens.findByTokenHash(hash(refreshToken)).ifPresent(RefreshToken::revoke);
     }
 
-    private AuthController.AuthTokens issue(User user) {
+    private AuthController.AuthTokens issue(User user, boolean newAccount) {
         String refreshToken = UUID.randomUUID() + "." + UUID.randomUUID();
         refreshTokens.save(new RefreshToken(
                 user,
                 hash(refreshToken),
                 Instant.now().plusSeconds(refreshTokenDays * 24 * 60 * 60)
         ));
-        return new AuthController.AuthTokens(jwtService.createAccessToken(user), refreshToken, "Bearer", AuthController.UserDto.from(user));
+        return new AuthController.AuthTokens(
+                jwtService.createAccessToken(user),
+                refreshToken,
+                "Bearer",
+                AuthController.UserDto.from(user),
+                newAccount
+        );
     }
+
+    public record KakaoLoginUser(User user, boolean newAccount) {}
 
     private String hash(String value) {
         try {

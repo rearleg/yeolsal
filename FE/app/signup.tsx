@@ -30,8 +30,10 @@ export default function SignupScreen() {
     setFormError(null);
     setSubmitting(true);
     try {
-      const destination = await signUp(email.trim(), password, nickname.trim());
-      router.replace(destination ?? "/today");
+      // Story 8.1 — destination handoff happens via the SecureStore slot;
+      // <OnboardingGate> owns the post-auth re-route.
+      await signUp(email.trim(), password, nickname.trim());
+      router.replace("/today");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "가입에 실패했어요.");
     } finally {

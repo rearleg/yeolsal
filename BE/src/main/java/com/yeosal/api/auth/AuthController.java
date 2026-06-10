@@ -64,8 +64,8 @@ public class AuthController {
         // single-use login code instead of access/refresh tokens. The app
         // exchanges the code for tokens via POST /auth/kakao/exchange so
         // tokens never appear in the deep-link query string.
-        var user = authService.kakaoUserFor(code);
-        String loginCode = loginCodeService.issue(user);
+        var result = authService.kakaoUserFor(code);
+        String loginCode = loginCodeService.issue(result.user(), result.newAccount());
         String target = mobileRedirectUri + "?code=" + encode(loginCode);
         return new RedirectView(target);
     }
@@ -90,7 +90,13 @@ public class AuthController {
     public record LoginRequest(@Email String email, @NotBlank String password) {}
     public record KakaoExchangeRequest(@NotBlank String code) {}
     public record RefreshRequest(@NotBlank String refreshToken) {}
-    public record AuthTokens(String accessToken, String refreshToken, String tokenType, UserDto user) {}
+    public record AuthTokens(
+            String accessToken,
+            String refreshToken,
+            String tokenType,
+            UserDto user,
+            boolean newAccount
+    ) {}
     public record UserDto(long id, String email, String nickname, String timezone) {
         static UserDto from(User user) {
             return new UserDto(user.getId(), user.getEmail(), user.getNickname(), user.getTimezone());

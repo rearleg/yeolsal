@@ -36,6 +36,9 @@ public class LoginCode {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Column(name = "new_account", nullable = false)
+    private boolean newAccount;
+
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
@@ -44,10 +47,11 @@ public class LoginCode {
 
     protected LoginCode() {}
 
-    public LoginCode(String code, User user, Instant expiresAt) {
+    public LoginCode(String code, User user, Instant expiresAt, boolean newAccount) {
         this.code = code;
         this.user = user;
         this.expiresAt = expiresAt;
+        this.newAccount = newAccount;
     }
 
     @PrePersist
@@ -61,6 +65,7 @@ public class LoginCode {
     public String getCode() { return code; }
     public User getUser() { return user; }
     public Instant getExpiresAt() { return expiresAt; }
+    public boolean isNewAccount() { return newAccount; }
     public Instant getConsumedAt() { return consumedAt; }
     public Instant getCreatedAt() { return createdAt; }
 

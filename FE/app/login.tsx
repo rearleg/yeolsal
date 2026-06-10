@@ -7,6 +7,7 @@ import { Card } from "../src/components/ui/Card";
 import { Button } from "../src/components/ui/Button";
 import { Text } from "../src/components/ui/Text";
 import { toast } from "../src/lib/toast";
+import { getOnboardingState } from "../src/lib/onboardingState";
 import { palette, semantic, surface } from "../src/theme/tokens";
 import { space } from "../src/theme/spacing";
 
@@ -37,8 +38,11 @@ export default function LoginScreen() {
     setSubmitting(true);
     interactiveAuthStarted.current = true;
     try {
+      // Story 8.1 — the deeplink destination is stashed by AuthContext;
+      // <OnboardingGate> re-routes when onboarding is owed, and the
+      // onboarding screen forwards to the stashed destination after S5.
       const destination = await signIn(email.trim(), password);
-      router.replace(destination ?? "/today");
+      await routeAfterAuth(destination);
     } catch (error) {
       interactiveAuthStarted.current = false;
       toast.error(error instanceof Error ? error.message : "로그인에 실패했어요.");
@@ -52,7 +56,7 @@ export default function LoginScreen() {
     interactiveAuthStarted.current = true;
     try {
       const destination = await signInWithKakao();
-      router.replace(destination ?? "/today");
+      await routeAfterAuth(destination);
     } catch (error) {
       interactiveAuthStarted.current = false;
       toast.error(error instanceof Error ? error.message : "카카오 로그인에 실패했어요.");
@@ -109,6 +113,11 @@ export default function LoginScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+async function routeAfterAuth(destination: string | null): Promise<void> {
+  const state = await getOnboardingState();
+  router.replace(state?.completedAt ? destination ?? "/today" : "/today");
 }
 
 const styles = StyleSheet.create({
