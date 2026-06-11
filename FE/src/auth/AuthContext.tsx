@@ -228,7 +228,7 @@ function openKakaoAuthorization(): Promise<string> {
       if (code) {
         resolve(code);
       } else if (error) {
-        reject(new Error(`Kakao 로그인 실패: ${error}`));
+        reject(new Error(`Kakao 로그인을 마치지 못했어요: ${error}`));
       }
     });
 

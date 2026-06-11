@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectFiles, lintContent, lintFiles } from "../brand-voice-lint.ts";
@@ -222,4 +224,83 @@ export function Multi() {
   const r = lintContent("FE/src/components/example/Multi.tsx", source);
   assert.equal(r.hardViolations.length, 1);
   assert.match(r.hardViolations[0]!.message, /survival\.RED\.label/);
+});
+
+test("AC2 #1 — AVOID term inside a // line comment is NOT a Rule-2 hit", () => {
+  const r = lintContent("FE/src/x.ts", "// 실패");
+  assert.equal(r.warnings.filter((v) => v.rule === 2).length, 0);
+});
+
+test("AC2 #2 — AVOID terms inside a /* */ block comment are NOT Rule-2 hits", () => {
+  const r = lintContent("FE/src/x.ts", "/* 벌금 잃었다 */");
+  assert.equal(r.warnings.filter((v) => v.rule === 2).length, 0);
+});
+
+test("AC2 #3 — AVOID term inside a string literal IS reported at the right line:column", () => {
+  const r = lintContent("FE/src/x.ts", 'const m = "실패";');
+  const rule2 = r.warnings.filter((v) => v.rule === 2);
+  assert.equal(rule2.length, 1);
+  assert.equal(rule2[0]!.line, 1);
+  assert.equal(rule2[0]!.column, 12, "column of 실 in `const m = \"실패\";` is 12");
+});
+
+test("AC2 #4 — // inside a string literal is NOT a comment (URL term still reported)", () => {
+  const r = lintContent("FE/src/x.ts", 'const u = "https://a.io/실패";');
+  assert.equal(r.warnings.filter((v) => v.rule === 2).length, 1);
+});
+
+test("AC2 #5 — // inside a template literal is string content, still reported", () => {
+  const r = lintContent("FE/src/x.ts", "const t = `안전 // 실패`;");
+  assert.equal(r.warnings.filter((v) => v.rule === 2).length, 1);
+});
+
+test("AC2 — quotes inside a regex do not prevent masking a following comment", () => {
+  const r = lintContent("FE/src/x.ts", 'const re = /"quoted"/; // 실패');
+  assert.equal(r.warnings.filter((v) => v.rule === 2).length, 0);
+});
+
+test("AC1 #6 — collectFiles excludes *.test.{ts,tsx}, includes plain .ts", () => {
+  const dir = mkdtempSync(resolve(tmpdir(), "bvl-ac1-"));
+  try {
+    writeFileSync(resolve(dir, "foo.ts"), "export const a = 1;\n");
+    writeFileSync(resolve(dir, "foo.test.ts"), "export const b = 2;\n");
+    writeFileSync(resolve(dir, "foo.test.tsx"), "export const c = 3;\n");
+    const files = collectFiles([{ absPath: dir, label: "tmp" }]);
+    const names = files.map((f) => f.absPath.slice(f.absPath.lastIndexOf("/") + 1));
+    assert.ok(names.includes("foo.ts"), "foo.ts must be included");
+    assert.ok(!names.includes("foo.test.ts"), "foo.test.ts must be excluded");
+    assert.ok(!names.includes("foo.test.tsx"), "foo.test.tsx must be excluded");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("AC3 #7 — .properties scans values but excludes keys and comment lines", () => {
+  const content = [
+    "# 실패 in a comment line is ignored",
+    "! 실패 in another comment line is ignored",
+    "실패.key=clean value",
+    "err.fail=가입에 실패했어요",
+    "err.space 가입에 실패했어요",
+  ].join("\n");
+  const r = lintContent("BE/src/main/resources/messages.properties", content);
+  const rule2 = r.warnings.filter((v) => v.rule === 2);
+  assert.equal(rule2.length, 2, "only the equals- and whitespace-delimited values are hits");
+  assert.deepEqual(
+    rule2.map((v) => v.line),
+    [4, 5],
+    "key text and both comment forms are excluded",
+  );
+});
+
+test("AC8 — Rule 1 (HARD) and Rule 3 (WARN) still scan raw content", () => {
+  const r1 = lintContent("FE/src/components/example/Bad.tsx", "const c = survival.RED.color;");
+  assert.equal(r1.hardViolations.length, 1, "Rule 1 still HARD-fails");
+  assert.equal(r1.hardViolations[0]!.rule, 1);
+  // Rule 3 is NOT comment-masked: a hex inside a // comment still warns.
+  const r3 = lintContent("FE/src/styles/bad.ts", "// #FF0000");
+  assert.ok(
+    r3.warnings.some((v) => v.rule === 3),
+    "Rule 3 scans raw content, including comments",
+  );
 });

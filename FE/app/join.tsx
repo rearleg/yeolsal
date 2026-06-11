@@ -55,7 +55,11 @@ export default function JoinRoomScreen() {
         toast.error("초대 코드가 만료되었어요.");
         return;
       }
-      toast.error(error instanceof Error ? error.message : "그룹 참여에 실패했어요.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "그룹에 참여하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(false);
     }

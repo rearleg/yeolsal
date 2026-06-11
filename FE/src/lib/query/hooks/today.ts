@@ -16,7 +16,7 @@ import { ApiError } from "../../../api/client";
 import type { DailyEntryDto, ReflectionDto } from "../../../api/types";
 
 const REFLECTION_ALREADY_SUBMITTED = "이미 회고를 제출했습니다.";
-const REFLECTION_GENERIC_ERROR = "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.";
+const REFLECTION_GENERIC_ERROR = "회고를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
 
 /**
  * Invalidate every cached room-chat list so a goal/reflection mutation —

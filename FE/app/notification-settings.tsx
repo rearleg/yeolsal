@@ -55,7 +55,11 @@ export default function NotificationSettingsScreen() {
       setPrefs(next);
       toast.success("알림 설정을 저장했어요.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "알림 설정 저장에 실패했어요.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "알림 설정을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
     } finally {
       setSaving(false);
     }

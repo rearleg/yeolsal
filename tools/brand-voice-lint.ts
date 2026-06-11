@@ -72,6 +72,9 @@ const DEFAULT_ROOTS: readonly ScanRoot[] = [
 const SCAN_EXT = new Set([".ts", ".tsx", ".svg"]);
 const SVG_PAINT_ATTRIBUTE_RE = /\b(?:fill|stroke)\s*=\s*(["'])(.*?)\1/g;
 const TOKENS_JSON_PATH = resolve(REPO_ROOT, "FE/src/theme/tokens.json");
+// BE message bundles are scanned when present; current BE strings are inline.
+const BE_MESSAGES_DIR = resolve(REPO_ROOT, "BE/src/main/resources");
+const MESSAGES_PROPERTIES_RE = /^messages.*\.properties$/;
 const SKIP_DIR_SEGMENTS = new Set([
   "node_modules",
   ".expo",
@@ -84,6 +87,11 @@ const SKIP_DIR_SEGMENTS = new Set([
 interface FileEntry {
   readonly absPath: string;
   readonly relPath: string;
+}
+
+// Test fixtures legitimately contain banned terms and token examples.
+function isTestFile(name: string): boolean {
+  return /\.test\.tsx?$/.test(name);
 }
 
 export function collectFiles(roots: readonly ScanRoot[]): FileEntry[] {
@@ -119,6 +127,7 @@ function walkDir(dir: string, entries: FileEntry[]): void {
       continue;
     }
     if (!dirent.isFile()) continue;
+    if (isTestFile(dirent.name)) continue;
     const dotIdx = dirent.name.lastIndexOf(".");
     if (dotIdx < 0) continue;
     const ext = dirent.name.slice(dotIdx).toLowerCase();
@@ -132,6 +141,30 @@ function makeEntry(absPath: string): FileEntry {
     absPath,
     relPath: relative(REPO_ROOT, absPath) || absPath,
   };
+}
+
+// Contributes nothing when the resources directory has no matching bundle.
+function collectMessagesProperties(dir: string = BE_MESSAGES_DIR): FileEntry[] {
+  let dirStat;
+  try {
+    dirStat = statSync(dir);
+  } catch {
+    return [];
+  }
+  if (!dirStat.isDirectory()) return [];
+  let dirents;
+  try {
+    dirents = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: FileEntry[] = [];
+  for (const dirent of dirents) {
+    if (!dirent.isFile()) continue;
+    if (!MESSAGES_PROPERTIES_RE.test(dirent.name)) continue;
+    out.push(makeEntry(join(dir, dirent.name)));
+  }
+  return out;
 }
 
 function locate(content: string, index: number): { line: number; column: number } {
@@ -200,15 +233,114 @@ function lintFileRule1(file: FileEntry, content: string): Violation[] {
   return violations;
 }
 
+type MaskState =
+  | "CODE"
+  | "LINE_COMMENT"
+  | "BLOCK_COMMENT"
+  | "SQUOTE"
+  | "DQUOTE"
+  | "BACKTICK"
+  | "REGEX";
+
+interface MaskCursor {
+  state: MaskState;
+  index: number;
+  regexCharClass: boolean;
+}
+
+function canStartRegex(previous: string): boolean {
+  return previous === "" || /[=(:,!&|?{};\[\]]/.test(previous);
+}
+
+function consumeLiteral(content: string, out: string[], cursor: MaskCursor): boolean {
+  const ch = content[cursor.index]!;
+  const next = content[cursor.index + 1];
+  out.push(ch);
+  if (ch === "\\" && next !== undefined) {
+    out.push(next);
+    cursor.index += 2;
+    return false;
+  }
+  if (cursor.state === "REGEX") {
+    if (ch === "[") cursor.regexCharClass = true;
+    if (ch === "]") cursor.regexCharClass = false;
+    if (ch === "/" && !cursor.regexCharClass) cursor.state = "CODE";
+  } else {
+    const quote = cursor.state === "SQUOTE" ? "'" : cursor.state === "DQUOTE" ? '"' : "`";
+    if (ch === quote) cursor.state = "CODE";
+  }
+  cursor.index += 1;
+  return cursor.state === "CODE";
+}
+
+function consumeComment(content: string, out: string[], cursor: MaskCursor): void {
+  const ch = content[cursor.index]!;
+  const next = content[cursor.index + 1];
+  if (cursor.state === "LINE_COMMENT" && ch === "\n") {
+    cursor.state = "CODE";
+    out.push("\n");
+    cursor.index += 1;
+  } else if (cursor.state === "BLOCK_COMMENT" && ch === "*" && next === "/") {
+    cursor.state = "CODE";
+    out.push("  ");
+    cursor.index += 2;
+  } else {
+    out.push(ch === "\n" ? "\n" : " ");
+    cursor.index += 1;
+  }
+}
+
+// Comments become spaces while literals remain byte-for-byte aligned.
+function maskComments(content: string): string {
+  const out: string[] = [];
+  const cursor: MaskCursor = { state: "CODE", index: 0, regexCharClass: false };
+  let previousSignificant = "";
+  while (cursor.index < content.length) {
+    const ch = content[cursor.index]!;
+    const next = content[cursor.index + 1];
+    if (cursor.state !== "CODE") {
+      const priorState = cursor.state;
+      if (priorState.endsWith("COMMENT")) consumeComment(content, out, cursor);
+      else {
+        const closed = consumeLiteral(content, out, cursor);
+        if (closed) previousSignificant = "L";
+      }
+      continue;
+    }
+    if (ch === "/" && next === "/") cursor.state = "LINE_COMMENT";
+    else if (ch === "/" && next === "*") cursor.state = "BLOCK_COMMENT";
+    else if (ch === "'") cursor.state = "SQUOTE";
+    else if (ch === '"') cursor.state = "DQUOTE";
+    else if (ch === "`") cursor.state = "BACKTICK";
+    else if (ch === "/" && canStartRegex(previousSignificant)) cursor.state = "REGEX";
+    if (!cursor.state.endsWith("COMMENT") && cursor.state !== "CODE") {
+      out.push(ch);
+      cursor.index += 1;
+      continue;
+    }
+    if (cursor.state !== "CODE") continue;
+    out.push(ch);
+    if (!/\s/.test(ch)) previousSignificant = ch;
+    cursor.index += 1;
+  }
+  return out.join("");
+}
+
 function lintFileRule2(file: FileEntry, content: string): Violation[] {
+  // Scan a comment-masked copy so AVOID words documented inside comments
+  // (e.g. the lexicon-documentation block comments in SpectatorReadOnlyBanner /
+  // SelfReviveCTA / GraceBanner) are not flagged, while string-literal user
+  // copy stays in scope. Positions are identical to the raw string by
+  // construction, so locate() reports the true line:column.
+  const masked = maskComments(content);
   const violations: Violation[] = [];
   for (const term of AVOID_LEXICON) {
     let from = 0;
     for (;;) {
-      const idx = content.indexOf(term, from);
+      const idx = masked.indexOf(term, from);
       if (idx < 0) break;
       from = idx + term.length;
-      const pos = locate(content, idx);
+      const pos = locate(masked, idx);
       violations.push({
         rule: 2,
         file: file.relPath,
@@ -217,6 +349,62 @@ function lintFileRule2(file: FileEntry, content: string): Violation[] {
         message: `Rule 2 (AVOID lexicon): banned word '${term}' present — prefer the PRD §FR-8.8.x positive-frame equivalents.`,
       });
     }
+  }
+  return violations;
+}
+
+function isPropertiesFile(relPath: string): boolean {
+  return relPath.toLowerCase().endsWith(".properties");
+}
+
+// Java properties also permit unescaped whitespace as the key/value separator.
+function findPropertyValueStart(line: string): number {
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]!;
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    if (ch !== "=" && ch !== ":" && !/\s/.test(ch)) continue;
+    let valueStart = i;
+    while (valueStart < line.length && /\s/.test(line[valueStart]!)) valueStart += 1;
+    if (line[valueStart] === "=" || line[valueStart] === ":") valueStart += 1;
+    while (valueStart < line.length && /\s/.test(line[valueStart]!)) valueStart += 1;
+    return valueStart;
+  }
+  return -1;
+}
+
+// Message bundles get Rule 2 only. Unicode escapes are not decoded.
+function lintPropertiesRule2(file: FileEntry, content: string): Violation[] {
+  const violations: Violation[] = [];
+  const lines = content.split("\n");
+  let lineStart = 0;
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    if (trimmed.length > 0 && !trimmed.startsWith("#") && !trimmed.startsWith("!")) {
+      const valueStart = findPropertyValueStart(line);
+      if (valueStart >= 0) {
+        const value = line.slice(valueStart);
+        for (const term of AVOID_LEXICON) {
+          let from = 0;
+          for (;;) {
+            const idx = value.indexOf(term, from);
+            if (idx < 0) break;
+            from = idx + term.length;
+            const pos = locate(content, lineStart + valueStart + idx);
+            violations.push({
+              rule: 2,
+              file: file.relPath,
+              line: pos.line,
+              column: pos.column,
+              message: `Rule 2 (AVOID lexicon): banned word '${term}' present in a message value — prefer the PRD §FR-8.8.x positive-frame equivalents.`,
+            });
+          }
+        }
+      }
+    }
+    lineStart += line.length + 1; // +1 for the "\n" consumed by split
   }
   return violations;
 }
@@ -343,6 +531,10 @@ export function lintFiles(files: readonly FileEntry[]): LintReport {
     } catch {
       continue;
     }
+    if (isPropertiesFile(file.relPath)) {
+      warnings.push(...lintPropertiesRule2(file, content));
+      continue;
+    }
     if (isSvgFile(file.relPath)) {
       // SVG asset files: only Rule 3 with allowlist applies. Rules 1
       // (survival color packed-type) and 2 (AVOID lexicon) are TS/TSX
@@ -369,6 +561,9 @@ export function lintContent(
     };
   }
   const file: FileEntry = { absPath: relPath, relPath };
+  if (isPropertiesFile(relPath)) {
+    return { hardViolations: [], warnings: lintPropertiesRule2(file, content) };
+  }
   if (isSvgFile(relPath)) {
     const allowlist = options?.hexAllowlist ?? loadHexAllowlist();
     return {
@@ -391,6 +586,9 @@ export const __testing = {
   STATES,
   SURVIVAL_LABELS,
   AVOID_LEXICON,
+  maskComments,
+  collectMessagesProperties,
+  lintPropertiesRule2,
 };
 
 function resolveRootsFromArgv(argv: readonly string[]): ScanRoot[] {
@@ -404,6 +602,10 @@ function resolveRootsFromArgv(argv: readonly string[]): ScanRoot[] {
 function main(argv: readonly string[]): number {
   const roots = resolveRootsFromArgv(argv);
   const files = collectFiles(roots);
+  // Explicit paths remain caller-scoped; the default scan includes BE bundles.
+  if (argv.length === 0) {
+    files.push(...collectMessagesProperties());
+  }
   if (files.length === 0) {
     console.warn(
       `[brand-voice-lint] No *.ts / *.tsx / *.svg files found under: ${roots.map((r) => r.label).join(", ")}`,
