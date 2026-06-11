@@ -1,0 +1,17 @@
+# Brand-voice release-gate reviewers.
+#
+# These owners request review on the per-release brand-voice artifacts. GitHub treats multiple owners
+# on one pattern as alternatives; CODEOWNERS alone does not require every listed owner to approve.
+# The required "Brand-voice release gate / PM + designer brand-voice approval" workflow verifies one
+# approval from each role using repository variables, and also requires the per-release checklist.
+#
+# PLACEHOLDER: both slots are @rearleg for the solo v1 build. Replace with the real PM and designer
+# GitHub accounts post-merge, and configure BRAND_VOICE_PM_REVIEWERS plus
+# BRAND_VOICE_DESIGNER_REVIEWERS as disjoint comma-separated login lists. Distinct accounts are
+# required for a genuine joint gate. See docs/brand-voice-review.md.
+#
+# Scope is intentionally narrow: only the release-review artifacts are owned here, so everyday FE/BE
+# copy PRs are not routed through brand-voice reviewers.
+
+/docs/releases/             @rearleg @rearleg
+/docs/brand-voice-review.md @rearleg @rearleg
