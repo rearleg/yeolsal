@@ -22,7 +22,9 @@ if [ -x "$ROOT_DIR/tools/node_modules/.bin/tsx" ]; then
   # Story 8.5 AC12 — warn-only analytics taxonomy lint. Exits 0 unless
   # docs/analytics.md is missing or has no fenced catalogue block.
   (cd "$ROOT_DIR" && tools/node_modules/.bin/tsx tools/analytics-taxonomy-lint.ts)
-  (cd "$ROOT_DIR/tools" && ./node_modules/.bin/tsx --test __tests__/brand-voice-lint.test.ts __tests__/contrast-check.test.ts __tests__/analytics-taxonomy-lint.test.ts)
+  # Story 8.3 AC4 — warn-only ASO copy lint.
+  (cd "$ROOT_DIR" && tools/node_modules/.bin/tsx tools/aso-copy-lint.ts)
+  (cd "$ROOT_DIR/tools" && ./node_modules/.bin/tsx --test __tests__/brand-voice-lint.test.ts __tests__/contrast-check.test.ts __tests__/analytics-taxonomy-lint.test.ts __tests__/aso-copy-lint.test.ts)
 else
   echo "tools dependencies are not installed; skipping brand-voice-lint + contrast-check + analytics-taxonomy-lint. Run npm install in yeosal/tools."
 fi
