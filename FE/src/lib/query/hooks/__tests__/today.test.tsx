@@ -491,7 +491,7 @@ describe("useSubmitReflection", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(errorSpy).toHaveBeenCalledWith(
-      "회고 저장에 실패했어요. 잠시 뒤 다시 시도해 주세요.",
+      "회고를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
     );
     expect(captureMock).toHaveBeenCalledWith(apiError, { kind: "mutation", key: qk.today });
   });

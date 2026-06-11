@@ -45,7 +45,11 @@ export default function LoginScreen() {
       await routeAfterAuth(destination);
     } catch (error) {
       interactiveAuthStarted.current = false;
-      toast.error(error instanceof Error ? error.message : "로그인에 실패했어요.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "로그인을 마치지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -59,7 +63,11 @@ export default function LoginScreen() {
       await routeAfterAuth(destination);
     } catch (error) {
       interactiveAuthStarted.current = false;
-      toast.error(error instanceof Error ? error.message : "카카오 로그인에 실패했어요.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "카카오 로그인을 마치지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(false);
     }

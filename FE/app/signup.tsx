@@ -35,7 +35,11 @@ export default function SignupScreen() {
       await signUp(email.trim(), password, nickname.trim());
       router.replace("/today");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "가입에 실패했어요.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "가입을 마치지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(false);
     }
