@@ -6,6 +6,7 @@
   "scripts": {
     "lint:brand-voice": "tsx brand-voice-lint.ts",
     "lint:analytics-taxonomy": "tsx analytics-taxonomy-lint.ts",
+    "lint:aso-copy": "tsx aso-copy-lint.ts",
     "check:contrast": "tsx contrast-check.ts",
     "test": "tsx --test __tests__/**/*.test.ts",
     "typecheck": "tsc --noEmit"
