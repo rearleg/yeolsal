@@ -19,13 +19,21 @@ import {
   type RevivalEventDto,
   type RevivalSource,
 } from "../../../api/revival";
+import { captureEvent } from "../../analytics";
 import { qk } from "../keys";
 
 export function useSelfRevival(roomId: number) {
   const queryClient = useQueryClient();
   return useMutation<RevivalEventDto, ApiError, RevivalSource>({
     mutationFn: (source) => postSelfRevival(roomId, source),
-    onSuccess: () => {
+    // Analytics — revival funnel (docs/analytics.md §revival flows). The
+    // event names are locked in ANALYTICS_EVENTS; properties carry the source
+    // and failure reason for the PERSONAL_POINTS / FREE_TICKET split.
+    onMutate: (source) => {
+      captureEvent("revival.attempted", { source, roomId });
+    },
+    onSuccess: (_data, source) => {
+      captureEvent("revival.succeeded", { source, roomId });
       queryClient.invalidateQueries({ queryKey: qk.meSurvival });
       // Story 3.3 — self-revival flips caller ACTIVE → defensively
       // invalidate the targets cache (which is keyed on the caller as
@@ -43,7 +51,12 @@ export function useSelfRevival(roomId: number) {
       // unavailable (WS down, listener race, etc.).
       queryClient.invalidateQueries({ queryKey: qk.roomPoints(roomId) });
     },
-    onError: (error) => {
+    onError: (error, source) => {
+      captureEvent("revival.failed", {
+        reason: error instanceof ApiError ? error.code : "NETWORK",
+        source,
+        roomId,
+      });
       if (error instanceof ApiError) {
         if (
           error.code === "ALREADY_REVIVED" ||

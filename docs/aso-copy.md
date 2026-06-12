@@ -23,9 +23,11 @@ The copy that ships to the consoles lives between the region markers below. The 
 scans **only** between the markers; everything outside them (rules, references, the
 named banned phrases) is documentation and is intentionally not scanned.
 
-Character limits are the App Store Connect / Google Play Console hard caps. The locked
-strings already fit; a future editor who changes a value **must re-verify the exact
-count in the console** before submission.
+Character limits are the App Store Connect / Google Play Console hard caps. The **iOS
+subtitle (≤30) and the Android short description (≤80) are separate store fields with
+different caps**, so they are locked as **separate values** below — do not reuse one
+string for both. The locked strings each fit their own field; a future editor who
+changes a value **must re-verify the exact count in the console** before submission.
 
 ### Korean (한국어) — KR storefront
 
@@ -34,7 +36,8 @@ count in the console** before submission.
 | Field | Limit | Locked value |
 |---|---|---|
 | App name / Title | 30 | `열살방: 함께 살아남는 그룹 습관` |
-| Subtitle (iOS) / Short description (Android) | 30 / 80 | `친구와 매일 약속을 지키고, 빠진 친구는 회생권으로 다시 살리는 그룹 습관 앱.` |
+| Subtitle (iOS) | 30 | `친구와 함께, 매일 끝까지` |
+| Short description (Android) | 80 | `친구와 매일 약속을 지키고, 빠진 친구는 회생권으로 다시 살리는 그룹 습관 앱.` |
 | Promotional text (iOS) | 170 | `혼자 지키기 어려운 약속도 친구와 함께라면 끝까지 갈 수 있어요. 빠진 친구는 회생권으로 다시 부르고, 우리 방의 포인트는 함께 쌓여요.` |
 | Keywords (iOS) | 100 | `습관,그룹습관,친구,루틴,약속,동기부여,함께,회생권,컴백,동료` |
 | Description (full) | 4000 | (KR block below) |
@@ -69,7 +72,8 @@ v1에서는 어떤 결제도 없습니다 — 살아남는 것 자체가 우리�
 | Field | Limit | Locked value |
 |---|---|---|
 | App name / Title | 30 | `Yeolsal: Survive Together` |
-| Subtitle (iOS) / Short description (Android) | 30 / 80 | `Keep daily promises with friends. Miss a day? A comeback pass brings you back.` |
+| Subtitle (iOS) | 30 | `Survive habits with friends` |
+| Short description (Android) | 80 | `Keep daily promises with friends. Miss a day? A comeback pass brings you back.` |
 | Promotional text (iOS) | 170 | `Promises are hard to keep alone. With friends, you go all the way. Bring someone back with a comeback pass, and watch your room's shared pool grow together.` |
 | Keywords (iOS) | 100 | `habit,group habit,friends,routine,accountability,together,comeback,daily,streak,wellness` |
 | Description (full) | 4000 | (EN block below) |

@@ -21,6 +21,7 @@ import {
   type KudosDto,
   type SendKudosRequest,
 } from "../../../api/kudos";
+import { captureEvent } from "../../analytics";
 import { qk } from "../keys";
 
 export function useSendKudos(roomId: number) {
@@ -28,6 +29,8 @@ export function useSendKudos(roomId: number) {
   return useMutation<KudosDto, ApiError, SendKudosRequest>({
     mutationFn: (body) => postKudos(roomId, body),
     onSuccess: () => {
+      // Analytics — donor-side terminal event of the revival/kudos funnel.
+      captureEvent("kudos.sent", { roomId });
       // The KUDOS row appears via cache refresh; the realtime frame on
       // /topic/rooms.{id}.kudos is non-load-bearing for this surface.
       queryClient.invalidateQueries({ queryKey: qk.roomMessages(roomId) });

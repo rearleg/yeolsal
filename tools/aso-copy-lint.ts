@@ -46,6 +46,15 @@ interface CopyRegions {
   readonly full: string;
   readonly kr: string;
   readonly en: string;
+  // Marker-derived content-start indices into `full`, so callers report
+  // file-true positions without relocating the region via `indexOf`.
+  readonly krOffset: number;
+  readonly enOffset: number;
+}
+
+interface ExtractedRegion {
+  readonly text: string;
+  readonly offset: number;
 }
 
 function locate(content: string, index: number): { line: number; column: number } {
@@ -62,19 +71,49 @@ function locate(content: string, index: number): { line: number; column: number 
   return { line, column };
 }
 
-function extractRegion(full: string, name: "kr" | "en"): string {
+function countOccurrences(haystack: string, needle: string): number {
+  let count = 0;
+  let from = haystack.indexOf(needle);
+  while (from >= 0) {
+    count += 1;
+    from = haystack.indexOf(needle, from + needle.length);
+  }
+  return count;
+}
+
+function extractRegion(full: string, name: "kr" | "en"): ExtractedRegion {
+  const upper = name.toUpperCase();
   const startMarker = `<!-- aso:copy:${name}:start -->`;
   const endMarker = `<!-- aso:copy:${name}:end -->`;
-  const start = full.indexOf(startMarker);
-  const end = full.indexOf(endMarker);
-  if (start < 0 || end < 0 || end < start) {
+  const startCount = countOccurrences(full, startMarker);
+  const endCount = countOccurrences(full, endMarker);
+  if (startCount === 0 || endCount === 0) {
     throw new Error(
-      `[aso-copy-lint] ${ASO_DOC_REL} is missing the ${name.toUpperCase()} copy-region ` +
+      `[aso-copy-lint] ${ASO_DOC_REL} is missing the ${upper} copy-region ` +
         `marker pair (${startMarker} … ${endMarker}); the lint cannot scan storefront ` +
         "copy without it.",
     );
   }
-  return full.slice(start + startMarker.length, end);
+  // Reject duplicate markers: a second pair makes region boundaries ambiguous
+  // and would silently scan only the first slice.
+  if (startCount > 1 || endCount > 1) {
+    throw new Error(
+      `[aso-copy-lint] ${ASO_DOC_REL} has duplicate ${upper} copy-region markers ` +
+        `(${startCount} start, ${endCount} end); each marker must appear exactly once.`,
+    );
+  }
+  const start = full.indexOf(startMarker);
+  const end = full.indexOf(endMarker);
+  // Reject out-of-order / overlapping markers (end before start, or the end
+  // marker sitting inside the start marker text).
+  if (end < start + startMarker.length) {
+    throw new Error(
+      `[aso-copy-lint] ${ASO_DOC_REL} has out-of-order ${upper} copy-region markers ` +
+        "(the end marker precedes or overlaps the start marker).",
+    );
+  }
+  const offset = start + startMarker.length;
+  return { text: full.slice(offset, end), offset };
 }
 
 export function loadCopyRegions(path: string = ASO_DOC_PATH): CopyRegions {
@@ -87,17 +126,21 @@ export function loadCopyRegions(path: string = ASO_DOC_PATH): CopyRegions {
         "This file is the locked storefront copy (Story 8.3 AC1); the lint has no fallback.",
     );
   }
+  const kr = extractRegion(full, "kr");
+  const en = extractRegion(full, "en");
   return {
     full,
-    kr: extractRegion(full, "kr"),
-    en: extractRegion(full, "en"),
+    kr: kr.text,
+    en: en.text,
+    krOffset: kr.offset,
+    enOffset: en.offset,
   };
 }
 
-// Map a hit at `index` within `region` to a file-true line:column. When the
-// region is a substring of `full` (the live-doc case), positions are reported
-// against the whole file; synthetic test strings (region not in `full`) fall
-// back to locating within the region itself.
+// Fallback locator for synthetic test strings (no marker-derived offset
+// available): when `region` is a substring of `full`, positions are reported
+// against the whole file; otherwise they fall back to the region itself. The
+// live tool path passes authoritative `offsets` instead (see `lintRegions`).
 function regionBase(full: string, region: string): { base: string; offset: number } {
   const idx = full.indexOf(region);
   if (idx >= 0) return { base: full, offset: idx };
@@ -109,11 +152,15 @@ export function lintRegions(
   en: string,
   full: string,
   avoidLexicon: readonly string[],
+  offsets?: { readonly kr: number; readonly en: number },
 ): AsoWarning[] {
   const warnings: AsoWarning[] = [];
   const enLower = en.toLowerCase();
-  const krBase = regionBase(full, kr);
-  const enBase = regionBase(full, en);
+  // Prefer the marker-derived offsets from `loadCopyRegions` (authoritative,
+  // duplicate-safe); fall back to `indexOf` relocation only for synthetic
+  // test regions that carry no offset.
+  const krBase = offsets ? { base: full, offset: offsets.kr } : regionBase(full, kr);
+  const enBase = offsets ? { base: full, offset: offsets.en } : regionBase(full, en);
 
   // EN — banned noun phrases (case-insensitive).
   for (const phrase of BANNED_EN) {
@@ -175,12 +222,14 @@ export function lintRegions(
   return warnings;
 }
 
-function formatWarning(w: AsoWarning): string {
-  return `[WARN] ${ASO_DOC_REL}:${w.line}:${w.column} — ${w.message}`;
+function formatWarning(w: AsoWarning, rel: string = ASO_DOC_REL): string {
+  return `[WARN] ${rel}:${w.line}:${w.column} — ${w.message}`;
 }
 
 function main(argv: readonly string[]): number {
   const arg0 = argv[0];
+  // Report the path the caller actually passed, not the hardcoded default.
+  const displayPath = arg0 ?? ASO_DOC_REL;
   let regions: CopyRegions;
   try {
     regions = loadCopyRegions(arg0 ? resolve(process.cwd(), arg0) : ASO_DOC_PATH);
@@ -188,12 +237,15 @@ function main(argv: readonly string[]): number {
     console.error(String(err));
     return 1;
   }
-  const warnings = lintRegions(regions.kr, regions.en, regions.full, AVOID_LEXICON);
+  const warnings = lintRegions(regions.kr, regions.en, regions.full, AVOID_LEXICON, {
+    kr: regions.krOffset,
+    en: regions.enOffset,
+  });
   for (const w of warnings) {
-    console.log(formatWarning(w));
+    console.log(formatWarning(w, displayPath));
   }
   console.log(
-    `[aso-copy-lint] scanned ${ASO_DOC_REL} (KR + EN regions): ${warnings.length} warning(s).`,
+    `[aso-copy-lint] scanned ${displayPath} (KR + EN regions): ${warnings.length} warning(s).`,
   );
   return 0;
 }
