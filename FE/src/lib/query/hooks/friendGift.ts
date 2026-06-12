@@ -22,6 +22,7 @@ import {
   type FriendGiftRevivalDto,
   type HasGivenFriendGiftDto,
 } from "../../../api/friendGifts";
+import { captureEvent } from "../../analytics";
 import { qk } from "../keys";
 
 const STALE_TIME_MS = 30_000;
@@ -39,7 +40,15 @@ export function useSendFriendGift(roomId: number) {
   return useMutation<FriendGiftRevivalDto, ApiError, SendFriendGiftVars>({
     mutationFn: ({ targetUserId, sourceSubtype }) =>
       postFriendGift(roomId, targetUserId, sourceSubtype),
-    onSuccess: () => {
+    onSuccess: (_data, { sourceSubtype }) => {
+      // Analytics — friend-gift conversion funnel terminal event. The
+      // modal_opened / push.* steps are UI-lifecycle events owned by the
+      // FriendGiftModal surface; this hook emits the completed conversion.
+      captureEvent("friend_gift.modal_closed", {
+        outcome: "revival_sent",
+        sourceSubtype: sourceSubtype ?? "PUSH_INITIATED",
+        roomId,
+      });
       // Receiver's status flips ACTIVE + giver's balance drops 5 + room
       // pool gains 5 — all three propagate via the meSurvival cache.
       queryClient.invalidateQueries({ queryKey: qk.meSurvival });

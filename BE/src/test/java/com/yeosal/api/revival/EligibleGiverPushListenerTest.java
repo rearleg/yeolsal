@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.yeosal.api.analytics.AnalyticsService;
 import com.yeosal.api.notification.NotificationKind;
 import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.survival.SurvivalStateRepository;
@@ -57,6 +58,7 @@ class EligibleGiverPushListenerTest {
     @Mock private UserRepository users;
     @Mock private SurvivalStateRepository survivalStates;
     @Mock private NotificationService notificationService;
+    @Mock private AnalyticsService analyticsService;
 
     private EligibleGiverPushListener listener;
     private User receiver;
@@ -64,7 +66,7 @@ class EligibleGiverPushListenerTest {
     @BeforeEach
     void setUp() {
         listener = new EligibleGiverPushListener(
-                eligibilityQuery, users, survivalStates, notificationService);
+                eligibilityQuery, users, survivalStates, notificationService, analyticsService);
         receiver = makeUser(RECEIVER_ID, "receiver@example.com", "수진");
         when(users.findById(RECEIVER_ID)).thenReturn(Optional.of(receiver));
     }
@@ -93,6 +95,10 @@ class EligibleGiverPushListenerTest {
 
         assertThat(userCap.getAllValues()).containsExactly(g1, g2, g3);
         assertThat(keyCap.getAllValues()).allMatch(k -> k.equals(EXPECTED_KEY));
+
+        // Analytics — one friend_gift.push_sent per giver who received the prompt.
+        verify(analyticsService, times(3)).capture(
+                any(String.class), eq("friend_gift.push_sent"), any());
     }
 
     @Test

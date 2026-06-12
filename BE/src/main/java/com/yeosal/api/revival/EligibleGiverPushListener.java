@@ -1,5 +1,6 @@
 package com.yeosal.api.revival;
 
+import com.yeosal.api.analytics.AnalyticsService;
 import com.yeosal.api.notification.NotificationKind;
 import com.yeosal.api.notification.NotificationService;
 import com.yeosal.api.survival.SurvivalStateRepository;
@@ -9,6 +10,7 @@ import com.yeosal.api.user.User;
 import com.yeosal.api.user.UserRepository;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -60,16 +62,19 @@ public class EligibleGiverPushListener {
     private final UserRepository users;
     private final SurvivalStateRepository survivalStates;
     private final NotificationService notificationService;
+    private final AnalyticsService analyticsService;
 
     public EligibleGiverPushListener(
             FriendGiftEligibilityQuery eligibilityQuery,
             UserRepository users,
             SurvivalStateRepository survivalStates,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            AnalyticsService analyticsService) {
         this.eligibilityQuery = eligibilityQuery;
         this.users = users;
         this.survivalStates = survivalStates;
         this.notificationService = notificationService;
+        this.analyticsService = analyticsService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -125,6 +130,14 @@ public class EligibleGiverPushListener {
                         title,
                         PUSH_BODY,
                         Duration.ZERO);
+                // Analytics — friend-gift conversion funnel, BE-emitted leg
+                // (docs/analytics.md: friend_gift.push_sent is a server-side
+                // event the FE cannot see). distinctId is the giver who
+                // receives the prompt. capture() is swallow-safe by contract.
+                analyticsService.capture(
+                        String.valueOf(giver.getId()),
+                        "friend_gift.push_sent",
+                        Map.of("roomId", roomId, "receiverUserId", receiverUserId));
             } catch (RuntimeException ex) {
                 log.warn(
                         "[friend-gift-push] sendEvent failed giverUserId={} receiverUserId={} roomId={}: {}",

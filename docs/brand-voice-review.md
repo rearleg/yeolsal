@@ -214,11 +214,33 @@ Frozen 2026-05-11 (epics.md:1081):
 These are GitHub repo settings that **cannot** be fully committed as files. Do them after this story
 merges, or the workflow and CODEOWNERS only report/request review without blocking merge.
 
+> **Status (v1 — solo build): DEFERRED, not enforced.** Both `.github/CODEOWNERS` slots are
+> `@rearleg` and the role variables are unset, so the gate currently only *requests/reports* — it
+> does not block a merge. A genuine joint gate requires two **distinct** GitHub accounts (a PM and a
+> designer); the workflow enforces disjoint role lists and two distinct approvals by design, so a
+> single account cannot satisfy it. Activate with the commands below once those accounts exist.
+> Tracked in the Epic 8 retrospective (`_bmad-output/implementation-artifacts/epic-8-retro-2026-06-12.md`, L3).
+
 1. **Configure distinct role accounts.**
    - Replace the `@rearleg` placeholders in `.github/CODEOWNERS` with the real reviewer accounts.
    - In Settings → Secrets and variables → Actions → Variables, set
      `BRAND_VOICE_PM_REVIEWERS` and `BRAND_VOICE_DESIGNER_REVIEWERS` to disjoint,
      comma-separated GitHub logins. The workflow rejects overlapping role lists.
+
+   **Activation commands** (run once distinct PM + designer accounts exist; steps 2–3 need repo-admin):
+
+   ```bash
+   # 1. Disjoint role reviewer lists (replace the logins with the real accounts):
+   gh variable set BRAND_VOICE_PM_REVIEWERS --body "pm-login"
+   gh variable set BRAND_VOICE_DESIGNER_REVIEWERS --body "designer-login"
+
+   # 2. Require the gate check on `main` (branch ruleset) — repo-admin, GitHub UI:
+   #    Settings → Rules → Rulesets → New branch ruleset → target `main`,
+   #    require status check: "Brand-voice release gate / PM + designer brand-voice approval".
+
+   # 3. Restrict `v*` tags (tag ruleset) — repo-admin, GitHub UI:
+   #    Settings → Rules → Rulesets → New tag ruleset → target `v*`.
+   ```
 2. **Protect release PR merges to `main`.**
    - GitHub UI: Settings → Rules → Rulesets → New branch ruleset; target `main`.
    - Require a pull request, dismiss stale approvals, block force pushes/deletions, and require the
@@ -240,9 +262,10 @@ merges, or the workflow and CODEOWNERS only report/request review without blocki
       designer approval; wait for the required workflow to pass;
    6. merge, then create the protected `v<x.y.z>` tag from that merge commit.
 
-Configuring branch protection is a human action — no committed file can enable it, and this gate
-ships no `gh` call (it is documented, like Story 8.3's screenshot upload and Story 1.4's prod
-migration).
+Configuring branch protection is a human action — no committed file can enable it. The `gh variable
+set` lines above are provided as a convenience for the reviewer-list step, but enabling the branch
+and tag rulesets still requires repo-admin in the GitHub UI (like Story 8.3's screenshot upload and
+Story 1.4's prod migration). Until that is done, the gate is documented but **not enforced**.
 
 ---
 

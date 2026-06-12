@@ -1,10 +1,9 @@
-// Story 8.3 AC9 — aso-copy-lint helper tests.
-// Uses node:test like the brand-voice + analytics-taxonomy tools tests.
-// Imports the tool extensionless so this file adds 0 new TS5097 errors
-// (the pre-existing 3 are the accepted Story 8.2 baseline).
+// Tests for the ASO copy lint helper (node:test).
+// Imports the tool extensionless to avoid adding new TS5097 errors under the
+// tools tsconfig (no allowImportingTsExtensions).
 
 import { test } from "node:test";
-import { strict as assert } from "node:assert";
+import { strict as assert } from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -86,4 +85,41 @@ test("case 8: AVOID lexicon parity — lint reuses brand-voice-lint's lexicon (n
   assert.equal(__testing.AVOID_LEXICON.length, 8);
   // Same array reference proves literal reuse, not a copy.
   assert.equal(__testing.AVOID_LEXICON, brandVoice.AVOID_LEXICON);
+});
+
+test("case 9: duplicate kr markers → loadCopyRegions throws (ambiguous boundaries)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "yeosal-aso-"));
+  const path = join(dir, "aso-copy.md");
+  writeFileSync(
+    path,
+    "<!-- aso:copy:kr:start -->\n회생권\n<!-- aso:copy:kr:end -->\n" +
+      "<!-- aso:copy:kr:start -->\n회생권\n<!-- aso:copy:kr:end -->\n" +
+      "<!-- aso:copy:en:start -->\ncomeback pass\n<!-- aso:copy:en:end -->\n",
+    "utf8",
+  );
+  assert.throws(() => loadCopyRegions(path), /duplicate/i);
+});
+
+test("case 10: out-of-order kr markers (end before start) → loadCopyRegions throws", () => {
+  const dir = mkdtempSync(join(tmpdir(), "yeosal-aso-"));
+  const path = join(dir, "aso-copy.md");
+  writeFileSync(
+    path,
+    "<!-- aso:copy:kr:end -->\n회생권\n<!-- aso:copy:kr:start -->\n" +
+      "<!-- aso:copy:en:start -->\ncomeback pass\n<!-- aso:copy:en:end -->\n",
+    "utf8",
+  );
+  assert.throws(() => loadCopyRegions(path), /out-of-order/i);
+});
+
+test("case 11: formatWarning reports the caller-supplied path (not the hardcoded default)", () => {
+  const w = {
+    rule: "REQUIRED_EN" as const,
+    line: 3,
+    column: 1,
+    term: __testing.REQUIRED_EN,
+    message: `EN storefront copy must use '${__testing.REQUIRED_EN}'.`,
+  };
+  assert.match(__testing.formatWarning(w, "docs/custom-aso.md"), /docs\/custom-aso\.md:3:1/);
+  assert.match(__testing.formatWarning(w), /docs\/aso-copy\.md:3:1/);
 });
